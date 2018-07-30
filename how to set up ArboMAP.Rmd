@@ -134,7 +134,7 @@ knitr::include_graphics('pictures for setup document/google earth tasks.PNG')
 
 Name the task \"historicaldownload\" and name the file \"historicaldownload\" - note that there are no spaces. Click on "Run" in this window in the Tasks tab. If the Tasks tab is not visible, remember to pull down the bar directly above the map.
 
-```{r echo=FALSE, out.width='50%'}
+```{r echo=FALSE, out.width='40%'}
 knitr::include_graphics('pictures for setup document/google earth naming task.PNG')
 ```
 
@@ -254,6 +254,13 @@ Below we show the estimates of the MIGR per year, per stratum. If the line is ab
 knitr::include_graphics('pictures for setup document/mosquito infection rates.PNG')
 ```
 
+Note that the MIGR is a single number, derived from a model that fits all of a year's mosquito infection data. Below, we show observations from 2018 (red dots), along with the curve that best fits these data (red), and samples from two other years, 2012 (blue) and 2017 (blue, dashed). The faster this line rises, the higher the MIGR, and the higher the risk.
+
+```{r echo=FALSE, out.width='60%'}
+knitr::include_graphics('pictures for setup document/mosqinfectgrowthrates.PNG')
+```
+
+
 ### \ \ \ \ \  Multi-year WNV forecasting chart
 
 Next are the model outputs. For each week of a year, the model estimates what proportion of counties will report at least one human case based on fit to historical data. This is displayed first on a statewide basis - red are estimates and black are observations. For the year in which you're making predictions, observed (black) should be constantly zero. Red should fit historical observations reasonably well - if there are major deviations, then it is likely that some data, probably the human or mosquito data, are in the wrong format.
@@ -290,8 +297,6 @@ Combining the two maps above, we conclude that it's still early in the season an
 
 # Troubleshooting
 
-Fortunately, most errors in compiling the Rmd file will be associated with a line number that tells you, roughly, where to look for the error.
-
 ## Filenames and unrecognized escapes
 
 The most common error will be an error in filenames. If you are told that a file is not found, it is likely that you have not correctly told the Rmd file where to look. Another common error with filenames concerns the slashes: if you see something like the following, then it is because you have used a single \\, which is not acceptable, instead of \\\\ or / in your filename. Note that we have written "d:\\work" rather than "d:\\\\work" or \"d:/work\".
@@ -306,9 +311,7 @@ Unfortunately, if the Rmd file refuses to produce estimates (e.g. the red line i
 
 ## Bad estimates
 
-This is usually because of bad mosquito infection data. You will want to carefully check the mosquito infection data to ensure they are in the correct format. You will often be able to see this on the graph of the mosquito infection growth rate - a year in the past will dip down to very low levels of infection, but this does not seem historically accurate.
-
-Another problem can occur if you enter county names incorrectly. If the data tell the program that a case occurs in a county that does not exist, then this case will not be counted, and a county's risk will be artificially low. If this happens with enough counties (e.g. if every county is followed by a space in the data file) then a whole year's risk will be 0.
+This is usually because of bad mosquito infection data. You will want to carefully check the mosquito infection data to ensure they are in the correct format. You will often be able to see this on the graph of the mosquito infection growth rate - a year in the past will dip down to very low levels of infection, but this does not seem historically accurate. Another problem can occur if you enter county names incorrectly. If the data tell the program that a case occurs in a county that does not exist, then this case will not be counted, and a county's risk will be artificially low. If this happens with enough counties (e.g. if every county is followed by a space in the data file) then a whole year's risk will be 0.
 
 # Relevant scientific papers
 

@@ -514,7 +514,8 @@ thisyeardot <- group_by(thisyeardot, rounddoy)
 thisyeardot <- dplyr::summarize(thisyeardot,
                       meanpos = mean(wnv_result, na.rm=TRUE),
                       meandoy = mean(doy, na.rm=TRUE))
-ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year), color="grey", alpha=0.5) +
+thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
+                                                 color="grey", alpha=0.5) +
   geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
   geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
   geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
@@ -524,7 +525,14 @@ ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group
         panel.grid.minor = element_blank(),
         panel.background = element_blank(),
         axis.line = element_line(colour = "black"))
+plot(thisplot)
 ```
+```{r include=FALSE, echo=FALSE}
+ggsave(paste(graphicoutputdir,
+             "mosqinfectgrowthrates.png",
+             sep=""), thisplot)
+```
+
 
 ## Human data
 
