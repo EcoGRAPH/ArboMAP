@@ -49,11 +49,11 @@ for (package in packages) {
 ```{r setoptions, include=FALSE, echo=FALSE}
 
 # where do we want the outputs?
-graphicoutputdir <- "D:\\work\\git\\WNV\\packaged WNV\\graphical outputs\\"
-fullcasematoutputdir <- "D:\\work\\git\\WNV\\packaged WNV\\case matrix with estimates\\"
+graphicoutputdir <- ".\\graphical outputs\\"
+fullcasematoutputdir <- ".\\case matrix with estimates\\"
 
 # where are the human data located?
-humandatafile <- "D:\\work\\git\\WNV\\packaged WNV\\human\\17-11-16 - reconciled human WNV.csv"
+humandatafile <- ".\\human case data\\simulated human case data.csv"
 
 # what is the date of the last human case we're willing to believe?
 # probably, cut this off at the end of last year
@@ -61,22 +61,22 @@ humandatafile <- "D:\\work\\git\\WNV\\packaged WNV\\human\\17-11-16 - reconciled
 maxobservedhumandate <- as.Date("2017-12-31", "%Y-%m-%d")
 
 # which week are we producing the graphs for?
-weekinquestion <- as.Date("2018-07-29", "%Y-%m-%d")
+weekinquestion <- as.Date("2018-08-05", "%Y-%m-%d")
 
 # where are the gridmet csv files stored?
-gridmetpathstr <- "D:\\work\\git\\WNV\\packaged WNV\\gridMet\\"
+gridmetpathstr <- ".\\gridMet\\"
 # what is the name of the summary file to be created?
 gridmetsummaryfile <- "gridmet internal summary.csv"
 
 # where are the mosquito test files located?
-acttestfile <- "D:\\work\\git\\WNV\\packaged WNV\\mosquito\\active_testing.csv"
-arctestfile <- "D:\\work\\git\\WNV\\packaged WNV\\mosquito\\archive_testing.csv"
+acttestfile <- ".\\mosquito\\active_testing.csv"
+arctestfile <- ".\\mosquito\\archive_testing.csv"
 
 # which county stratification scheme are we using?
-stratafile <- "D:\\work\\git\\WNV\\packaged WNV\\strata\\17-04-20 - classified strata - classic.csv"
+stratafile <- ".\\strata\\17-04-20 - classified strata - classic.csv"
 
 # where is the countyshapefile
-countyshapefile <- "D:\\work\\git\\WNV\\packaged WNV\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
+countyshapefile <- ".\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
 
 # to which two other years do we want to compare the current year's predictions?
 compyear1 <- 2012
