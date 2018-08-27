@@ -51,8 +51,13 @@ for (package in packages) {
 # where do we want the outputs?
 graphicoutputdir <- ".\\graphical outputs\\"
 fullcasematoutputdir <- ".\\case matrix with estimates\\"
+mosqmatoutputdir <- ".\\mosquito matrix with estimates\\"
 
 # where are the human data located?
+# this is an example of where we happen to store our actual data
+#humandatafile <- "D:\\work\\git\\WNV\\packaged WNV\\human\\17-11-16 - reconciled human WNV.csv"
+
+# but this directs the program to use simulated human case data that come with ArboMAP
 humandatafile <- ".\\human case data\\simulated human case data.csv"
 
 # what is the date of the last human case we're willing to believe?
@@ -61,7 +66,7 @@ humandatafile <- ".\\human case data\\simulated human case data.csv"
 maxobservedhumandate <- as.Date("2017-12-31", "%Y-%m-%d")
 
 # which week are we producing the graphs for?
-weekinquestion <- as.Date("2018-08-05", "%Y-%m-%d")
+weekinquestion <- as.Date("2018-08-26", "%Y-%m-%d")
 
 # where are the gridmet csv files stored?
 gridmetpathstr <- ".\\gridMet\\"
@@ -69,14 +74,19 @@ gridmetpathstr <- ".\\gridMet\\"
 gridmetsummaryfile <- "gridmet internal summary.csv"
 
 # where are the mosquito test files located?
-acttestfile <- ".\\mosquito\\active_testing.csv"
-arctestfile <- ".\\mosquito\\archive_testing.csv"
+# this is an example of where we happen to store our actual mosquito data
+#acttestfile <- "D:\\work\\git\\WNV\\packaged WNV\\mosquito\\active_testing.csv"
+#arctestfile <- "D:\\work\\git\\WNV\\packaged WNV\\mosquito\\archive_testing.csv"
+
+# but this directs the program to use simulated mosquito data that come with ArboMAP
+acttestfile <- ".\\mosquito data\\simulated active_test.csv"
+arctestfile <- ".\\mosquito data\\simulated archive_test.csv"
 
 # which county stratification scheme are we using?
-stratafile <- ".\\strata\\17-04-20 - classified strata - classic.csv"
+stratafile <- "D:\\work\\git\\WNV\\packaged WNV\\strata\\17-04-20 - classified strata - classic.csv"
 
 # where is the countyshapefile
-countyshapefile <- ".\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
+countyshapefile <- "D:\\work\\git\\WNV\\packaged WNV\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
 
 # to which two other years do we want to compare the current year's predictions?
 compyear1 <- 2012
@@ -342,6 +352,11 @@ infectglm <- glmer(wnv_result ~ 1+dminus+
                     (0+dminus|strata:year),
                   family=binomial(),
                   data=wnv)
+
+wnv$est <- predict(infectglm, newdata=wnv, type="response")
+write.csv(x=wnv, file=paste(mosqmatoutputdir,
+                            "mosqmatrix.csv",
+                            sep=""))
 
 # predict random effects for all years
 # dminus cannot be set to simply 0 - we have to 
@@ -840,7 +855,8 @@ ggsave(paste(graphicoutputdir,
 ```
 
 ```{r echo=FALSE}
-write.csv(x=fullcasemat,
+write.csv(x=fullcasemat[c("county","weekstartdate",
+                          "anycases","totalcases", "est")],
           file=paste(fullcasematoutputdir, "case matrix.csv", sep=""))
 fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
 thisyear <- fullcasemat[fullcasemat$year == maxmosqyear,]
