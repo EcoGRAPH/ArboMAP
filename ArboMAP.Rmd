@@ -1,6 +1,6 @@
 ---
 title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
-author: "Summary of Model Outputs (v2.0)   \nJustin K. Davis and Michael C. Wimberly  \n(justin.k.davis@sdstate.edu, michael.wimberly@sdstate.edu)  \nGeospatial Sciences Center of Excellence, South Dakota State University"
+author: "Summary of Model Outputs (v2.0)   \nJustin K. Davis and Michael C. Wimberly  \n(justin.k.davis@sdstate.edu, michael.wimberly@sdstate.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
 date: "Updated `r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
 ---
@@ -252,11 +252,11 @@ wnv$weeknum  <- as.numeric(format(wnv$col_date, "%U"))
 wnv$species <- NULL
 
 # fix some of the bad county names, delete what we can't use
-wnv <- wnv[which(wnv$county %!in% c("doh",
-                                    "doh-withers",
-                                    "mitchell-carlson",
-                                    "unknown",
-                                    "")),]
+#wnv <- wnv[which(wnv$county %!in% c("doh",
+#                                    "doh-withers",
+#                                    "mitchell-carlson",
+#                                    "unknown",
+#                                    "")),]
 wnv$county <- factor(wnv$county)
 wnv$county <- droplevels(wnv$county)
 
@@ -337,10 +337,10 @@ randeffs$mosqinfect <- predict(infectglm, newdata=randeffs, allow.new.levels = T
 randeffs$stratayear <- paste(randeffs$strata, randeffs$year, sep=":")
 randeffs$adjmosqinfect <- randeffs$mosqinfect - mean(randeffs$mosqinfect,na.rm=TRUE)
 randeffs$stratum <- factor(randeffs$strata)
-levels(randeffs$stratum)[levels(randeffs$stratum)=="101"] <- "Prairie Couteau"
-levels(randeffs$stratum)[levels(randeffs$stratum)=="102"] <- "James River Valley"
-levels(randeffs$stratum)[levels(randeffs$stratum)=="103"] <- "Missouri Couteau"
-levels(randeffs$stratum)[levels(randeffs$stratum)=="104"] <- "Western SD"
+#levels(randeffs$stratum)[levels(randeffs$stratum)=="101"] <- "Prairie Couteau"
+#levels(randeffs$stratum)[levels(randeffs$stratum)=="102"] <- "James River Valley"
+#levels(randeffs$stratum)[levels(randeffs$stratum)=="103"] <- "Missouri Couteau"
+#levels(randeffs$stratum)[levels(randeffs$stratum)=="104"] <- "Western SD"
 thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect, group=stratum, color=stratum)) +
   geom_abline(slope=0, intercept=0, linetype=2) +
   scale_x_continuous(breaks=minmosqyear:maxmosqyear) +
@@ -368,7 +368,7 @@ human$creationdate <- as.Date(human$creationdate, "%m/%d/%Y")
 human$creationyear <- as.numeric(format(human$creationdate, "%Y"))
 human$creationmonth <- as.numeric(format(human$creationdate, "%m"))
 # simplify county names
-human$county[human$county == "Oglala Lakota County"] <- "Shannon County"
+#human$county[human$county == "Oglala Lakota County"] <- "Shannon County"
 human$county <- simplifynames(human$county)
 human$county <- factor(human$county)
 human$doy <- as.numeric(format(human$creationdate, "%j"))
@@ -443,10 +443,10 @@ projected_counties.df <- left_join(projected_counties.df, stratamapcsv,
                                    by="county")
 
 projected_counties.df$stratum <- factor(projected_counties.df$strata.x)
-levels(projected_counties.df$stratum)[levels(projected_counties.df$stratum)=="101"] <- "Prairie Couteau"
-levels(projected_counties.df$stratum)[levels(projected_counties.df$stratum)=="102"] <- "James River Valley"
-levels(projected_counties.df$stratum)[levels(projected_counties.df$stratum)=="103"] <- "Missouri Couteau"
-levels(projected_counties.df$stratum)[levels(projected_counties.df$stratum)=="104"] <- "Western SD"
+#levels(projected_counties.df$stratum)[levels(projected_counties.df$stratum)=="101"] <- "Prairie Couteau"
+#levels(projected_counties.df$stratum)[levels(projected_counties.df$stratum)=="102"] <- "James River Valley"
+#levels(projected_counties.df$stratum)[levels(projected_counties.df$stratum)=="103"] <- "Missouri Couteau"
+#levels(projected_counties.df$stratum)[levels(projected_counties.df$stratum)=="104"] <- "Western SD"
 ```
 ```{r stratmap2, include=TRUE, echo=FALSE, fig.width=7, fig.height=3}
 thisplot <- ggplot(projected_counties.df) +
