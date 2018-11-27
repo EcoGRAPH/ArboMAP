@@ -66,7 +66,7 @@ humandatafile <- ".\\human case data\\simulated human case data.csv"
 maxobservedhumandate <- as.Date("2017-12-31", "%Y-%m-%d")
 
 # which week are we producing the graphs for?
-weekinquestion <- as.Date("2018-08-26", "%Y-%m-%d")
+weekinquestion <- as.Date("2018-08-15", "%Y-%m-%d")
 
 # where are the gridmet csv files stored?
 gridmetpathstr <- ".\\gridMet\\"
@@ -177,7 +177,7 @@ meanvapd.y <- round(mean(tempdf$med_vpd.y, na.rm=TRUE), 1)
 
 Weather data from the gridMET data set range from `r min(gridmet$date, na.rm=TRUE)` to `r max(gridmet$date, na.rm=TRUE)`. Below are graphs of statewide daily averages of temperature and the vapor pressure deficit. The min/max/median for all years are in grey, and observations from this year are in red.
 
-Higher temperatures typically mean higher risk of WNV. Since the beginning of this year, the average statewide temperature in `r maxmosqyear` has been `r meantemp.y`$^{\circ}$C, compared to `r meantemp.x`$^{\circ}$C in all years. The vapor pressure deficit in `r maxmosqyear` has been `r meanvapd.x` kPa, compared to `r meanvapd.y` kPa in all years. Lower vapor pressure deficit typically means more risk of WNV, because there is more moisture in the air, which typically increases mosquito activity. 
+Higher temperatures typically mean higher risk of mosquito-borne infection. Since the beginning of this year, the average statewide temperature in `r maxmosqyear` has been `r meantemp.y`$^{\circ}$C, compared to `r meantemp.x`$^{\circ}$C in all years. The vapor pressure deficit in `r maxmosqyear` has been `r meanvapd.x` kPa, compared to `r meanvapd.y` kPa in all years. Lower vapor pressure deficit typically means more risk of infection, because there is more moisture in the air, which typically increases mosquito activity. 
 
 ```{r gridmetplots, fig.width=7, fig.height=5, echo=FALSE}
 plot1 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=med_tmeanc)) +
@@ -462,7 +462,7 @@ ggsave(paste(graphicoutputdir,
 
 ```
 
-The following graph shows the estimated growth of positive pools for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled pool positive rates; the actual statewide positive pool rate for `r maxmosqyear` is shown here on 10-day intervals with dots.
+The following graph shows the estimated growth of positive pools for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled pool positive rates; the actual statewide positive pool rate for `r maxmosqyear` is shown here by grouping observations nearby in time.
 
 ```{r mosqbymo, include=TRUE, echo=FALSE, fig.width=6, fig.height=3}
 mosqmopreds <- expand.grid(strata=unique(wnv$strata),
