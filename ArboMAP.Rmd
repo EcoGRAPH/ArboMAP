@@ -222,13 +222,7 @@ ggsave(paste(graphicoutputdir,
 
 ```{r mosquito, echo=FALSE} 
 
-mosqdat <- read.csv(mosqfile, stringsAsFactors=FALSE)
-names(mosqdat) <- c("county", "col_date","wnv_result","pool_size", "species")
-
-wnv <- mosqdat
-rm(mosqdat)
-
-#wnv <- bind_rows(arcmosq, actmosq)
+wnv <- read.csv(mosqfile, stringsAsFactors=FALSE)
 wnv$col_date <- as.Date(wnv$col_date, "%m/%d/%Y")
 wnv$year <- as.numeric(format(wnv$col_date, "%Y"))
 
