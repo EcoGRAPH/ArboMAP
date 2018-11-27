@@ -79,8 +79,8 @@ gridmetsummaryfile <- "gridmet internal summary.csv"
 #arctestfile <- "D:\\work\\git\\WNV\\packaged WNV\\mosquito\\archive_testing.csv"
 
 # but this directs the program to use simulated mosquito data that come with ArboMAP
-acttestfile <- ".\\mosquito data\\simulated active_test.csv"
-arctestfile <- ".\\mosquito data\\simulated archive_test.csv"
+#arctestfile <- ".\\mosquito data\\simulated archive_test.csv"
+mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
 
 # which county stratification scheme are we using?
 stratafile <- ".\\strata\\17-04-20 - classified strata - classic.csv"
@@ -231,30 +231,32 @@ ggsave(paste(graphicoutputdir,
 
 ```{r mosquito, echo=FALSE} 
 
-actmosq <- read.csv(acttestfile, stringsAsFactors=FALSE)
-arcmosq <- read.csv(arctestfile, stringsAsFactors=FALSE)
+mosqdat <- read.csv(mosqfile, stringsAsFactors=FALSE)
+names(mosqdat) <- c("county", "col_date","wnv_result","pool_size", "species")
 
-actmosq <- actmosq[c("Collection.Date","Species","County","WNV.Result","Number.in.Pool")]
-names(actmosq) <- c("col_date","species","county","wnv_result","pool_size")
+#actmosq <- read.csv(acttestfile, stringsAsFactors=FALSE)
+#arcmosq <- read.csv(arctestfile, stringsAsFactors=FALSE)
+#actmosq <- actmosq[c("Collection.Date","Species","County","WNV.Result","Number.in.Pool")]
+#names(actmosq) <- c("col_date","species","county","wnv_result","pool_size")
+#actmosq$wnv_result[actmosq$wnv_result == "Positive"] <- 1
+#actmosq$wnv_result[actmosq$wnv_result == "Negative"] <- 0
+#actmosq$wnv_result <- as.numeric(actmosq$wnv_result)
+#arcmosq <- arcmosq[c("Collection.Date","Species.Old","County","Trap","WNV.Result","Number.in.Pool")]
+#names(arcmosq) <- c("col_date","species","county","trap","wnv_result","pool_size")
+# # fix some of the counties in 2016, 2017
+# arcmosq$date <- as.Date(arcmosq$col_date, "%m/%d/%Y")
+# arcmosq$year <- as.numeric(format(arcmosq$date, "%Y"))
+# arcmosq <- arcmosq[!is.na(arcmosq$year),]
+# arcmosq$county[arcmosq$year == 2017] <- arcmosq$trap[arcmosq$year == 2017]
+# arcmosq$county[arcmosq$year == 2016] <- arcmosq$trap[arcmosq$year == 2016]
+# arcmosq$year <- NULL
+# arcmosq$date <- NULL
+# arcmosq$trap <- NULL
 
-actmosq$wnv_result[actmosq$wnv_result == "Positive"] <- 1
-actmosq$wnv_result[actmosq$wnv_result == "Negative"] <- 0
-actmosq$wnv_result <- as.numeric(actmosq$wnv_result)
+wnv <- mosqdat
+rm(mosqdat)
 
-arcmosq <- arcmosq[c("Collection.Date","Species.Old","County","Trap","WNV.Result","Number.in.Pool")]
-names(arcmosq) <- c("col_date","species","county","trap","wnv_result","pool_size")
-
-# fix some of the counties in 2016, 2017
-arcmosq$date <- as.Date(arcmosq$col_date, "%m/%d/%Y")
-arcmosq$year <- as.numeric(format(arcmosq$date, "%Y"))
-arcmosq <- arcmosq[!is.na(arcmosq$year),]
-arcmosq$county[arcmosq$year == 2017] <- arcmosq$trap[arcmosq$year == 2017]
-arcmosq$county[arcmosq$year == 2016] <- arcmosq$trap[arcmosq$year == 2016]
-arcmosq$year <- NULL
-arcmosq$date <- NULL
-arcmosq$trap <- NULL
-
-wnv <- bind_rows(arcmosq, actmosq)
+#wnv <- bind_rows(arcmosq, actmosq)
 wnv$col_date <- as.Date(wnv$col_date, "%m/%d/%Y")
 wnv$year <- as.numeric(format(wnv$col_date, "%Y"))
 
