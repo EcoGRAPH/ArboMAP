@@ -177,7 +177,7 @@ meanvapd.y <- round(mean(tempdf$med_vpd.y, na.rm=TRUE), 1)
 
 Weather data from the gridMET data set range from `r min(gridmet$date, na.rm=TRUE)` to `r max(gridmet$date, na.rm=TRUE)`. Below are graphs of statewide daily averages of temperature and the vapor pressure deficit. The min/max/median for all years are in grey, and observations from this year are in red.
 
-Higher temperatures typically mean higher risk of WNV. Since the beginning of this year, the average statewide temperature in `r maxmosqyear` has been `r meantemp.y`$^{\circ}$C, compared to `r meantemp.x`$^{\circ}$C in all years. The vapor pressure deficit in `r maxmosqyear` has been `r meanvapd.x` kPa, compared to `r meanvapd.y` kPa in all years. Lower vapor pressure deficit typically means more risk of WNV, because there is more moisture in the air, which increases mosquito activity. 
+Higher temperatures typically mean higher risk of WNV. Since the beginning of this year, the average statewide temperature in `r maxmosqyear` has been `r meantemp.y`$^{\circ}$C, compared to `r meantemp.x`$^{\circ}$C in all years. The vapor pressure deficit in `r maxmosqyear` has been `r meanvapd.x` kPa, compared to `r meanvapd.y` kPa in all years. Lower vapor pressure deficit typically means more risk of WNV, because there is more moisture in the air, which typically increases mosquito activity. 
 
 ```{r gridmetplots, fig.width=7, fig.height=5, echo=FALSE}
 plot1 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=med_tmeanc)) +
@@ -285,7 +285,7 @@ numpos <- wnvnumerator
 perpos <- 100*round(wnvnumerator/wnvdenominator, 3)
 ```
 
-There are `r nrow2` samples in the mosquito testing database. For `r maxmosqyear`, there are `r nrow3` tested pools, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season mosquito infection growth rate is shown below. Higher means that WNV is spreading more rapidly among mosquitoes, and more human cases should be expected. The regions are mapped below.
+There are `r nrow2` samples in the mosquito testing database. For `r maxmosqyear`, there are `r nrow3` tested pools, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season mosquito infection growth rate is shown below. Higher means that the virus is spreading more rapidly among mosquitoes, and more human cases should be expected. The regions are mapped below.
 
 ```{r mosquito2, fig.width=7, fig.height=3, echo=FALSE}
 # import county identifiers
@@ -337,10 +337,6 @@ randeffs$mosqinfect <- predict(infectglm, newdata=randeffs, allow.new.levels = T
 randeffs$stratayear <- paste(randeffs$strata, randeffs$year, sep=":")
 randeffs$adjmosqinfect <- randeffs$mosqinfect - mean(randeffs$mosqinfect,na.rm=TRUE)
 randeffs$stratum <- factor(randeffs$strata)
-#levels(randeffs$stratum)[levels(randeffs$stratum)=="101"] <- "Prairie Couteau"
-#levels(randeffs$stratum)[levels(randeffs$stratum)=="102"] <- "James River Valley"
-#levels(randeffs$stratum)[levels(randeffs$stratum)=="103"] <- "Missouri Couteau"
-#levels(randeffs$stratum)[levels(randeffs$stratum)=="104"] <- "Western SD"
 thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect, group=stratum, color=stratum)) +
   geom_abline(slope=0, intercept=0, linetype=2) +
   scale_x_continuous(breaks=minmosqyear:maxmosqyear) +
@@ -368,7 +364,6 @@ human$creationdate <- as.Date(human$creationdate, "%m/%d/%Y")
 human$creationyear <- as.numeric(format(human$creationdate, "%Y"))
 human$creationmonth <- as.numeric(format(human$creationdate, "%m"))
 # simplify county names
-#human$county[human$county == "Oglala Lakota County"] <- "Shannon County"
 human$county <- simplifynames(human$county)
 human$county <- factor(human$county)
 human$doy <- as.numeric(format(human$creationdate, "%j"))
@@ -443,10 +438,6 @@ projected_counties.df <- left_join(projected_counties.df, stratamapcsv,
                                    by="county")
 
 projected_counties.df$stratum <- factor(projected_counties.df$strata.x)
-#levels(projected_counties.df$stratum)[levels(projected_counties.df$stratum)=="101"] <- "Prairie Couteau"
-#levels(projected_counties.df$stratum)[levels(projected_counties.df$stratum)=="102"] <- "James River Valley"
-#levels(projected_counties.df$stratum)[levels(projected_counties.df$stratum)=="103"] <- "Missouri Couteau"
-#levels(projected_counties.df$stratum)[levels(projected_counties.df$stratum)=="104"] <- "Western SD"
 ```
 ```{r stratmap2, include=TRUE, echo=FALSE, fig.width=7, fig.height=3}
 thisplot <- ggplot(projected_counties.df) +
@@ -485,13 +476,11 @@ mosqmopreds <- group_by(mosqmopreds, dminus, year)
 mosqmopreds <- dplyr::summarize(mosqmopreds,
                          preds=mean(preds, na.rm=TRUE),
                          doy=mean(doy, na.rm=TRUE))
-#mosqmopreds$doy <- round(mosqmopreds$dminus + mean(wnv$doy, na.rm=TRUE), 0)
 thisyear1   <- mosqmopreds[mosqmopreds$year == maxmosqyear,]
 comparison1 <- mosqmopreds[mosqmopreds$year == compyear1,]
 comparison2 <- mosqmopreds[mosqmopreds$year == compyear2,]
 
 thisyeardot <- wnv[wnv$year == maxmosqyear,]
-#thisyeardot$rounddoy <- round_any(thisyeardot$doy, 10)
 thisyeardot$rounddoy <- cut2(thisyeardot$doy, g=6)
 thisyeardot <- group_by(thisyeardot, rounddoy)
 thisyeardot <- dplyr::summarize(thisyeardot,
@@ -503,7 +492,7 @@ thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=
   geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
   geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
   geom_point(data=thisyeardot, aes(x=meandoy, y=meanpos), color="red") +
-  xlab("day of the year") + ylab("Cx. tarsalis WNV pool positive rate") +
+  xlab("day of the year") + ylab("Mosquito pool positive rate") +
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         panel.background = element_blank(),
