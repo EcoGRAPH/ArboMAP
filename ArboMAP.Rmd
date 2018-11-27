@@ -55,7 +55,7 @@ mosqmatoutputdir <- ".\\mosquito matrix with estimates\\"
 
 # where are the human data located?
 # this is an example of where we happen to store our actual data
-#humandatafile <- "D:\\work\\git\\WNV\\packaged WNV\\human\\17-11-16 - reconciled human WNV.csv"
+#humandatafile <- ".\\human case data\\simulated human case data.csv"
 
 # but this directs the program to use simulated human case data that come with ArboMAP
 humandatafile <- ".\\human case data\\simulated human case data.csv"
@@ -83,10 +83,10 @@ acttestfile <- ".\\mosquito data\\simulated active_test.csv"
 arctestfile <- ".\\mosquito data\\simulated archive_test.csv"
 
 # which county stratification scheme are we using?
-stratafile <- "D:\\work\\git\\WNV\\packaged WNV\\strata\\17-04-20 - classified strata - classic.csv"
+stratafile <- ".\\strata\\17-04-20 - classified strata - classic.csv"
 
 # where is the countyshapefile
-countyshapefile <- "D:\\work\\git\\WNV\\packaged WNV\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
+countyshapefile <- ".\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
 
 # to which two other years do we want to compare the current year's predictions?
 compyear1 <- 2012
