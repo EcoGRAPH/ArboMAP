@@ -3,6 +3,7 @@ title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Born
 author: "User Guide Version (v2.0)  \nJustin K. Davis and Michael C. Wimberly  \n(justin.k.davis@sdstate.edu, michael.wimberly@sdstate.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
 date: "Updated `r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
+toc: true
 ---
 
 ```{r setup, include=FALSE}
@@ -14,15 +15,19 @@ options(warn=-1)
 
 ArboMAP is a set of code written primarily in R, used to model and predict cases of vector-borne disease. Here we consider human cases of the mosquito-born West Nile virus, but ArboMAP will likely work with any data set in which:
 
-* there are multiple (>3) years of infection data from years in which the pathogen can be considered endemic, after any introductory years in which the pathogen is probably exploiting naive populations and should not be considered typical
-* the disease has distinct transmission and quiescent seasons, including an initial, yearly exponential growth phase when the pathogen is beginning to spread after a period of no or few cases
+* there are multiple (>3) years of infection data from years in which the pathogen can be considered endemic, after any introductory years in which the pathogen is probably exploiting naive populations and should not be considered established
+* the disease has distinct transmission and quiescent seasons, including an initial, yearly exponential growth phase when the pathogen is beginning to spread after a period of few or no cases
 * there is reason to believe that incidence responds to measurable environmental indices, probably including temperature and some measure of moisture in the environment (e.g. precipitation or humidity)
 * cases of disease are assigned to areal units (states, counties, etc.) and cases are not too rare - every modeled unit should have at least one case over the period of study, as the model will assume an area is permanently immune if no cases have been observed there
-* some measure of pathogen in the vector is available; e.g. here we use the rate at which pools of mosquitoes test positive for the virus. 
+* some measure of pathogen in the environment is available; e.g. here we use the rate at which pools of mosquitoes test positive for the virus.
+
+In what follows we use the language of our West Nile virus studies (mosquitoes, counties, etc.) but the modeling approach does not rely on those details and any appropriate data set can be substituted.
+
+The ArboMAP user guide consists of four main sections. The first section describes how to install the necessary software needed to run the system. The second section describes the steps that need to be taken every year before the beginning of the WNV season to prepare for forecasting. The third section description the steps that need to be taken each time a new forecast is generated. The final section describes the outputs produces by ArboMAP and explains how to interpret the forecast charts and maps.
 
 # What you need to know about WNV and modeling
 
-West Nile virus (WNV) circulates primarily among mosquitoes and birds, but occasionally spills over into human or other hosts. In humans, the majority (~80%) of infections show no symptoms and are not diagnosed except perhaps accidentally during blood donation. Some small proportion of individuals will develop symptoms such as headache, fever, and rash, but in about 1 out of every 100 infected individuals, the disease becomes neuroinvasive and can cause debilitating illness and death.
+West Nile virus (WNV) in South Dakota is our example in this document. WNV circulates primarily among mosquitoes and birds, but occasionally spills over into human or other hosts. In humans, the majority (~80%) of infections show no symptoms and are not diagnosed except perhaps accidentally during blood donation. Some small proportion of individuals will develop symptoms such as headache, fever, and rash, but in about 1 out of every 100 infected individuals, the disease becomes neuroinvasive and can cause debilitating illness and death.
 
 WNV was first introduced to the US in 1999 on the east coast, after which it spread in a westward-moving wave across the US. The early years produced thousands of cases as WNV invaded new regions. Birds were immunologically naive, so the virus decimated entire avian populations and spilled over into humans in an outbreak that lasted several years in some states.
 
@@ -32,21 +37,17 @@ However, in 2012 there was another outbreak, with hundreds of cases in South Dak
 
 In fact, yes. Work by Dr. Michael Wimberly's research group has shown that a relatively simple statistical model, relying on weather and mosquito infection data, can be used to predict the risk of infection on a county-week basis. For more background, you will want to consult relevant journal articles, which are listed at the end of this document. In particular, the paper by Davis et al. (2018), published in Acta Tropica, provides details about the underlying statistical model.
 
-The ArboMAP system was developed to implement this modeling approach via a straightforward workflow. The system uses the R programming language and software environment for statistical computing and graphics along with Google Earth Engine for accessing environmental data. ArboMAP was originally developed to support WNV forecasting in South Dakota, and this guide therefore references specific data formats that are unique to this state. However, it should be straightforward to modify data from other locations into a similar format in order to use them in ArboMAP.
-
-The ArboMAP user guide consists of four main sections. The first section describes how to install the necessary software needed to run the system. The second section describes the steps that need to be taken every year before the beginning of the WNV season to prepare for forecasting. The third section description the steps that need to be taken each time a new forecast is generated. The final section describes the outputs produces by ArboMAP and explains how to interpret the forecast charts and maps.
-
 # Setting up for the initial run
 
 ## Some accounts you'll need
 
-To obtain mosquito infection data for South Dakota, you will need an account at **[mosquito.sdstate.edu](https://mosquito.sdstate.edu)**. This account will need to be set up by someone at SDSU. If you work for a mosquito control district or another state that collects these data, then you will be able to modify your CSV files to match what we require here, and the ArboMAP system should run in the same way.
+You will need some measure of pathogen in the environment; obtaining these data is usually a substantial undertaking requiring multiple locations and participants, so this will probably be stored in some central database requiring a login. Here, we use a website to which participants around the state add their mosquito infection data.
 
-Environmental data will be obtained from the gridMET dataset and downloaded using Google Earth Engine (GEE). GEE is a cloud-based platform for processing satellite remote sensing images and other geospatial datasets. Instead of downloading the data and processing it yourself, GEE uses cloud-based computers and algorithms to do in half an hour what might take a standard desktop computer a week to calculate.
+You will need some measure of the environment so that relationships between disease and environment can be modeled. Here we use the gridMET dataset, downloaded from Google Earth Engine (GEE). GEE is a cloud-based platform for processing satellite remote sensing images and other geospatial datasets. Instead of downloading the data and processing it yourself, GEE uses cloud-based computers and algorithms to do in half an hour what might take a standard desktop computer a week to calculate.
 
 To access GEE, you will first need a gmail account at **[mail.google.com](https://mail.google.com)**, so that you can access Google Drive documents at **[drive.google.com](https://drive.google.com)**. Next, visit GEE at **[earthengine.google.com](https://earthengine.google.com/)** and click on \"Sign Up\" to request an account. You receive confirmation at your gmail address, and any downloads of weather data will be stored in the Google Drive of the account.
 
-If you are associated with the South Dakota Department of Health (SDDOH), you should already have access to up-to-date human case data. If not, check with your group to determine whether there is a data-sharing agreement with the SDDOH. If you are implementing this workflow outside of South Dakota, then it will be up to the you to obtain local mosquito data and put it in the appropriate format.
+Finally, you will need outcome data, usually human cases. These data are probably best obtained by data-sharing agreements with a health department. Up-to-date case counts are not necessary - ArboMAP models the current year based on all previous years, and does not rely on case counts in the current year, which are in any case usually misleadingly low. The location of residence (or transmission) and the date of onset of symptoms (or diagnosis or detection) are required. The date of onset is rounded to week in this analysis and the location should be a larger areal unit (e.g. county) rather than a specific address.
 
 ## Some software you'll need
 
@@ -56,13 +57,13 @@ R (**[www.r-project.org](https://www.r-project.org/)**) is a statistical program
 
 It is easiest to download R from CRAN (**[cloud.r-project.org](https://cloud.r-project.org/)**). Click on the link for \"Download R for Windows.\" Choose \"base,\" then \"Download R for Windows.\" Run this file and install R on your system. Use the default settings for the installer.
 
-### \ \ \ \ \  RStudio
+### \ \ \ \ \ RStudio
 
 RStudio (**[www.rstudio.com](https://www.rstudio.com/)**) is a user-friendly GUI for the statistical programming language R that greatly simplifies a number of tasks for the programmer. Navigate to the site, click on Download, and choose the RStudio Desktop (Open Source License) - that is, the free version. Run the appropriate installer, very likely the Windows Vista/7/8/10 installer. 
 
 Run RStudio and close it at least once after you've installed MiKTeX as described in the next section. RStudio may not be able to find MiKTeX unless it's had a chance to search. 
 
-### \ \ \ \ \  MiKTeX
+### \ \ \ \ \ MiKTeX
 
 MiKTeX (**[www.miktex.org](https://www.miktex.org/)**) is an implementation of LaTeX, which is what allows us to automatically produce PDF reports at the end of all the calculations. Navigate to the site, click on Download -> Windows and then download and run the installer. Default options will suffice, but make one change: \"Install missing packages on-the-fly\" should be changed to \"yes.\" You will initially install an incomplete copy of MiKTeX, and it will be updated automatically whenever you run the code. This means that the first time you run the code, it might take quite a while.
 
@@ -120,7 +121,7 @@ knitr::include_graphics('pictures for setup document/files and settings in rmark
 
 ### \ \ \ \ \ Obtaining the gridMET data
 
-ArboMAP requires weather data to make its predictions. You will use Google Earth Engine (GEE) to download historical weather data beginning a full year before your human case data (e.g. if you begin modeling in 2001, you will need to download all data beginning in 2000). If you want to download all data, it will not hurt the calculations; simply begin in 1950). You will only need to download historical data once; every other time you run the program, you will only need to download the most recent year's weather data from GEE.
+ArboMAP requires weather data to make its predictions. You will use likely Google Earth Engine (GEE) to download historical weather data beginning a full year before your human case data (e.g. if you begin modeling in 2001, you will need to download all data beginning in 2000). If you want to download all data, it will not hurt the calculations; simply begin in 1950). You will only need to download historical data once; every other time you run the program, you will only need to download the most recent year's weather data from GEE.
 
 You will be given a link to code you can use to download the weather data. Once you click on this link and sign in to the Google account you used to sign up for Google Earth Engine, you should see a page like the following:
 
@@ -162,43 +163,34 @@ knitr::include_graphics('pictures for setup document/google earth gridmet direct
 
 Note that it doesn't matter how many times you download a date's weather data, as long as it appears at least once in the data. Every single one of these 2018 files contains weather data for 2018-01-01, for example. Additional measurements will not affect the predictions, and any data that are represented more than once are simplified before inclusion into the model.
 
+#### If you're not using GEE
+
+Although GEE is recommended for a variety of reasons, you might obtain your environmental data from elsewhere. Below is format expected of any CSV file that you might instead supply. Fips is a numerical code tying areal units (e.g. counties) to the measurements of the environment; here, this is the Federal Information Processing Standard that the US uses to identify counties. The "doy" indicates the day of the year (1-366). The remaining columns are measurements of environmental conditions. If your measurements are not daily (e.g. 7-day precipitation totals), they will need to be resampled to that temporal resolution.
+
+```{r echo=FALSE, out.width='60%'}
+knitr::include_graphics('pictures for setup document/whats inside gridmet data.PNG')
+```
+
 ### \ \ \ \ \ Obtaining the human case data
 
 You will only need to update the human case data file once at the beginning of each season. For example, to make WNV forecasts for 2018, the model is calibrated using human case data through the end of 2017, and 2018 case data are not incorporated until data are finalized after the end of the 2018 WNV season. Only two pieces of information are needed for every human case: a date and a county. The date is the symptom onset date (in the case of clinical cases) or the date of blood donation (in the case of viremic blood donors). The county is the patient's county of residence. Each row represents a single case.
 
-The CSV file you use should that contains the human case data should have a unique column named \"creationdate\" that is formatted MM/DD/YYYY, and a column named \"county\" that contains standard names for SD counties. Here, any of the following are acceptable: BROOKINGS, Brookings, brookings, Brookings County, BROOKINGS COUNTY, and they will all be reduced to \"brookings\" in the output.
+The CSV file you use should that contains the human case data should have a unique column named \"creationdate\" that is formatted MM/DD/YYYY, and a column named \"county\" that contains standard names for location of residence (or transmission, if available). The names of areal units are simplified by the code, so that any of the following are equivalent: BROOKINGS, Brookings, brookings, Brookings County, BROOKINGS COUNTY. These will all be reduced to \"brookings\" in the output.
 
-It does not matter which other columns are present, as long as each row contains at least these two values. Cases without either of these values will not be modeled. Below is an example of an acceptable (fake) data file. Note that other columns are present, but they are not used by ArboMAP.
+It does not matter which other columns are present, as long as each row contains at least these two values. We have randomly generated some human case data that resemble the trends observed in WNV in SD. The following picture shows the expected format.
 
 ```{r echo=FALSE, out.width='80%'}
 knitr::include_graphics('pictures for setup document/example of human case data.PNG')
 ```
 
-Save this file in its own directory. By default this is \"D:/ArboMAP/human/human case data.csv\".
+Save this file in its own directory. By default this is \"D:/ArboMAP/human/simulated human case data.csv\".
 
 **Do not include any human case data from the year you are modeling.** If you're making predictions for 2018, your model should be based on all human case data up to December 2017. If you include any human case data for 2018 - for example, if you know that there were a handful of cases already in mid-July 2018 and update the human case data file during the season - then the model will assume that human case data for 2018 are complete. This is almost certainly incorrect, since some cases are only reported weeks or months after diagnosis, and human case counts during the season will therefore underestimate the actual disease burden.
 
-### \ \ \ \ \ Obtaining the mosquito data
+### \ \ \ \ \ Formatting the vector infection data
 
-South Dakota users will be given a login for **[mosquito.sdstate.edu](http://mosquito.sdstate.edu)** by collaborators at SDSU. Log in and navigate to Mosquito Data. There are two databases to download - the active data view, which contains tested pools from the current year, and the archive data view, which contains tested pools from prior years.
+The measure of pathogen in the environment will probably be something like we use here, a list of 
 
-To download data from the current year, click on \"Testing Records\" under Active Data Views and scroll to the bottom of the page. There will be a small orange button labeled \"CSV.\" Click on this to download the mosquito infection data for this year. Save this file in the directory dedicated to the mosquito infection data with a name that indicates it is the active view; for example  \"D:/ArboMAP/mosquito/active_testing.csv\".
-
-```{r echo=FALSE, out.width='100%'}
-knitr::include_graphics('pictures for setup document/active_testing.PNG')
-```
-
-Note that this file must include a column named \"Collection Date\" in MM/DD/YYYY format, a \"Species\" column, a \"WNV Result\" column coded as Positive or Negative, a \"Trap\" location, and a \"County\" column. \"Trap\" is needed for backwards compatibility with earlier versions of the database.
-
-To download data from previous years, click on \"Testing Records\" under the Archive Data Views and scroll to the bottom of the page to find the CSV button. This can take a little longer to compile since it includes all past mosquito infection data. Save this file as \"D:/ArboMAP/mosquito/archive_testing.csv\".
-
-```{r echo=FALSE, out.width='100%'}
-knitr::include_graphics('pictures for setup document/archive_testing.PNG')
-```
-
-This file must include a column named \"WNV Result,\" which is either 0, which means a Negative pool, or 1, which means a Positive pool. There must be \"County,\" \"Trap,\" and \"Collection Date\" columns in MM/DD/YYYY format. There must be a \"Species.Old\" column. We only model mosquitoes labeled \"Culex tarsalis\".
-
-If you are downloading these files from the mosquito.sdstate.edu website rather than creating them on your own, these should be simple downloads. However, it is possible that something has changed in the format of the download, and we recommend that you check the formats of the files.
 
 ### \ \ \ \ \ A note on standardized place names
 
@@ -230,13 +222,13 @@ Use the process described above to log in to the SDMIS website. This time, howev
 
 You will be given a file called \"ArboMAP.Rmd\", which should be placed in \"D:/ArboMAP/\". This is an Rmarkdown file, which does all of the calculations of modeling and produces a PDF in the end to summarize the outputs. Open RStudio and open this file.
 
-### \ \ \ \ \  Running the code
+### \ \ \ \ \ Running the code
 
 **Open the Rmd file in RStudio, change the weekinquestion, and press ctrl+shift+K.** This will tell RStudio to compile the PDF. It should not take very long - on a slow laptop, modeling takes around 10 minutes at most. If it takes substantially longer than this, it is likely that there is an error somewhere in the data. At the end, you will see a PDF in the same directory as the Rmd file, and a number of graphics will be stored in the directory you requested.
 
 ## Interpreting the output
 
-### \ \ \ \ \  Weather data
+### \ \ \ \ \ Weather data
 
 Each forecasting run will generate a report containing a number of graphics to interpret; an example from 2018 is below. First, statewide mean daily temperature in the current year (red) is compared to the median (black) and max/min (grey) temperatures for all historical gridMet data that you are currently using. Higher temperatures are associated with more WNV, so red above black typically means more human cases. Higher temperature, more WNV.
 
@@ -250,7 +242,7 @@ The model of WNV for South Dakota also uses the vapor pressure deficit; an examp
 knitr::include_graphics('pictures for setup document/vapor pressure deficit.PNG')
 ```
 
-### \ \ \ \ \  Mosquito data
+### \ \ \ \ \ Mosquito data
 
 The model of WNV also summarizes the mosquito infection growth rate (MIGR) for multiple strata within the state. Every winter, the virus goes into hiding. In the early season, WNV begins replicating and spreading among birds and mosquitoes. The MIGR is a measure of how quickly that's occuring. We cannot estimate the MIGR for every county, but instead split the state into four strata, shown below, and estimate the MIGR within the strata. If the map does not resemble this, especially if the map is entirely grey, it's likely that the program cannot locate the strata file.
 
@@ -271,7 +263,7 @@ knitr::include_graphics('pictures for setup document/mosqinfectgrowthrates.PNG')
 ```
 
 
-### \ \ \ \ \  Multi-year WNV forecasting chart
+### \ \ \ \ \ Multi-year WNV forecasting chart
 
 Next are the model outputs. For each week of a year, the model estimates what proportion of counties will report at least one human case based on fit to historical data. This is displayed first on a statewide basis - red are estimates and black are observations. For the year in which you're making predictions, observed (black) should be constantly zero. Red should fit historical observations reasonably well - if there are major deviations, then it is likely that some data, probably the human or mosquito data, are in the wrong format.
 
@@ -279,7 +271,7 @@ Next are the model outputs. For each week of a year, the model estimates what pr
 knitr::include_graphics('pictures for setup document/predictions.PNG')
 ```
 
-### \ \ \ \ \  Current-year WNV forecasting chart
+### \ \ \ \ \ Current-year WNV forecasting chart
 
 Next are model outputs for the year you're estimating and the two years you've selected for comparison. We typically choose 2012, an outbreak year, and the year one before you're estimating (e.g. if you're estimating 2018, then we will also display 2017). Predictions for the forecasting week are in red, and the week in question begins at the red dot.
 
@@ -287,7 +279,7 @@ Next are model outputs for the year you're estimating and the two years you've s
 knitr::include_graphics('pictures for setup document/estimates.PNG')
 ```
 
-### \ \ \ \ \  Current-week WNV absolute risk map
+### \ \ \ \ \ Current-week WNV absolute risk map
 
 Next are the absolute probabilities of each county reporting at least one human case during the week in question. If the county is darkest blue, then the model says there is no probability of reporting a case during the week you've selected. This is often the case in the early or late seasons, especially in the lower-population counties. If a county is brightest red, then the model says the county will definitely report at least one human case this week.
 
@@ -295,7 +287,7 @@ Next are the absolute probabilities of each county reporting at least one human 
 knitr::include_graphics('pictures for setup document/map absolute.PNG')
 ```
 
-### \ \ \ \ \  Current-week WNV relative risk map
+### \ \ \ \ \ Current-week WNV relative risk map
 
 Next are the relative probabilities. A county in the early season may have low risk because the virus is not yet circulating, but is that lower or higher than usual, for that county, during that week of the year? Brookings County on May 15th 2018 will have low risk, but that risk may be higher than usual when compared to Brookings on May 15th in 2004-2017? If a county is red, this means that risk is predicted to be substantially higher than average in that county, during the week in question. If blue, then lower. If yellow, then average. It is important to remember that red and blue do not mean high or low absolute risk. They mean high*er* or low*er than usual*. A county that is lower than usual can still have many cases in a week; e.g. Brown County in early August can be lower than usual, but will still likely report cases.
 
