@@ -1,6 +1,6 @@
 ---
 title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
-author: "User Guide Version (v2.0)  \nJustin K. Davis and Michael C. Wimberly  \n(justin.k.davis@sdstate.edu, michael.wimberly@sdstate.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
+author: "User Guide (v2.0)  \nJustin K. Davis and Michael C. Wimberly  \n(justin.k.davis@sdstate.edu, michael.wimberly@sdstate.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
 date: "Updated `r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
 toc: true
@@ -15,10 +15,10 @@ options(warn=-1)
 
 ArboMAP is a set of code written primarily in R, used to model and predict cases of vector-borne disease. Here we consider human cases of the mosquito-born West Nile virus, but ArboMAP will likely work with any data set in which:
 
-* there are multiple (>3) years of infection data from years in which the pathogen can be considered endemic, after any introductory years in which the pathogen is probably exploiting naive populations and should not be considered established
+* there are multiple (>3) years of infection data from years in which the pathogen can be considered endemic, after any introductory years in which the pathogen is probably rapidly exploiting naive populations and should not yet be considered established
 * the disease has distinct transmission and quiescent seasons, including an initial, yearly exponential growth phase when the pathogen is beginning to spread after a period of few or no cases
 * there is reason to believe that incidence responds to measurable environmental indices, probably including temperature and some measure of moisture in the environment (e.g. precipitation or humidity)
-* cases of disease are assigned to areal units (states, counties, etc.) and cases are not too rare - every modeled unit should have at least one case over the period of study, as the model will assume an area is permanently immune if no cases have been observed there
+* cases of disease are assigned to areal units (states, counties, etc.) and cases are not too rare - every modeled spatialunit should have at least one case over the period of study, as the model will assume an area is permanently immune if no cases have been observed there
 * some measure of pathogen in the environment is available; e.g. here we use the rate at which pools of mosquitoes test positive for the virus.
 
 In what follows we use the language of our West Nile virus studies (mosquitoes, counties, etc.) but the modeling approach does not rely on those details and any appropriate data set can be substituted.
@@ -165,7 +165,7 @@ Note that it doesn't matter how many times you download a date's weather data, a
 
 #### If you're not using GEE
 
-Although GEE is recommended for a variety of reasons, you might obtain your environmental data from elsewhere. Below is format expected of any CSV file that you might instead supply. Fips is a numerical code tying areal units (e.g. counties) to the measurements of the environment; here, this is the Federal Information Processing Standard that the US uses to identify counties. The "doy" indicates the day of the year (1-366). The remaining columns are measurements of environmental conditions. If your measurements are not daily (e.g. 7-day precipitation totals), they will need to be resampled to that temporal resolution.
+Although GEE is recommended for a variety of reasons, you might obtain your environmental data from elsewhere. Below is format expected of any CSV file that you might instead supply. Fips is a numerical code tying areal units (e.g. counties) to the measurements of the environment; here, this is the Federal Information Processing Standard that the US uses to identify counties. You can use whichever unique identifier ties environment to county. The "doy" indicates the day of the year (1-366). The remaining columns are measurements of environmental conditions. If your measurements are not daily (e.g. 7-day precipitation totals), they will need to be resampled to that temporal resolution.
 
 ```{r echo=FALSE, out.width='60%'}
 knitr::include_graphics('pictures for setup document/whats inside gridmet data.PNG')
@@ -189,16 +189,17 @@ Save this file in its own directory. By default this is \"D:/ArboMAP/human/simul
 
 ### \ \ \ \ \ Formatting the vector infection data
 
-The measure of pathogen in the environment will probably be something like we use here, a list of 
+Here we use a list of tested mosquito pools to quantify the amount of pathogen present in the environment. All tests should be present in a single CSV file, with the following columns in the following formats. The pool_size and species columns can be replaced by 1 and "default" respectively, but should be present. The wnv_result column can be 0 for a negative test or 1 for a positive test. Save this file in its own directory. By default this is \"D:/ArboMAP/mosquito data/simulated mosquito tests.csv\".
 
+```{r echo=FALSE, out.width='80%'}
+knitr::include_graphics('pictures for setup document/example of mosquito test data.PNG')
+```
 
 ### \ \ \ \ \ A note on standardized place names
 
 ArboMAP was designed to model WNV on a county-week basis, but can work with any geographical unit as long as each area is assigned a unique, stable identifier. Ideally, you would like to work with something like the FIPS code, but here we've chosen to work with county names as that is how the data are usually delivered. This presents some difficulties, since these names are probably not completely standardized in your sources; e.g. some sources will list \"Brookings County\" while others will simply use \"Brookings\".
 
 ArboMAP reduces all names by deleting \"County\" and \"Parish\", removing all spaces from the county name, and putting the county name in lowercase. Therefore, \"BROOKINGS COUNTY\" becomes \"brookings\" and \"Charles Mix County\" becomes \"charlesmix\". This gives the greatest chance that all places will be recognized in all data sources. However, incorrect spellings and invalid date formats (e.g. DD/MM/YYYY instead of MM/DD/YYYY) cannot be fixed by the program and will result in errors.
-
-Note that in 2015, Shannon County, SD became Oglala Lakota County. There are similar changes in other states. You are welcome to use either name in the human case data file, but the output will use \"shannon\" for backwards compatibility. If the output is to be distributed to the public, this should be changed.
 
 # The typical run during the season
 
