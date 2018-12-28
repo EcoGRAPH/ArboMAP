@@ -13,12 +13,12 @@ options(warn=-1)
 
 # What you need to know about ArboMAP
 
-ArboMAP is a set of code written primarily in R, used to model and predict cases of vector-borne disease. Here we consider human cases of the mosquito-born West Nile virus, but ArboMAP will likely work with any data set in which:
+ArboMAP is a program used to model and predict cases of vector-borne disease. Here we consider human cases of the mosquito-born West Nile virus, but ArboMAP will likely work with any data set in which:
 
 * there are multiple (>3) years of infection data from years in which the pathogen can be considered endemic, after any introductory years in which the pathogen is probably rapidly exploiting naive populations and should not yet be considered established
-* the disease has distinct transmission and quiescent seasons, including an initial, yearly exponential growth phase when the pathogen is beginning to spread after a period of few or no cases
-* there is reason to believe that incidence responds to measurable environmental indices, probably including temperature and some measure of moisture in the environment (e.g. precipitation or humidity)
-* cases of disease are assigned to areal units (states, counties, etc.) and cases are not too rare - every modeled spatialunit should have at least one case over the period of study, as the model will assume an area is permanently immune if no cases have been observed there
+* the disease has distinct transmission and quiescent seasons, including an initial, yearly exponential growth phase when the pathogen is beginning to spread after a period of relatively few cases
+* there is reason to believe that incidence responds to measurable environmental indices, almost certainly including temperature and probably some measure of moisture in the environment (e.g. precipitation or humidity)
+* cases of disease are assigned to areal units (states, counties, etc.) and cases are not too rare - every modeled spatial unit should have at least one case over the period of study, as the model will assume an area is permanently immune if no cases have been observed there
 * some measure of pathogen in the environment is available; e.g. here we use the rate at which pools of mosquitoes test positive for the virus.
 
 In what follows we use the language of our West Nile virus studies (mosquitoes, counties, etc.) but the modeling approach does not rely on those details and any appropriate data set can be substituted.
