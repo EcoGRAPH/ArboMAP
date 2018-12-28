@@ -1,6 +1,6 @@
 ---
 title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
-author: "User Guide (v2.0)  \nJustin K. Davis and Michael C. Wimberly  \n(justin.k.davis@sdstate.edu, michael.wimberly@sdstate.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
+author: "User Guide (v2.0)  \nJustin K. Davis and Michael C. Wimberly  \n(justinkdavis@ou.edu, mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
 date: "Updated `r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
 toc: true
