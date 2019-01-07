@@ -1,0 +1,560 @@
+---
+title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
+author: "Variable Selection (v2.0)   \nJustin K. Davis and Michael C. Wimberly  \n(justinkdavis@ou.edu, mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
+date: "Updated `r format(Sys.time(), '%B %d, %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# define some helpful functions
+'%!in%' <- function(x,y)!('%in%'(x,y))
+round_any = function(x, accuracy, f=round){f(x/accuracy) * accuracy}
+options(warn=-1)
+```
+
+```{r namefunction, include=FALSE}
+simplifynames <- function(priornames=NULL) {
+
+  # convert to lower case
+  priornames <- tolower(priornames)
+  
+  # remove spaces
+  priornames <- sub(pattern=" ", replacement="", x=priornames, fixed=TRUE)
+  
+  # remove county and parish
+  priornames <- sub(pattern="county", replacement="", x=priornames, fixed=TRUE)
+  priornames <- sub(pattern="parish", replacement="", x=priornames, fixed=TRUE)
+
+  # return names
+  return(priornames)
+  
+}
+```
+
+```{r libraries, include=FALSE}
+packages <- c("reshape2", "ggplot2", "gridExtra",
+              "lme4","pracma","dplyr","maptools",
+              "raster","spdep","mgcv","sp","rgdal",
+              "GISTools","data.table","splines","maps",
+              "broom","mapproj", "Hmisc", "knitr")
+for (package in packages) {
+    if (!require(package, character.only=T, quietly=T)) {
+        install.packages(package)
+        library(package, character.only=T)
+    }
+}
+```
+
+```{r setoptions, include=FALSE, echo=FALSE}
+
+# where do we want the outputs?
+variableselectiondir <- ".\\variable selection output\\"
+
+# where are the human data located?
+humandatafile <- ".\\human case data\\simulated human case data.csv"
+
+# what is the date of the last human case we're willing to believe?
+# probably, cut this off at the end of last year
+# DO NOT use any human cases from the year you're modeling
+maxobservedhumandate <- as.Date("2017-12-31", "%Y-%m-%d")
+
+# where are the gridmet csv files stored?
+gridmetpathstr <- ".\\gridMet\\"
+# what is the name of the summary file to be created?
+gridmetsummaryfile <- "gridmet internal summary.csv"
+
+# where are the mosquito test files located?
+mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
+
+# which county stratification scheme are we using?
+stratafile <- ".\\strata\\17-04-20 - classified strata - classic.csv"
+
+# where is the countyshapefile
+countyshapefile <- ".\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
+
+# probably don't want to modify what follows, but you have some options if you're comfortable
+
+# makes sure we round to the previous Sunday, so that this week is included
+weekinquestion    <- maxobservedhumandate
+weekinquestionSun <- weekinquestion - (as.numeric(strftime(weekinquestion, '%u')) %% 7)
+weekinquestionSat <- weekinquestionSun + 6
+weekinquestionSunstr <- strftime(weekinquestionSun, '%A')
+weekinquestionSatstr <- strftime(weekinquestionSat, '%A')
+
+# figure out which year this is and begin all weeks on Sunday
+maxmosqyear <- as.numeric(format(weekinquestion, "%Y"))
+maxdesiredhumandate <- as.Date(paste(maxmosqyear,
+                                     "-12-31",sep=""))
+maxdesiredhumandate <- maxdesiredhumandate - (as.numeric(strftime(maxdesiredhumandate, '%u')) %% 7)
+maxdesiredhumandatestr <- strftime(maxdesiredhumandate, '%A')
+
+# make sure the max desired human date is no earlier than the week in question
+# otherwise, there will be no predictions for the week in question
+maxdesiredhumandate <- max(weekinquestionSun+7, maxdesiredhumandate)
+
+# set up lag and regression information
+laglen   <- 181
+dlagdeg  <- 8
+```
+
+```{r gridmetload, include=FALSE, echo=TRUE}
+# load and concat files
+gridmetlist <- list.files(path=gridmetpathstr, pattern="(.csv)", recursive=FALSE)
+gridmet <- data.frame()
+for (i in 1:length(gridmetlist)) {
+  
+  if (gridmetlist[[i]] != gridmetsummaryfile) {
+  
+    tempdf <- read.csv(paste(gridmetpathstr, gridmetlist[[i]], sep="")) 
+    gridmet <- bind_rows(gridmet, tempdf)  
+    
+  }
+  
+}
+gridmet$date <- as.Date(paste(gridmet$year,
+                              gridmet$doy,
+                              sep="-"),
+                        "%Y-%j")
+
+# get rid of duplicated rows
+gridmet$fipsdate <- paste(gridmet$Fips, gridmet$date)
+gridmet <- subset(gridmet, !duplicated(gridmet$fipsdate))
+gridmet$Fipsdate <- NULL
+
+
+
+# plot normals and this year
+gridmet <- group_by(gridmet,
+                    doy)
+doymet  <- dplyr::summarize(gridmet,
+                     med_tmeanc = quantile(tmeanc, probs=0.50, na.rm=TRUE),
+                     med_rmean  = quantile(rmean,  probs=0.50, na.rm=TRUE),
+                     med_vpd    = quantile(vpd,    probs=0.50, na.rm=TRUE),
+                     max_tmeanc = max(tmeanc, na.rm=TRUE),
+                     max_rmean  = max(rmean,  na.rm=TRUE),
+                     max_vpd    = max(vpd,    na.rm=TRUE),
+                     min_tmeanc = min(tmeanc, na.rm=TRUE),
+                     min_rmean  = min(rmean,  na.rm=TRUE),
+                     min_vpd    = min(vpd,    na.rm=TRUE))
+gridmet <- ungroup(gridmet)
+
+thisyear <- max(gridmet$year, na.rm=TRUE)
+thisyear <- subset(gridmet, year == thisyear)
+thisyear <- group_by(thisyear, doy)
+thisyear <- dplyr::summarize(thisyear,
+                      med_tmeanc = quantile(tmeanc, probs=0.50, na.rm=TRUE),
+                      med_rmean  = quantile(rmean,  probs=0.50, na.rm=TRUE),
+                      med_vpd    = quantile(vpd,    probs=0.50, na.rm=TRUE),
+                      max_tmeanc = max(tmeanc, na.rm=TRUE),
+                      max_rmean  = max(rmean,  na.rm=TRUE),
+                      max_vpd    = max(vpd,    na.rm=TRUE),
+                      min_tmeanc = min(tmeanc, na.rm=TRUE),
+                      min_rmean  = min(rmean,  na.rm=TRUE),
+                      min_vpd    = min(vpd,    na.rm=TRUE))
+
+tempdf <- left_join(doymet, thisyear, by="doy")
+tempdf <- tempdf[!is.na(tempdf$med_tmeanc.x),]
+
+meantemp.x <- round(mean(tempdf$med_tmeanc.x, na.rm=TRUE), 1)
+meantemp.y <- round(mean(tempdf$med_tmeanc.y, na.rm=TRUE), 1)
+meanvapd.x <- round(mean(tempdf$med_vpd.x, na.rm=TRUE), 1)
+meanvapd.y <- round(mean(tempdf$med_vpd.y, na.rm=TRUE), 1)
+```
+
+```{r gridmetplots, fig.width=7, fig.height=5, echo=FALSE}
+# figure out which fips is which county
+gridmet <- left_join(gridmet,
+                     county.fips,
+                     by=c("Fips"="fips"))
+gridmet$county <- sapply(strsplit(gridmet$polyname, ","), "[[", 2)
+
+# simplify the county names
+gridmet$county <- simplifynames(gridmet$county)
+
+# put aside this set for use in the regression
+dailyextr <- gridmet
+```
+
+```{r mosquito, echo=FALSE} 
+
+wnv <- read.csv(mosqfile, stringsAsFactors=FALSE)
+wnv$col_date <- as.Date(wnv$col_date, "%m/%d/%Y")
+wnv$year <- as.numeric(format(wnv$col_date, "%Y"))
+
+```
+
+
+```{r mosquito222, echo=FALSE}
+# convert county to factor
+wnv$county <- simplifynames(wnv$county)
+wnv$county <- factor(wnv$county)
+
+# convert date to a date object
+wnv$col_date <- as.Date(wnv$col_date, '%m/%d/%Y')
+
+# figure out how many rows we start with
+nrow1 <- nrow(wnv)
+
+# clean the data
+# retain only those in 2004 onward
+wnv <- wnv[wnv$year >= 2004,]
+
+# create some variables we can use to filter
+wnv$col_year <- as.numeric(format(wnv$col_date, "%Y"))
+wnv$doy      <- as.numeric(format(wnv$col_date, "%j"))
+wnv$weeknum  <- as.numeric(format(wnv$col_date, "%U"))
+#wnv <- wnv[which(wnv$species == "Culex tarsalis"),]
+wnv$species <- NULL
+
+# fix some of the bad county names, delete what we can't use
+#wnv <- wnv[which(wnv$county %!in% c("doh",
+#                                    "doh-withers",
+#                                    "mitchell-carlson",
+#                                    "unknown",
+#                                    "")),]
+wnv$county <- factor(wnv$county)
+wnv$county <- droplevels(wnv$county)
+
+# figure out which years we're modeling
+minmosqyear <- min(wnv$year, na.rm=TRUE)
+
+# get rid of those which don't have a result
+wnv <- wnv[which(!is.na(wnv$wnv_result)),]
+wnv <- wnv[which(!is.na(wnv$doy)),]
+
+# delete anything before a certain day
+wnv <- wnv[which(wnv$doy >= 100),]
+# delete anything after a certain day
+wnv <- wnv[which(wnv$doy <= 212),]
+
+# after cleaning, how many do we have?
+nrow2 <- nrow(wnv)
+nrow3 <- nrow(wnv[wnv$year == maxmosqyear,])
+
+tempdf <- wnv[wnv$year == maxmosqyear,]
+tempdf <- tempdf[!is.na(tempdf$wnv_result),]
+wnvdenominator <- nrow(tempdf)
+wnvnumerator <- nrow(tempdf[tempdf$wnv_result == 1,])
+```
+
+```{r mosquito2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
+# import county identifiers
+strata <- read.csv(stratafile)
+strata$county <- simplifynames(strata$NAME)
+strata <- strata[c("county", "strata")]
+wnv <- merge(x=wnv, y=strata,
+             by.x="county",
+             by.y="county",
+             all.x=TRUE)
+
+# figure out how many distinct counties we have left
+countylist           <- data.frame(county=unique(wnv$county))
+distinctcounties     <- length(unique(wnv$county))
+countylist$countynum <- seq(from=1, to=distinctcounties, by=1)
+wnv <- merge(x=wnv, y=countylist,
+             by="county",
+             all=TRUE)
+
+# create a variable that at least has a little chance of being orthogonal to 1.
+wnv$dminus <- wnv$doy - mean(wnv$doy, na.rm=TRUE)
+
+# make sure all the observations have a stratum and year
+wnv <- wnv[!is.na(wnv$strata),]
+wnv <- wnv[!is.na(wnv$year),]
+
+# run a random effect model on orthogonalized data
+infectglm <- glmer(wnv_result ~ 1+dminus+
+                    (0+1|year) +
+                    (0+dminus|year) +
+                    (0+1|strata:year) + 
+                    (0+dminus|strata:year),
+                  family=binomial(),
+                  data=wnv)
+
+wnv$est <- predict(infectglm, newdata=wnv, type="response")
+# predict random effects for all years
+# dminus cannot be set to simply 0 - we have to 
+randeffs <- expand.grid(strata=unique(wnv$strata),
+                        year=minmosqyear:maxmosqyear,
+                        dminus=0.00001)
+randeffs <- randeffs[which(!is.na(randeffs$strata)),]
+# if you don't allow new levels, the most recent year might not have an estimate
+randeffs$mosqinfect <- predict(infectglm, newdata=randeffs, allow.new.levels = TRUE)
+randeffs$stratayear <- paste(randeffs$strata, randeffs$year, sep=":")
+randeffs$adjmosqinfect <- randeffs$mosqinfect - mean(randeffs$mosqinfect,na.rm=TRUE)
+randeffs$stratum <- factor(randeffs$strata)
+```
+
+
+```{r humandata, include=FALSE, echo=TRUE}
+
+# import data
+human <- read.csv(humandatafile)
+begrow <- nrow(human)
+human$chardate <- as.character(levels(human$creationdate))[as.numeric(human$creationdate)]
+human$creationdate <- as.Date(human$creationdate, "%m/%d/%Y")
+human$creationyear <- as.numeric(format(human$creationdate, "%Y"))
+human$creationmonth <- as.numeric(format(human$creationdate, "%m"))
+# simplify county names
+human$county <- simplifynames(human$county)
+human$county <- factor(human$county)
+human$doy <- as.numeric(format(human$creationdate, "%j"))
+
+# retain only those in the right date range
+hWNVminyear <- minmosqyear
+hWNVmaxyear <- maxmosqyear-1
+human <- human[which((human$creationyear >= hWNVminyear) & (human$creationyear <= hWNVmaxyear)),]
+
+# retain only those in months 5-11
+human <- human[which((human$creationmonth >= 5) & (human$creationmonth <= 11)),]
+
+# create the full list of weeks
+minobservedhumandate <- min(human$creationdate)
+
+# set up the data frame so that it ends at the maxdesiredhumandate 
+filledweeks <- seq(from=maxdesiredhumandate, to=minobservedhumandate, by=-7)
+
+fullcasemat <- expand.grid(sort(unique(human$county)), filledweeks)
+names(fullcasemat) <- c("county", "weekstartdate")
+head(fullcasemat)
+fullcasemat$anycases   <- rep(0, nrow(fullcasemat))
+fullcasemat$totalcases <- rep(0, nrow(fullcasemat))
+fullcasemat$observed   <- 1*((fullcasemat$weekstartdate >= minobservedhumandate)&
+                               (fullcasemat$weekstartdate <= maxobservedhumandate))
+for (i in 1:nrow(fullcasemat)) {
+  
+  thisweekstartdate <- fullcasemat$weekstartdate[i]
+  thiscounty        <- fullcasemat$county[i]
+  
+  tempcases <- human[which(human$county == thiscounty),]
+  tempcases <- tempcases[which(tempcases$creationdate >= thisweekstartdate),]
+  tempcases <- tempcases[which(tempcases$creationdate <= (thisweekstartdate + 6)),]
+  
+  fullcasemat$anycases[i] <- 1*(nrow(tempcases) > 0)
+  if (nrow(tempcases) > 0) {
+    
+    fullcasemat$totalcases[i] <- nrow(tempcases)
+    
+  }
+  
+}
+totcase <- sum(fullcasemat$totalcases, na.rm=TRUE)
+anypos  <- sum(fullcasemat$anycases, na.rm=TRUE)
+
+# figure out what percentage of cases we'll likely have seen before the start of this week
+weekinquestionSundoy <- as.numeric(format(weekinquestionSun, "%j"))
+fullcasemat$doy      <- as.numeric(format(fullcasemat$weekstartdate, "%j"))
+
+tempdf <- fullcasemat[fullcasemat$doy < (weekinquestionSundoy+7),]
+observedbefore <- sum(tempdf$totalcases, na.rm=TRUE)
+observedtotal  <- sum(fullcasemat$totalcases, na.rm=TRUE)
+weekinquestionreformat <- format(weekinquestionSun, "%m-%d")
+observedfraction <- 100*round(observedbefore / observedtotal, 2)
+```
+```{r stratamap, include=FALSE, echo=FALSE}
+
+county_shapes <- readShapePoly(countyshapefile)
+# simplify name
+county_shapes$county <- simplifynames(county_shapes$NAME)
+stratamapcsv <- read.csv(stratafile)
+stratamapcsv$county <- simplifynames(stratamapcsv$NAME)
+stratamapcsv <- stratamapcsv[c("county", "strata")]
+```
+
+
+```{r getlist, echo=FALSE}
+reservednames <- c("Fips",
+                   "doy",
+                   "year",
+                   "date",
+                   "fipsdate",
+                   "polyname",
+                   "county")
+weathernames <- colnames(dailyextr)
+weathernames <- weathernames[weathernames %!in% reservednames]
+
+modelstotry <- data.frame(t(combn(weathernames, m=2)))
+names(modelstotry) <- c("var1", "var2")
+```
+
+```{r humandata2, echo=TRUE, warnings=FALSE, include=FALSE}
+modelstotry$AIC <- NA
+for (curmodelnum in 1:nrow(modelstotry)) {
+  
+  curvar1 <- modelstotry$var1[curmodelnum]
+  curvar2 <- modelstotry$var2[curmodelnum]
+  dailyextr <- data.frame(dailyextr)
+  dailyextr$var1 <- dailyextr[,which(colnames(dailyextr) == curvar1)]
+  dailyextr$var2 <- dailyextr[,which(colnames(dailyextr) == curvar2)]
+
+  tempdailyextr <- dailyextr[c("county","date","var1","var2")]
+  tempdailyextr$county <- simplifynames(tempdailyextr$county)
+  # fill in missing and future climatological data
+  totaldailyextr <- expand.grid(county=unique(tempdailyextr$county),
+                                date=seq(from=as.Date("2003-01-01", "%Y-%m-%d"),
+                                         to=maxdesiredhumandate,
+                                         by=1))
+  tempdailyextr <- merge(x=totaldailyextr, y=tempdailyextr,
+                     by.x=c("county","date"),
+                     by.y=c("county","date"),
+                     all.x=TRUE)
+  tempdailyextr$doy <- as.numeric(format(tempdailyextr$date, "%j"))
+  
+  tempdailyextr <- group_by(tempdailyextr, county, doy)
+  countydoymean <- dplyr::summarize(tempdailyextr,
+                             meanvar1=mean(var1, na.rm=TRUE),
+                             meanvar2=mean(var2, na.rm=TRUE))
+  tempdailyextr <- ungroup(tempdailyextr)                           
+  
+  tempdailyextr <- left_join(tempdailyextr, countydoymean,
+                     by=c("county","doy"))
+  
+  tempdailyextr$var1[is.na(tempdailyextr$var1)] <- tempdailyextr$meanvar1[is.na(tempdailyextr$var1)]
+  tempdailyextr$var2[is.na(tempdailyextr$var2)] <- tempdailyextr$meanvar2[is.na(tempdailyextr$var2)]
+  
+  # BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  rm(countydoymean)
+  tempdailyextr$meanvar1 <- NULL
+  tempdailyextr$meanvar2 <- NULL
+  gc()
+  
+  # we need the counties to be in lower case to merge with the gridMET data
+  tempfullcasemat <- fullcasemat
+  tempfullcasemat$county <- simplifynames(tempfullcasemat$county)
+  
+  datalagger <- expand.grid(unique(tempfullcasemat$county),
+                            unique(tempfullcasemat$weekstartdate),
+                            seq(from=0, to=laglen-1, by=1))
+  names(datalagger) <- c("county","date","lag")
+  datalagger$laggeddate <- datalagger$date-datalagger$lag
+  
+  datalagger <- left_join(datalagger, tempdailyextr,
+                          by=c("county"="county",
+                               "laggeddate"="date"))
+  
+  # BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  rm(tempdailyextr)
+  gc()
+  
+  # pivot
+  mean1data <- dcast(datalagger, county + date ~ lag, value.var="var1")
+  names(mean1data) <- paste("var1_",names(mean1data),sep="")
+  head(mean1data)
+  
+  mean2data <- dcast(datalagger, county + date ~ lag, value.var="var2")
+  names(mean2data) <- paste("var2_",names(mean2data),sep="")
+  head(mean2data)
+  
+  # BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  rm(datalagger)
+  gc()
+  
+  # and put all this lagged info back into the total case matrix
+  tempfullcasemat <- merge(x=tempfullcasemat, y=mean1data,
+                       by.x=c("county", "weekstartdate"),
+                       by.y=c("var1_county","var1_date"),
+                       all.x=TRUE)
+  tempfullcasemat <- merge(x=tempfullcasemat, y=mean2data,
+                       by.x=c("county", "weekstartdate"),
+                       by.y=c("var2_county","var2_date"),
+                       all.x=TRUE)
+  
+  # BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  rm(mean1data)
+  rm(mean2data)
+  gc()
+  
+  lagframe <- data.frame(x=seq(from=1, to=laglen, by=1))
+  alpha <- 1/4
+  distlagfunc <- ns(lagframe$x, intercept=TRUE,
+                    knots=quantile(lagframe$x,
+                                   probs=seq(from=alpha, to=1-alpha, by=alpha),
+                                   na.rm=TRUE))
+  dlagdeg <- size(distlagfunc)[2]
+  
+  # create actual distributed lag summaries
+  band1summaries <- matrix(rep(0, nrow(tempfullcasemat)*dlagdeg), nrow(tempfullcasemat), dlagdeg)
+  band2summaries <- matrix(rep(0, nrow(tempfullcasemat)*dlagdeg), nrow(tempfullcasemat), dlagdeg)
+  
+  min1index <- which(names(tempfullcasemat) == "var1_0")
+  min2index <- which(names(tempfullcasemat) == "var2_0")
+  tempfullcasemat <- data.frame(tempfullcasemat)
+  band1temp <- as.matrix(tempfullcasemat[,(min1index:(min1index+laglen-1))])
+  band2temp <- as.matrix(tempfullcasemat[,(min2index:(min2index+laglen-1))])
+  for (j in 1:dlagdeg) {
+    
+    band1summaries[,j] <- band1temp %*% distlagfunc[,j]
+    band2summaries[,j] <- band2temp %*% distlagfunc[,j]
+    
+  }
+  
+  tempfullcasemat$band1summaries <- band1summaries
+  tempfullcasemat$band2summaries <- band2summaries
+  
+  # bring out your dead!!!!!!!!!!!!!!!!!!!!!!!!!
+  rm(band1summaries)
+  rm(band2summaries)
+  gc()
+  
+  # include the mosquito summary statistic
+  stratayearmosq <- randeffs
+  stratayearmosq <- stratayearmosq[c("stratayear","mosqinfect")]
+  names(stratayearmosq) <- c("stratayear","MIRsummarystat")
+  
+  # import county identifiers
+  tempfullcasemat <- merge(x=tempfullcasemat, y=strata,
+                       by.x="county", by.y="county",
+                       all.x=TRUE)
+  tempfullcasemat$year <- as.numeric(format(tempfullcasemat$weekstartdate, "%Y"))
+  tempfullcasemat$stratayear <- paste(tempfullcasemat$strata, tempfullcasemat$year, sep=":")
+  tempfullcasemat$year <- NULL
+  
+  tempfullcasemat <- merge(x=tempfullcasemat, y=stratayearmosq,
+                       by.x="stratayear", by.y="stratayear",
+                       all.x=TRUE)
+  
+  # calculate missing MIRsummarystat
+  stratayearmosq$strata <- substr(stratayearmosq$stratayear, 1, 3)
+  tempdf <- aggregate(stratayearmosq$MIRsummarystat,
+                      by=list(stratayearmosq$strata),
+                      FUN=mean,
+                      na.rm=TRUE)
+  names(tempdf) <- c("strata","MIRsummarystat2")
+  
+  tempfullcasemat <- merge(x=tempfullcasemat, y=tempdf,
+                       by.x="strata", by.y="strata",
+                       all.x=TRUE)
+  tempfullcasemat$MIRsummarystat[is.na(tempfullcasemat$MIRsummarystat)] <- tempfullcasemat$MIRsummarystat2[is.na(tempfullcasemat$MIRsummarystat)]
+  
+  tempfullcasemat$strata <- NULL
+  tempfullcasemat$stratayear <- NULL
+  
+  tempfullcasemat$doy <- as.numeric(format(tempfullcasemat$weekstartdate, "%j"))
+  
+  firstreg  <- glm(anycases ~ 0+MIRsummarystat+county+
+                   band1summaries+
+                   band2summaries+
+                   band1summaries:doy+
+                   band2summaries:doy,
+                 family=binomial(), data=tempfullcasemat,
+                 subset=observed==1)
+
+  tempfullcasemat$est <- predict(firstreg, type="response", newdata=tempfullcasemat)
+
+  modelstotry$AIC[curmodelnum] <- extractAIC(firstreg)[2]
+  
+}
+modelstotry <- modelstotry[order(modelstotry$AIC),]
+var1 <- modelstotry$var1[1]
+var2 <- modelstotry$var2[1]
+
+```
+
+Variable selection has been performed, with environmental variables chosen pairwise from the available environmental covariates. There were `r nrow(modelstotry)` models considered, and these are ordered below by the Akaike information criterion (AIC). A lower AIC in this case means the model fit the observed data better, so we generally assume that the first model on the list is the best model, and use these two variables for modeling and prediction.
+
+Here, therefore, we recommend `r var1` and `r var2` as predictors in the `ArboMAP Main Code.Rmd` file.
+
+```{r lastchunk, echo=FALSE}
+kable(modelstotry, digits=2, row.names=FALSE)
+```
