@@ -73,6 +73,10 @@ gridmetpathstr <- ".\\gridMet\\"
 # what is the name of the summary file to be created?
 gridmetsummaryfile <- "gridmet internal summary.csv"
 
+# which variables do you want to use?
+var1name <- "tmeanc"
+var2name <- "vpd"
+
 # where are the mosquito test files located?
 mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
 
@@ -175,26 +179,23 @@ meanvapd.x <- round(mean(tempdf$med_vpd.x, na.rm=TRUE), 1)
 meanvapd.y <- round(mean(tempdf$med_vpd.y, na.rm=TRUE), 1)
 ```
 
-Weather data from the gridMET data set range from `r min(gridmet$date, na.rm=TRUE)` to `r max(gridmet$date, na.rm=TRUE)`. Below are graphs of statewide daily averages of temperature and the vapor pressure deficit. The min/max/median for all years are in grey, and observations from this year are in red.
-
-Higher temperatures typically mean higher risk of mosquito-borne infection. Since the beginning of this year, the average statewide temperature in `r maxmosqyear` has been `r meantemp.y`$^{\circ}$C, compared to `r meantemp.x`$^{\circ}$C in all years. The vapor pressure deficit in `r maxmosqyear` has been `r meanvapd.x` kPa, compared to `r meanvapd.y` kPa in all years. Lower vapor pressure deficit typically means more risk of infection, because there is more moisture in the air, which typically increases mosquito activity. 
+Weather data from the gridMET data set range from `r min(gridmet$date, na.rm=TRUE)` to `r max(gridmet$date, na.rm=TRUE)`. Below are graphs of statewide daily averages of `r var1name` and `r var2name`. Observations for the current year are in red. Black is the medium from all other years, and the grey band indicates the max/min ever observed.
 
 ```{r gridmetplots, fig.width=7, fig.height=5, echo=FALSE}
 plot1 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=med_tmeanc)) +
   geom_ribbon(data=doymet, aes(x=doy, ymin=min_tmeanc, ymax=max_tmeanc), alpha=0.3) +
   geom_line(data=thisyear, aes(x=doy, y=med_tmeanc), color="red", size=1) +
-  xlab("Day of the year") + ylab("Statewide temp (deg C)") +
-  ggtitle(paste("Temperature in ",
+  xlab("Day of the year") + ylab(var1name) +
+  ggtitle(paste(var1name, 
                 max(gridmet$year, na.rm=TRUE),
-                sep=""))
+                sep=" "))
 plot2 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=log(med_vpd+1))) +
   geom_ribbon(data=doymet, aes(x=doy, ymin=log(min_vpd+1), ymax=log(max_vpd+1)), alpha=0.3) +
   geom_line(data=thisyear, aes(x=doy, y=log(med_vpd+1)), color="red", size=1) +
-  ggtitle(paste("Vapor pressure deficit in ",
+  ggtitle(paste(var2name,
                 max(gridmet$year, na.rm=TRUE),
-                " (higher means drier)",
-                sep="")) +
-  xlab("Day of the year") + ylab("Vapor pressure deficit (log scale)")
+                sep=" ")) +
+  xlab("Day of the year") + ylab(var2name)
 grid.arrange(plot1, plot2, nrow=2)
 # figure out which fips is which county
 gridmet <- left_join(gridmet,
@@ -205,20 +206,20 @@ gridmet$county <- sapply(strsplit(gridmet$polyname, ","), "[[", 2)
 # simplify the county names
 gridmet$county <- simplifynames(gridmet$county)
 
-# put aside this set for use in the gression
+# put aside this set for use in the regression
 dailyextr <- gridmet
 ```
 ```{r silentsavegridmet, include=FALSE, echo=FALSE}
 ggsave(paste(graphicoutputdir,
-             "temperature.png",
+             "var1.png",
              sep=""), plot1)
 ggsave(paste(graphicoutputdir,
-             "vapor pressure deficit.png",
+             "var2.png",
              sep=""), plot2)
 ```
 
 \newpage
-## Mosquito infection data
+## Vector infection data
 
 ```{r mosquito, echo=FALSE} 
 
@@ -250,13 +251,6 @@ wnv$doy      <- as.numeric(format(wnv$col_date, "%j"))
 wnv$weeknum  <- as.numeric(format(wnv$col_date, "%U"))
 #wnv <- wnv[which(wnv$species == "Culex tarsalis"),]
 wnv$species <- NULL
-
-# fix some of the bad county names, delete what we can't use
-#wnv <- wnv[which(wnv$county %!in% c("doh",
-#                                    "doh-withers",
-#                                    "mitchell-carlson",
-#                                    "unknown",
-#                                    "")),]
 wnv$county <- factor(wnv$county)
 wnv$county <- droplevels(wnv$county)
 
@@ -285,9 +279,9 @@ numpos <- wnvnumerator
 perpos <- 100*round(wnvnumerator/wnvdenominator, 3)
 ```
 
-There are `r nrow2` samples in the mosquito testing database. For `r maxmosqyear`, there are `r nrow3` tested pools, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season mosquito infection growth rate is shown below. Higher means that the virus is spreading more rapidly among mosquitoes, and more human cases should be expected. The regions are mapped below.
+There are `r nrow2` samples in the vector testing database. For `r maxmosqyear`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. The regions used for stratification are mapped below; districts are thought to share risk more closely with others in the same strata, although all districts share some level of risk with all other districts. 
 
-```{r mosquito2, fig.width=7, fig.height=3, echo=FALSE}
+```{r mosquito2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
 # import county identifiers
 strata <- read.csv(stratafile)
 strata$county <- simplifynames(strata$NAME)
@@ -343,12 +337,12 @@ thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect, group=stra
   theme(axis.text.x=element_text(angle=45, hjust=1),
         panel.grid.minor=element_blank(),
         panel.grid.major.y=element_blank())+
-  xlab("") + ylab("Relative risk due to\nmosquito infection growth rate")
+  xlab("") + ylab("Relative risk due to\nvector infection growth rate")
 plot(thisplot)
 ```
 ```{r silentsavemosq, include=FALSE, echo=FALSE}
 ggsave(paste(graphicoutputdir,
-             "mosquito infection rates.png",
+             "vector infection rates.png",
              sep=""), thisplot)
 
 
@@ -462,7 +456,7 @@ ggsave(paste(graphicoutputdir,
 
 ```
 
-The following graph shows the estimated growth of positive pools for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled pool positive rates; the actual statewide positive pool rate for `r maxmosqyear` is shown here by grouping observations nearby in time.
+The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqyear` is shown here by grouping observations nearby in time.
 
 ```{r mosqbymo, include=TRUE, echo=FALSE, fig.width=6, fig.height=3}
 mosqmopreds <- expand.grid(strata=unique(wnv$strata),
@@ -492,7 +486,7 @@ thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=
   geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
   geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
   geom_point(data=thisyeardot, aes(x=meandoy, y=meanpos), color="red") +
-  xlab("day of the year") + ylab("Mosquito pool positive rate") +
+  xlab("day of the year") + ylab("Vector pool positive rate") +
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         panel.background = element_blank(),
@@ -508,7 +502,7 @@ ggsave(paste(graphicoutputdir,
 
 ## Human data
 
-The predictive model of human WNV was calibrated using `r totcase` historical human cases, not including any cases from `r maxmosqyear`. No cases from `r maxmosqyear` are used to make predictions; the estimates for this year are based solely on weather and mosquito data. Typically, `r observedfraction`% of a year's cases occur before the end of this week in any given year.
+The predictive model of human cases was calibrated using `r totcase` historical cases, not including any cases from `r maxmosqyear`. No cases from `r maxmosqyear` are used to make predictions; the estimates for this year are based solely on weather and vector data. Typically, `r observedfraction`% of a year's cases occur before the end of this week in any given year.
 
 # Model results
 
@@ -518,8 +512,9 @@ The graphs below show observed statewide risk (black) and estimated risk (red) u
 
 ```{r humandata2, echo=TRUE, warnings=FALSE, include=FALSE}
 # select which variables we're going to use!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-dailyextr$var1 <- dailyextr$tmeanc
-dailyextr$var2 <- dailyextr$vpd
+dailyextr <- data.frame(dailyextr)
+dailyextr$var1 <- dailyextr[,which(colnames(dailyextr) == var1name)]
+dailyextr$var2 <- dailyextr[,which(colnames(dailyextr) == var2name)]
 dailyextr <- dailyextr[c("county","date","var1","var2")]
 dailyextr$county <- simplifynames(dailyextr$county)
 # fill in missing and future climatological data
