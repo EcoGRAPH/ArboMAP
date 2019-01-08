@@ -12,10 +12,10 @@
 //					Geospatial Sciences Center of Excellence
 //					michael.wimberly@sdstate.edu
 //
-// Last Update: August 1, 2018
+// Last Update: Jan 8 2019
 ////////////////////////////////////////////////////////////////////////////////
 
-var counties = ee.FeatureCollection("ft:1S4EB6319wWW2sWQDPhDvmSBIVrD3iEmCLYB7nMM"),
+var counties = ee.FeatureCollection('TIGER/2016/Counties'),
     gridmet = ee.ImageCollection("IDAHO_EPSCOR/GRIDMET");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +30,7 @@ var startdate = ee.Date('1999-01-01');
 var enddate = ee.Date('2018-12-31');
 
 // One or more states for which to do county-level summaries
-var mystates = [46];
+var mystates = "46";
 
 // Create list of dates for time series
 var n_days = enddate.difference(startdate, 'day');
@@ -40,14 +40,16 @@ var make_datelist = function(n) {
 };
 dates = dates.map(make_datelist);
  
-// Include our selected states and filter out states that are *not* in CONUS 
-var nonCONUS = [2,15,60,66,69,72,78]; // state FIPS codes that we don't want
-var conus = counties.filter(ee.Filter.inList('StateFips',nonCONUS).not())
-                    .filter(ee.Filter.inList('StateFips',mystates));
-
-// Print information to the console
-print("Start date to summarize: ", startdate);
-print("End date to summarize: ", enddate);
+// include only our selected state
+var selectedstate = counties.filter(ee.Filter.equals("STATEFP",mystates));
+// Create an empty image into which to paint the features, cast to byte.
+var empty = ee.Image().byte();
+var countybound = empty.paint({
+  featureCollection: selectedstate,
+  color: 1,
+  width: 3
+});
+Map.addLayer(countybound,{color: '000000'},'counties');  
 
 ////////////////////////////////////////////////////////////////////////////////
 // Step 2: Calculate the summary variables
@@ -177,19 +179,11 @@ var exportzonal = function() {
   var edtext = edinput.getValue();
   var sddate = ee.Date(sdtext);
   var eddate = ee.Date(edtext);
-  print(sddate);
-  print(eddate);
   // Filter the image collection
   // Map the function over the image collection
   var curstate_sum = fipsinput.getValue();
-  //print(curstate);
-  //var statestr = curstate.getInfo();
-  var statenum_sum = Number(curstate_sum);
-  print(statenum_sum);
-  var sumstate = counties.filter(ee.Filter.inList('StateFips',nonCONUS).not())
-                    .filter(ee.Filter.eq('StateFips',statenum_sum));
+  var statenum_sum = curstate_sum;
   var gridmet_sum = gridmet_calc.filterDate(sddate, eddate);
-  print(gridmet_sum);
  // Function to calculate zonal statistics by county
   var zonalsum = function(image) { 
     // To get the doy and year, we conver the metadata to grids and then summarize
@@ -197,20 +191,21 @@ var exportzonal = function() {
     // Reduce by regions to get zonal means for each county
     var output = image2.select(['tmeanc', 'tminc', 'tmaxc', 'pr', 'rmean', 'vpd', 'doy', 'year'])
                        .reduceRegions({
-                         collection: sumstate,
+                         collection: selectedstate,
                          reducer: ee.Reducer.mean(),
                          scale: 4000});
     return output;
   };
   var cnty_sum = gridmet_sum.map(zonalsum);                  
-  print(cnty_sum);                  
   // Feature collection needs to be "flattened" to yield one record for for each 
   // combination of county and date
   // Need to click "RUN in the Tasks tab to configure and start the export
+  var oldnames = ["NAME", "doy", "year", "tminc", "tmeanc", "tmaxc", "pr", "rmean", "vpd"];
+  var newnames = ["district", "doy", "year", "tminc", "tmeanc", "tmaxc", "pr", "rmean", "vpd"];
   Export.table.toDrive({
-    collection: cnty_sum.flatten(), 
-    selectors: ["Fips", 'doy', 'year', "tmeanc", 'tminc', 'tmaxc', "pr", 'rmean', "vpd"]
+    collection: cnty_sum.flatten().select(oldnames,newnames,false)
   });
+  
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,8 +213,6 @@ var exportzonal = function() {
 ////////////////////////////////////////////////////////////////////////////////
 
 var tempPal = ['blue', 'red']; // store palette as variable
-// Create an empty image into which to paint the features, cast to byte.
-var empty = ee.Image().byte();
 
 // Function to visualize the layers
 // Gets updated whenever slides are moved or a new state is entered
@@ -228,23 +221,15 @@ var showLayer = function() {
   // Get year and threshold information from the slides
   var curyear = yearindex.getValue();
   var curdoy = dateindex.getValue();
-  //var doy2 = doy.subtract(1);
   var curstate = fipsinput.getValue();
-  //print(curstate);
-  //var statestr = curstate.getInfo();
   var statenum = Number(curstate);
-  var displaystate = counties.filter(ee.Filter.inList('StateFips',nonCONUS).not())
-                    .filter(ee.Filter.eq('StateFips',statenum));
+  var selectedstate = counties.filter(ee.Filter.equals("STATEFP",curstate));
   var init_date = ee.Date.fromYMD(curyear, 1, 1);
-  //print(init_date);
   var img_date = init_date.advance(curdoy, 'day');
-  //print(img_date);
   var img_filt = gridmet_anom.filter(ee.Filter.calendarRange(curyear, curyear, 'year'))
                              .filter(ee.Filter.calendarRange(curdoy, curdoy, 'day_of_year'));
-  //print(img_filt);
   var gridmet_list = img_filt.toList(img_filt.size());
   var img_cur = ee.Image(gridmet_list.get(0));
-  //print(img_cur);
   var meantemp = img_cur.select('tm_anom');
   var meanrh = img_cur.select('rhm_anom');
   var meanvpd = img_cur.select('vpd_anom');
@@ -255,7 +240,7 @@ var showLayer = function() {
   //Map.addLayer(sumpr, {min: -2, max: 2, palette: tempPal}, 'sumpr');
 
   var countybound = empty.paint({
-    featureCollection: displaystate,
+    featureCollection: selectedstate,
     color: 1,
     width: 3
   });
