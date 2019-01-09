@@ -12,8 +12,11 @@
 //					Geospatial Sciences Center of Excellence
 //					michael.wimberly@sdstate.edu
 //
-// Last Update: Jan 8 2019
+// Last Update: August 1, 2018
 ////////////////////////////////////////////////////////////////////////////////
+
+//var counties = ee.FeatureCollection("ft:1S4EB6319wWW2sWQDPhDvmSBIVrD3iEmCLYB7nMM"),
+//    gridmet = ee.ImageCollection("IDAHO_EPSCOR/GRIDMET");
 
 var counties = ee.FeatureCollection('TIGER/2016/Counties'),
     gridmet = ee.ImageCollection("IDAHO_EPSCOR/GRIDMET");
@@ -202,8 +205,12 @@ var exportzonal = function() {
   // Need to click "RUN in the Tasks tab to configure and start the export
   var oldnames = ["NAME", "doy", "year", "tminc", "tmeanc", "tmaxc", "pr", "rmean", "vpd"];
   var newnames = ["district", "doy", "year", "tminc", "tmeanc", "tmaxc", "pr", "rmean", "vpd"];
+  
+  var newdf = cnty_sum.flatten().select(oldnames, newnames, false);
+
   Export.table.toDrive({
-    collection: cnty_sum.flatten().select(oldnames,newnames,false)
+    collection: newdf,
+    selectors: newnames
   });
   
 };
