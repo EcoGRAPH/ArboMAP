@@ -35,13 +35,13 @@ In South Dakota, there were more than a thousand diagnosed cases in 2002-2003, w
 
 However, in 2012 there was another outbreak, with hundreds of cases in South Dakota. Because of these massive fluctuations in annual case counts, there is a need to predict the magnitude and locations of WNV in advance to support proactive mosquito control and disease prevention activities. Thus, a key scientific question is whether there are there any environmental or entomological indicators that could tell us, in advance, how bad a year is likely to be.
 
-In fact, yes. Work by Dr. Michael Wimberly's research group has shown that a relatively simple statistical model, relying on weather and mosquito infection data, can be used to predict the risk of infection on a county-week basis. For more background, you will want to consult relevant journal articles, which are listed at the end of this document. In particular, the paper by Davis et al. (2018 in Acta Tropica) provides details about the underlying statistical model.
+In fact, yes. Work by Dr. Michael Wimberly's research group has shown that a relatively simple statistical model, relying on weather and mosquito infection data, can be used to predict the risk of infection on a district-week basis. For more background, you will want to consult relevant journal articles, which are listed at the end of this document. In particular, the paper by Davis et al. (2018 in Acta Tropica) provides details about the underlying statistical model.
 
 # Setting up for the initial run
 
 ## A note on prepackaged data
 
-ArboMAP comes packaged with example human, mosquito, and weather data. The weather data are real, but the human and mosquito data were generated randomly according to model estimates from our WNV study in South Dakota. Hence, the data "look like" real human and mosquito data, but are synthetic and *should not be used* for any actual scientific study. They are included merely to check that the installation and settings are correct.
+ArboMAP comes packaged with example human, mosquito, and weather data. The weather data are real, but the human and mosquito data were generated randomly according to model estimates from our WNV study in South Dakota. Hence, the data "look like" real human and mosquito data, but are synthetic and *should not be used* for any actual scientific study. They are included merely to make sure that all software is installed and settings are correct; you will probably want to run the system first with these synthetic data before trying your own data.
 
 ## Some accounts you'll need
 
@@ -111,7 +111,7 @@ The ArboMAP User's Guide.Rmd file, which you will open in RStudio, contains a pr
 * `weathersummaryfile` is the name of the file that the program will create to summarize all the CSV files. Since it's possible you've downloaded a year many times (especially the current year), the program has to create a summary file and stores it with the rest of the weather data. Other than this extra file and all the CSV files, there should be nothing else in this directory.
 * `acttestfile` and `arctestfile` tell us where to find the active and archive mosquito testing data
 * `stratafile` tells us where to find the file containing the data to split up the state into four regions to model the mosquito infection rate (see below)
-* `countyshapefile` points to the SHP file for mapping SD counties
+* `districtshapefile` points to the SHP file for mapping districts
 * `compyear1` and `compyear2` indicate which two years in the past we'd like to compare the current year to in one of the graphics.
 * `var1name` and `var2name` indicate which two weather variables you'd like to use as predictors in the model. By default, these are set to mean daily temperature from the gridMET set (tmeanc) and the vapor pressure deficit (vpd). If you are not certain which variables you would like to use, read the selection below on selection of covariates.
 
@@ -159,7 +159,7 @@ Processing can take half an hour for this initial data pull, depending on who el
 knitr::include_graphics('pictures for setup document/google earth downloads.PNG')
 ```
 
-Download this file (right-click -> download) and save it in a directory with all the other weather data; by default this is \"D:/ArboMAP/weather data/\". You will eventually add updates for weather data in the current year (2018 at the time of writing), as discussed below, and these are the files beginning with \"2018 - \". These updates are stored as extra CSV files and, along with the historical download, give you a complete picture of the daily weather in every county.
+Download this file (right-click -> download) and save it in a directory with all the other weather data; by default this is \"D:/ArboMAP/weather data/\". You will eventually add updates for weather data in the current year (2018 at the time of writing), as discussed below, and these are the files beginning with \"2018 - \". These updates are stored as extra CSV files and, along with the historical download, give you a complete picture of the daily weather in every district.
 
 ```{r echo=FALSE, out.width='60%'}
 knitr::include_graphics('pictures for setup document/google earth gridmet directory.PNG')
@@ -201,9 +201,9 @@ knitr::include_graphics('pictures for setup document/example of mosquito test da
 
 ### \ \ \ \ \ A note on standardized place names
 
-ArboMAP was designed to model WNV on a county-week basis, but can work with any geographical unit as long as each area is assigned a unique, stable identifier. Ideally, you will work with a standard set of names (or even a numerical code like the FIPS). District names might not be not completely standardized in your sources; e.g. some sources will list \"Brookings County\" while others will simply use \"Brookings\".
+ArboMAP was designed to model WNV on a district-week basis, but can work with any geographical unit as long as each area is assigned a unique, stable identifier. Ideally, you will work with a standard set of names (or even a numerical code like the FIPS). District names might not be not completely standardized in your sources; e.g. some sources will list \"Brookings County\" while others will simply use \"Brookings\".
 
-ArboMAP reduces all names by deleting \"County\" and \"Parish\", removing all spaces from the county name, and putting the county name in lowercase. Therefore, \"BROOKINGS COUNTY\" becomes \"brookings\" and \"Charles Mix County\" becomes \"charlesmix\". This gives the greatest chance that all places will be recognized in all data sources. However, incorrect spellings and invalid date formats (e.g. DD/MM/YYYY instead of MM/DD/YYYY) cannot be fixed by the program and will result in errors.
+ArboMAP reduces all names by deleting \"County\" and \"Parish\", removing all spaces from the district name, and putting the name in lowercase. Therefore, \"BROOKINGS COUNTY\" becomes \"brookings\" and \"Charles Mix County\" becomes \"charlesmix\". This gives the greatest chance that all places will be recognized in all data sources. However, incorrect spellings and invalid date formats (e.g. DD/MM/YYYY instead of MM/DD/YYYY) cannot be fixed by the program and will result in errors.
 
 You will need to be sure that the shapefile you use contains a "NAME" field with human-readable names.
 
@@ -271,7 +271,7 @@ knitr::include_graphics('pictures for setup document/mosqinfectgrowthrates.PNG')
 
 ### \ \ \ \ \ Multi-year WNV forecasting chart
 
-Next are the model outputs. For each week of a year, the model estimates what proportion of counties will report at least one human case based on fit to historical data. This is displayed first on a statewide basis - red are estimates and black are observations. For the year in which you're making predictions, observed (black) should be constantly zero. Red should fit historical observations reasonably well - if there are major deviations, then it is likely that some data, probably the human or mosquito data, are in the wrong format.
+Next are the model outputs. For each week of a year, the model estimates what proportion of districts will report at least one human case based on fit to historical data. This is displayed first on a statewide basis - red are estimates and black are observations. For the year in which you're making predictions, observed (black) should be constantly zero. Red should fit historical observations reasonably well - if there are major deviations, then it is likely that some data, probably the human or mosquito data, are in the wrong format.
 
 ```{r echo=FALSE, out.width='60%'}
 knitr::include_graphics('pictures for setup document/predictions.PNG')
@@ -287,7 +287,7 @@ knitr::include_graphics('pictures for setup document/estimates.PNG')
 
 ### \ \ \ \ \ Current-week WNV absolute risk map
 
-Next are the absolute probabilities of each district reporting at least one human case during the week in question. If the district is darkest blue, then the model says there is no probability of reporting a case during the week you've selected. This is often the case in the early or late seasons, especially in the lower-population counties. If a district is brightest red, then the model says the district will definitely report at least one human case this week.
+Next are the absolute probabilities of each district reporting at least one human case during the week in question. If the district is darkest blue, then the model says there is no probability of reporting a case during the week you've selected. This is often the case in the early or late seasons, especially in the lower-population districts. If a district is brightest red, then the model says the district will definitely report at least one human case this week.
 
 ```{r echo=FALSE, out.width='60%'}
 knitr::include_graphics('pictures for setup document/map absolute.PNG')
@@ -295,17 +295,21 @@ knitr::include_graphics('pictures for setup document/map absolute.PNG')
 
 ### \ \ \ \ \ Current-week WNV relative risk map
 
-Next are the relative probabilities. A district in the early season may have low risk because the virus is not yet circulating, but is that lower or higher than usual, for that county, during that week of the year? Brookings County on May 15th 2018 will have low risk, but that risk may be higher than usual when compared to Brookings on May 15th in 2004-2017? If a county is red, this means that risk is predicted to be substantially higher than average in that district, during the week in question. If blue, then lower. If yellow, then average. It is important to remember that red and blue do not mean high or low absolute risk. They mean high*er* or low*er than usual*. A district that is lower than usual can still have many cases in a week; e.g. Brown County in early August can be lower than usual, but will still likely report cases.
+Next are the relative probabilities. A district in the early season may have low risk because the virus is not yet circulating, but is that lower or higher than usual, for that district, during that week of the year? Brookings County on May 15th 2018 will have low risk, but that risk may be higher than usual when compared to Brookings on May 15th in 2004-2017? If a district is red, this means that risk is predicted to be substantially higher than average in that district, during the week in question. If blue, then lower. If yellow, then average. It is important to remember that red and blue do not mean high or low absolute risk. They mean high*er* or low*er than usual*. A district that is lower than usual can still have many cases in a week; e.g. Brown County in early August can be lower than usual, but will still likely report cases.
 
 ```{r echo=FALSE, out.width='60%'}
 knitr::include_graphics('pictures for setup document/map relative.PNG')
 ```
 
-Combining the two maps above, we conclude that it's still early in the season and absolute risk is low, but there are indications that risk is higher than usual in most counties. You will want to interpret the temperature, humidity, and mosquito infection charts to understand exactly why this is the case.
+Combining the two maps above, we conclude that it's still early in the season and absolute risk is low, but there are indications that risk is higher than usual in most districts. You will want to interpret the temperature, humidity, and mosquito infection charts to understand exactly why this is the case.
 
 # Selecting covariates to use
 
-ArboMAP also includes an `ArboMAP Variable Selection.Rmd` file, with settings that are almost exactly the same as the `ArboMAP User's Guide.Rmd` file. However, this file will run through all available pairs of covariates and 
+ArboMAP also includes an `ArboMAP Variable Selection.Rmd` file, with settings that are almost exactly the same as the `ArboMAP User's Guide.Rmd` file. However, this file will run through all available pairs of covariates and rank models by the Akaike information criterion, which measures model fit and parsimony. If all of the settings are correct, then opening this file and pressing ctrl+shift+K will run through all models and report a table like the following. The model with the lowest AIC is usually considered best, and the two variables for that model (in this case tmeanc and vpd) should be used as var1name and var2name in the `ArboMAP Main Code.Rmd' file.
+
+```{r echo=FALSE, out.width='60%'}
+knitr::include_graphics('pictures for setup document/example of variable selection.PNG')
+```
 
 # Troubleshooting
 
@@ -323,7 +327,7 @@ Unfortunately, if the Rmd file refuses to produce estimates (e.g. the red line i
 
 ## Bad estimates
 
-This is usually because of bad mosquito infection data. You will want to carefully check the mosquito infection data to ensure they are in the correct format. You will often be able to see this on the graph of the mosquito infection growth rate - a year in the past will dip down to very low levels of infection, but this does not seem historically accurate. Another problem can occur if you enter district names incorrectly. If the data tell the program that a case occurs in a county that does not exist, then this case will not be counted, and a district's risk will be artificially low. If this happens with enough districts (e.g. if every district is followed by a space in the data file) then a whole year's risk will be 0.
+This is usually because of bad mosquito infection data. You will want to carefully check the mosquito infection data to ensure they are in the correct format. You will often be able to see this on the graph of the mosquito infection growth rate - a year in the past will dip down to very low levels of infection, but this does not seem historically accurate. Another problem can occur if you enter district names incorrectly. If the data tell the program that a case occurs in a district that does not exist, then this case will not be counted, and a district's risk will be artificially low. If this happens with enough districts (e.g. if every district is followed by a space in the data file) then a whole year's risk will be 0.
 
 # Relevant scientific papers
 

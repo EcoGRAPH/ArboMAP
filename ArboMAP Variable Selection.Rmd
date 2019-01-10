@@ -237,10 +237,10 @@ wnv <- merge(x=wnv, y=strata,
              by.y="district",
              all.x=TRUE)
 
-# figure out how many distinct counties we have left
+# figure out how many distinct districts we have left
 districtlist           <- data.frame(district=unique(wnv$district))
-distinctcounties     <- length(unique(wnv$district))
-districtlist$districtnum <- seq(from=1, to=distinctcounties, by=1)
+distinctdistricts     <- length(unique(wnv$district))
+districtlist$districtnum <- seq(from=1, to=distinctdistricts, by=1)
 wnv <- merge(x=wnv, y=districtlist,
              by="district",
              all=TRUE)
@@ -351,8 +351,6 @@ stratamapcsv$district <- simplifynames(stratamapcsv$district)
 stratamapcsv <- stratamapcsv[c("district", "strata")]
 ```
 
-head(dailyextr)
-
 ```{r getlist, echo=FALSE}
 reservednames <- c("district",
                    "doy",
@@ -408,7 +406,7 @@ for (curmodelnum in 1:nrow(modelstotry)) {
   tempdailyextr$meanvar2 <- NULL
   gc()
   
-  # we need the counties to be in lower case to merge with the weather data
+  # we need the districts to be in lower case to merge with the weather data
   tempfullcasemat <- fullcasemat
   tempfullcasemat$district <- simplifynames(tempfullcasemat$district)
   
