@@ -85,13 +85,13 @@ knitr::include_graphics('pictures for setup document/subfolders.PNG')
 
 The folders are as follows:
 
-* `case matrix with estimates` will hold a single file at the end of processing, which contains all the numerical data used for modeling and the estimates for each county and week. This can be used for additional statistical analyses if desired.
+* `case matrix with estimates` will hold a single file at the end of processing, which contains all the numerical data used for modeling and the estimates for each district and week. This can be used for additional statistical analyses if desired.
 * `graphical outputs` will contain a number of PNG files at the end of processing. These images are the same images in the PDF output, but are provided so that the images can be used in other media if desired.
-* `gridMet` contains a number of CSV files holding the weather data. This folder should only contain weather data, as any additional files placed here will cause errors in processing.
 * `human` contains the historical human case data file.
-* `mosquito` contains the mosquito pool infection data files.
-* `shapefile` contains the files used to map risk. This is by default South Dakota, but these files may be replaced with any similar SHP file.
-* `strata` contains a file that tells the model how to split the state into different geographic regions.
+* `mosquito data` contains the mosquito (or other vector) pool infection data files.
+* `shapefile` contains the files used to map risk. This is by default South Dakota, but these files may be replaced with any similar SHP file that references district names in a "NAME" column. We suggest the use of TIGER products for any application in the US.
+* `strata` contains a file that tells the model how to split the shapefile into different geographic regions for modeling vector infection rates.
+* `weather data` contains a number of CSV files holding the weather data. This folder should only contain weather data, as any additional files placed here will be included as if they were weather data, and will probably cause errors in processing.
 
 Finally, the `ArboMAP.Rmd` file contains all the modeling code. This file is opened in RStudio and pulls data from the directories above, produces estimates, and outputs a PDF file and a variety of other files in the output directories.
 
@@ -103,8 +103,8 @@ The Rmd file, which you will open in RStudio, contains a preface (shown below) w
 * `humandatafile` contains the human WNV cases
 * `maxobservedhumandate` tells the program which is the last human case that should be used in modeling. If you happen to know that there are some cases in 2018 and you're predicting 2018, then you should set this to the end of 2017. We do not use the current year's data in making predictions, and trying to do so will mess up the predictions. This is an extra safeguard in case you do accidentally update the case file to include data from this year.
 * `weekinquestion` tells the program which week you'd like to obtain predictions for. Weeks in this program begin on Sunday and run until the next Saturday, and the weekinquestion date will automatically be rounded to the previous Sunday. For example, if 2018-07-16 happens to be a Monday, then the week examined is 2018-07-15 (Sunday) through 2018-07-21 (Saturday).
-* `gridmetpathstr` indicates the directory where all the gridmet CSV files are stored
-* `gridmetsummaryfile` is the name of the file that the program will create to summarize all the CSV files. Since it's possible you've downloaded a year many times (especially the current year), the program has to create a summary file and stores it with the rest of the gridMet data. Other than this extra file and all the CSV files, there should be nothing else in this directory.
+* `weatherpathstr` indicates the directory where all the weather data CSV files are stored
+* `wearhersummaryfile` is the name of the file that the program will create to summarize all the CSV files. Since it's possible you've downloaded a year many times (especially the current year), the program has to create a summary file and stores it with the rest of the weather data. Other than this extra file and all the CSV files, there should be nothing else in this directory.
 * `acttestfile` and `arctestfile` tell us where to find the active and archive mosquito testing data
 * `stratafile` tells us where to find the file containing the data to split up the state into four regions to model the mosquito infection rate (see below)
 * `countyshapefile` points to the SHP file for mapping SD counties
@@ -121,7 +121,7 @@ knitr::include_graphics('pictures for setup document/files and settings in rmark
 
 ### \ \ \ \ \ Obtaining the gridMET data
 
-ArboMAP requires weather data to make its predictions. You will use likely Google Earth Engine (GEE) to download historical weather data beginning a full year before your human case data (e.g. if you begin modeling in 2001, you will need to download all data beginning in 2000). If you want to download all data, it will not hurt the calculations; simply begin in 1950). You will only need to download historical data once; every other time you run the program, you will only need to download the most recent year's weather data from GEE.
+ArboMAP requires weather data to make its predictions. You will use likely Google Earth Engine (GEE) to download historical weather data beginning a full year before your human case data (e.g. if you begin modeling in 2001, you will need to download all data beginning in 2000). If you want to download all available historical data, it will not hurt the calculations; simply begin in 1950). You will only need to download historical data once; every other time you run the program, you will only need to download the most recent year's weather data from GEE.
 
 You will be given a link to code you can use to download the weather data. Once you click on this link and sign in to the Google account you used to sign up for Google Earth Engine, you should see a page like the following:
 
@@ -149,13 +149,13 @@ Name the task \"historicaldownload\" and name the file \"historicaldownload\" - 
 knitr::include_graphics('pictures for setup document/google earth naming task.PNG')
 ```
 
-Processing can take half an hour for this initial data pull, depending on who else is using the system, and very rarely your job can be cancelled - you might receive an error about \"too many objects,\" in which case you should try again later or split the download into individual years. Once it's done, there will be an extra file in your Google account's drive at **[drive.google.com](https://drive.google.com)** called \"historicaldownload.csv\".
+Processing can take half an hour for this initial data pull, depending on who else is using the system, and very rarely your job can be cancelled - you might receive an error about \"too many objects,\" in which case you should try again later or split the download into individual years. Once it's done, there will be an extra file in your Google account's drive at **[drive.google.com](https://drive.google.com)**.
 
 ```{r echo=FALSE, out.width='100%'}
 knitr::include_graphics('pictures for setup document/google earth downloads.PNG')
 ```
 
-Download this file (right-click -> download) and save it in a directory with all the other gridMet data; by default this is \"D:/ArboMAP/gridMet/\". You will eventually add updates for weather data in the current year (2018 at the time of writing), as discussed below, and these are the files beginning with \"2018 - \". These updates are stored as extra CSV files and, along with the historical download, give you a complete picture of the daily weather in every county.
+Download this file (right-click -> download) and save it in a directory with all the other weather data; by default this is \"D:/ArboMAP/weather data/\". You will eventually add updates for weather data in the current year (2018 at the time of writing), as discussed below, and these are the files beginning with \"2018 - \". These updates are stored as extra CSV files and, along with the historical download, give you a complete picture of the daily weather in every county.
 
 ```{r echo=FALSE, out.width='60%'}
 knitr::include_graphics('pictures for setup document/google earth gridmet directory.PNG')
@@ -165,7 +165,7 @@ Note that it doesn't matter how many times you download a date's weather data, a
 
 #### If you're not using GEE
 
-Although GEE is recommended for a variety of reasons, you might obtain your environmental data from elsewhere. Below is format expected of any CSV file that you might instead supply. Fips is a numerical code tying areal units (e.g. counties) to the measurements of the environment; here, this is the Federal Information Processing Standard that the US uses to identify counties. You can use whichever unique identifier ties environment to county. The "doy" indicates the day of the year (1-366). The remaining columns are measurements of environmental conditions. If your measurements are not daily (e.g. 7-day precipitation totals), they will need to be resampled to that temporal resolution.
+Although GEE is recommended for a variety of reasons, you might obtain your environmental data from elsewhere. Below is format expected of any CSV file that you might instead supply. Fips is a numerical code tying areal units (e.g. counties) to the measurements of the environment; here, this is the Federal Information Processing Standard that the US uses to identify counties. You can use whichever unique identifier ties environment to district. The "doy" indicates the day of the year (1-366). The remaining columns are measurements of environmental conditions. If your measurements are not daily (e.g. 7-day precipitation totals), they will need to be resampled to that temporal resolution.
 
 ```{r echo=FALSE, out.width='60%'}
 knitr::include_graphics('pictures for setup document/whats inside gridmet data.PNG')
@@ -173,9 +173,9 @@ knitr::include_graphics('pictures for setup document/whats inside gridmet data.P
 
 ### \ \ \ \ \ Obtaining the human case data
 
-You will only need to update the human case data file once at the beginning of each season. For example, to make WNV forecasts for 2018, the model is calibrated using human case data through the end of 2017, and 2018 case data are not incorporated until data are finalized after the end of the 2018 WNV season. Only two pieces of information are needed for every human case: a date and a county. The date is the symptom onset date (in the case of clinical cases) or the date of blood donation (in the case of viremic blood donors). The county is the patient's county of residence. Each row represents a single case.
+You will only need to update the human case data file once at the beginning of each season. For example, to make WNV forecasts for 2018, the model is calibrated using human case data through the end of 2017, and 2018 case data are not incorporated until data are finalized after the end of the 2018 WNV season. Only two pieces of information are needed for every human case: a date and a district. The date is the symptom onset date (in the case of clinical cases) or the date of blood donation (in the case of viremic blood donors). The district is the patient's district (e.g. county) of residence. Each row represents a single case.
 
-The CSV file you use should that contains the human case data should have a unique column named \"creationdate\" that is formatted MM/DD/YYYY, and a column named \"county\" that contains standard names for location of residence (or transmission, if available). The names of areal units are simplified by the code, so that any of the following are equivalent: BROOKINGS, Brookings, brookings, Brookings County, BROOKINGS COUNTY. These will all be reduced to \"brookings\" in the output.
+The CSV file you use should that contains the human case data should have a unique column named \"creationdate\" that is formatted MM/DD/YYYY, and a column named \"district\" that contains standard names for location of residence (or transmission, if available). The names of districts are simplified by the code, so that any of the following are equivalent: BROOKINGS, Brookings, brookings, Brookings County, BROOKINGS COUNTY. These will all be reduced to \"brookings\" in the output.
 
 It does not matter which other columns are present, as long as each row contains at least these two values. We have randomly generated some human case data that resemble the trends observed in WNV in SD. The following picture shows the expected format.
 
@@ -197,9 +197,11 @@ knitr::include_graphics('pictures for setup document/example of mosquito test da
 
 ### \ \ \ \ \ A note on standardized place names
 
-ArboMAP was designed to model WNV on a county-week basis, but can work with any geographical unit as long as each area is assigned a unique, stable identifier. Ideally, you would like to work with something like the FIPS code, but here we've chosen to work with county names as that is how the data are usually delivered. This presents some difficulties, since these names are probably not completely standardized in your sources; e.g. some sources will list \"Brookings County\" while others will simply use \"Brookings\".
+ArboMAP was designed to model WNV on a county-week basis, but can work with any geographical unit as long as each area is assigned a unique, stable identifier. Ideally, you will work with a standard set of names (or even a numerical code like the FIPS). District names might not be not completely standardized in your sources; e.g. some sources will list \"Brookings County\" while others will simply use \"Brookings\".
 
 ArboMAP reduces all names by deleting \"County\" and \"Parish\", removing all spaces from the county name, and putting the county name in lowercase. Therefore, \"BROOKINGS COUNTY\" becomes \"brookings\" and \"Charles Mix County\" becomes \"charlesmix\". This gives the greatest chance that all places will be recognized in all data sources. However, incorrect spellings and invalid date formats (e.g. DD/MM/YYYY instead of MM/DD/YYYY) cannot be fixed by the program and will result in errors.
+
+You will need to be sure that the shapefile you use contains a "NAME" field with human-readable names.
 
 # The typical run during the season
 
@@ -245,7 +247,7 @@ knitr::include_graphics('pictures for setup document/vapor pressure deficit.PNG'
 
 ### \ \ \ \ \ Mosquito data
 
-The model of WNV also summarizes the mosquito infection growth rate (MIGR) for multiple strata within the state. Every winter, the virus goes into hiding. In the early season, WNV begins replicating and spreading among birds and mosquitoes. The MIGR is a measure of how quickly that's occuring. We cannot estimate the MIGR for every county, but instead split the state into four strata, shown below, and estimate the MIGR within the strata. If the map does not resemble this, especially if the map is entirely grey, it's likely that the program cannot locate the strata file.
+The model of WNV also summarizes the mosquito infection growth rate (MIGR) for multiple strata within the state. Every winter, the virus goes into hiding. In the early season, WNV begins replicating and spreading among birds and mosquitoes. The MIGR is a measure of how quickly that's occuring. We cannot estimate the MIGR for every district, but instead split the state into four strata, shown below, and estimate the MIGR within the strata. If the map does not resemble this, especially if the map is entirely grey, it's likely that the program cannot locate the strata file.
 
 ```{r echo=FALSE, out.width='60%'}
 knitr::include_graphics('pictures for setup document/strata.PNG')
@@ -282,7 +284,7 @@ knitr::include_graphics('pictures for setup document/estimates.PNG')
 
 ### \ \ \ \ \ Current-week WNV absolute risk map
 
-Next are the absolute probabilities of each county reporting at least one human case during the week in question. If the county is darkest blue, then the model says there is no probability of reporting a case during the week you've selected. This is often the case in the early or late seasons, especially in the lower-population counties. If a county is brightest red, then the model says the county will definitely report at least one human case this week.
+Next are the absolute probabilities of each district reporting at least one human case during the week in question. If the district is darkest blue, then the model says there is no probability of reporting a case during the week you've selected. This is often the case in the early or late seasons, especially in the lower-population counties. If a district is brightest red, then the model says the district will definitely report at least one human case this week.
 
 ```{r echo=FALSE, out.width='60%'}
 knitr::include_graphics('pictures for setup document/map absolute.PNG')
@@ -290,7 +292,7 @@ knitr::include_graphics('pictures for setup document/map absolute.PNG')
 
 ### \ \ \ \ \ Current-week WNV relative risk map
 
-Next are the relative probabilities. A county in the early season may have low risk because the virus is not yet circulating, but is that lower or higher than usual, for that county, during that week of the year? Brookings County on May 15th 2018 will have low risk, but that risk may be higher than usual when compared to Brookings on May 15th in 2004-2017? If a county is red, this means that risk is predicted to be substantially higher than average in that county, during the week in question. If blue, then lower. If yellow, then average. It is important to remember that red and blue do not mean high or low absolute risk. They mean high*er* or low*er than usual*. A county that is lower than usual can still have many cases in a week; e.g. Brown County in early August can be lower than usual, but will still likely report cases.
+Next are the relative probabilities. A district in the early season may have low risk because the virus is not yet circulating, but is that lower or higher than usual, for that county, during that week of the year? Brookings County on May 15th 2018 will have low risk, but that risk may be higher than usual when compared to Brookings on May 15th in 2004-2017? If a county is red, this means that risk is predicted to be substantially higher than average in that district, during the week in question. If blue, then lower. If yellow, then average. It is important to remember that red and blue do not mean high or low absolute risk. They mean high*er* or low*er than usual*. A district that is lower than usual can still have many cases in a week; e.g. Brown County in early August can be lower than usual, but will still likely report cases.
 
 ```{r echo=FALSE, out.width='60%'}
 knitr::include_graphics('pictures for setup document/map relative.PNG')
@@ -314,7 +316,7 @@ Unfortunately, if the Rmd file refuses to produce estimates (e.g. the red line i
 
 ## Bad estimates
 
-This is usually because of bad mosquito infection data. You will want to carefully check the mosquito infection data to ensure they are in the correct format. You will often be able to see this on the graph of the mosquito infection growth rate - a year in the past will dip down to very low levels of infection, but this does not seem historically accurate. Another problem can occur if you enter county names incorrectly. If the data tell the program that a case occurs in a county that does not exist, then this case will not be counted, and a county's risk will be artificially low. If this happens with enough counties (e.g. if every county is followed by a space in the data file) then a whole year's risk will be 0.
+This is usually because of bad mosquito infection data. You will want to carefully check the mosquito infection data to ensure they are in the correct format. You will often be able to see this on the graph of the mosquito infection growth rate - a year in the past will dip down to very low levels of infection, but this does not seem historically accurate. Another problem can occur if you enter district names incorrectly. If the data tell the program that a case occurs in a county that does not exist, then this case will not be counted, and a district's risk will be artificially low. If this happens with enough districts (e.g. if every district is followed by a space in the data file) then a whole year's risk will be 0.
 
 # Relevant scientific papers
 

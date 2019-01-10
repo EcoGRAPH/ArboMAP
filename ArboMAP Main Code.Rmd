@@ -68,10 +68,10 @@ maxobservedhumandate <- as.Date("2017-12-31", "%Y-%m-%d")
 # which week are we producing the graphs for?
 weekinquestion <- as.Date("2018-08-15", "%Y-%m-%d")
 
-# where are the gridmet csv files stored?
-gridmetpathstr <- ".\\weather data\\"
+# where are the weather csv files stored?
+weatherpathstr <- ".\\weather data\\"
 # what is the name of the summary file to be created?
-gridmetsummaryfile <- "weather data summary file.csv"
+weathersummaryfile <- "weather data summary file.csv"
 
 # which variables do you want to use?
 var1name <- "tmeanc"
@@ -117,33 +117,33 @@ dlagdeg  <- 8
 # Data used for predictions
 ## Weather data
 
-```{r gridmetload, include=FALSE, echo=TRUE}
+```{r weatherload, include=FALSE, echo=TRUE}
 # load and concat files
-gridmetlist <- list.files(path=gridmetpathstr, pattern="(.csv)", recursive=FALSE)
-gridmet <- data.frame()
-for (i in 1:length(gridmetlist)) {
+weatherlist <- list.files(path=weatherpathstr, pattern="(.csv)", recursive=FALSE)
+weather <- data.frame()
+for (i in 1:length(weatherlist)) {
   
-  if (gridmetlist[[i]] != gridmetsummaryfile) {
+  if (weatherlist[[i]] != weathersummaryfile) {
   
-    tempdf <- read.csv(paste(gridmetpathstr, gridmetlist[[i]], sep="")) 
-    gridmet <- bind_rows(gridmet, tempdf)  
+    tempdf <- read.csv(paste(weatherpathstr, weatherlist[[i]], sep="")) 
+    weather <- bind_rows(weather, tempdf)  
     
   }
   
 }
-gridmet$date <- as.Date(paste(gridmet$year,
-                              gridmet$doy,
+weather$date <- as.Date(paste(weather$year,
+                              weather$doy,
                               sep="-"),
                         "%Y-%j")
 
 # get rid of duplicated rows
-gridmet$districtdate <- paste(gridmet$district, gridmet$date)
-gridmet <- subset(gridmet, !duplicated(gridmet$districtdate))
+weather$districtdate <- paste(weather$district, weather$date)
+weather <- subset(weather, !duplicated(weather$districtdate))
 
 # plot normals and this year
-gridmet <- group_by(gridmet,
+weather <- group_by(weather,
                     doy)
-doymet  <- dplyr::summarize(gridmet,
+doymet  <- dplyr::summarize(weather,
                      med_tmeanc = quantile(tmeanc, probs=0.50, na.rm=TRUE),
                      med_rmean  = quantile(rmean,  probs=0.50, na.rm=TRUE),
                      med_vpd    = quantile(vpd,    probs=0.50, na.rm=TRUE),
@@ -153,10 +153,10 @@ doymet  <- dplyr::summarize(gridmet,
                      min_tmeanc = min(tmeanc, na.rm=TRUE),
                      min_rmean  = min(rmean,  na.rm=TRUE),
                      min_vpd    = min(vpd,    na.rm=TRUE))
-gridmet <- ungroup(gridmet)
+weather <- ungroup(weather)
 
-thisyear <- max(gridmet$year, na.rm=TRUE)
-thisyear <- subset(gridmet, year == thisyear)
+thisyear <- max(weather$year, na.rm=TRUE)
+thisyear <- subset(weather, year == thisyear)
 thisyear <- group_by(thisyear, doy)
 thisyear <- dplyr::summarize(thisyear,
                       med_tmeanc = quantile(tmeanc, probs=0.50, na.rm=TRUE),
@@ -178,32 +178,32 @@ meanvapd.x <- round(mean(tempdf$med_vpd.x, na.rm=TRUE), 1)
 meanvapd.y <- round(mean(tempdf$med_vpd.y, na.rm=TRUE), 1)
 ```
 
-Weather data from the gridMET data set range from `r min(gridmet$date, na.rm=TRUE)` to `r max(gridmet$date, na.rm=TRUE)`. Below are graphs of statewide daily averages of `r var1name` and `r var2name`. Observations for the current year are in red. Black is the medium from all other years, and the grey band indicates the max/min ever observed.
+Weather data from the gridMET data set range from `r min(weather$date, na.rm=TRUE)` to `r max(weather$date, na.rm=TRUE)`. Below are graphs of statewide daily averages of `r var1name` and `r var2name`. Observations for the current year are in red. Black is the medium from all other years, and the grey band indicates the max/min ever observed.
 
-```{r gridmetplots, fig.width=7, fig.height=5, echo=FALSE}
+```{r weatherplots, fig.width=7, fig.height=5, echo=FALSE}
 plot1 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=med_tmeanc)) +
   geom_ribbon(data=doymet, aes(x=doy, ymin=min_tmeanc, ymax=max_tmeanc), alpha=0.3) +
   geom_line(data=thisyear, aes(x=doy, y=med_tmeanc), color="red", size=1) +
   xlab("Day of the year") + ylab(var1name) +
   ggtitle(paste(var1name, 
-                max(gridmet$year, na.rm=TRUE),
+                max(weather$year, na.rm=TRUE),
                 sep=" "))
 plot2 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=log(med_vpd+1))) +
   geom_ribbon(data=doymet, aes(x=doy, ymin=log(min_vpd+1), ymax=log(max_vpd+1)), alpha=0.3) +
   geom_line(data=thisyear, aes(x=doy, y=log(med_vpd+1)), color="red", size=1) +
   ggtitle(paste(var2name,
-                max(gridmet$year, na.rm=TRUE),
+                max(weather$year, na.rm=TRUE),
                 sep=" ")) +
   xlab("Day of the year") + ylab(var2name)
 grid.arrange(plot1, plot2, nrow=2)
 
 # simplify the district names
-gridmet$district <- simplifynames(gridmet$district)
+weather$district <- simplifynames(weather$district)
 
 # put aside this set for use in the regression
-dailyextr <- gridmet
+dailyextr <- weather
 ```
-```{r silentsavegridmet, include=FALSE, echo=FALSE}
+```{r silentsaveweather, include=FALSE, echo=FALSE}
 ggsave(paste(graphicoutputdir,
              "var1.png",
              sep=""), plot1)
