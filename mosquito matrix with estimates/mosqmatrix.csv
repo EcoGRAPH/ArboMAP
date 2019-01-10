@@ -1,4 +1,4 @@
-"","county","col_date","wnv_result","pool_size","year","col_year","doy","weeknum","strata","countynum","dminus","est"
+"","district","col_date","wnv_result","pool_size","year","col_year","doy","weeknum","strata","districtnum","dminus","est"
 "1","beadle",2016-07-15,1,5,2016,2016,197,28,102,1,7.85885461472287,0.0590143003594113
 "2","beadle",2007-06-19,1,50,2007,2007,170,24,102,1,-19.1411453852771,0.0200977858997439
 "3","beadle",2007-06-21,1,50,2007,2007,172,24,102,1,-17.1411453852771,0.0219958026202325

@@ -22,8 +22,8 @@ simplifynames <- function(priornames=NULL) {
   # remove spaces
   priornames <- sub(pattern=" ", replacement="", x=priornames, fixed=TRUE)
   
-  # remove county and parish
-  priornames <- sub(pattern="county", replacement="", x=priornames, fixed=TRUE)
+  # remove district and parish
+  priornames <- sub(pattern="district", replacement="", x=priornames, fixed=TRUE)
   priornames <- sub(pattern="parish", replacement="", x=priornames, fixed=TRUE)
 
   # return names
@@ -69,9 +69,9 @@ maxobservedhumandate <- as.Date("2017-12-31", "%Y-%m-%d")
 weekinquestion <- as.Date("2018-08-15", "%Y-%m-%d")
 
 # where are the gridmet csv files stored?
-gridmetpathstr <- ".\\gridMet\\"
+gridmetpathstr <- ".\\weather data\\"
 # what is the name of the summary file to be created?
-gridmetsummaryfile <- "gridmet internal summary.csv"
+gridmetsummaryfile <- "weather data summary file.csv"
 
 # which variables do you want to use?
 var1name <- "tmeanc"
@@ -80,11 +80,11 @@ var2name <- "vpd"
 # where are the mosquito test files located?
 mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
 
-# which county stratification scheme are we using?
+# which district stratification scheme are we using?
 stratafile <- ".\\strata\\17-04-20 - classified strata - classic.csv"
 
-# where is the countyshapefile
-countyshapefile <- ".\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
+# where is the districtshapefile
+districtshapefile <- ".\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
 
 # to which two other years do we want to compare the current year's predictions?
 compyear1 <- 2012
@@ -137,9 +137,8 @@ gridmet$date <- as.Date(paste(gridmet$year,
                         "%Y-%j")
 
 # get rid of duplicated rows
-gridmet$fipsdate <- paste(gridmet$Fips, gridmet$date)
-gridmet <- subset(gridmet, !duplicated(gridmet$fipsdate))
-gridmet$Fipsdate <- NULL
+gridmet$districtdate <- paste(gridmet$district, gridmet$date)
+gridmet <- subset(gridmet, !duplicated(gridmet$districtdate))
 
 # plot normals and this year
 gridmet <- group_by(gridmet,
@@ -197,14 +196,9 @@ plot2 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=log(med_vpd+1))) +
                 sep=" ")) +
   xlab("Day of the year") + ylab(var2name)
 grid.arrange(plot1, plot2, nrow=2)
-# figure out which fips is which county
-gridmet <- left_join(gridmet,
-                     county.fips,
-                     by=c("Fips"="fips"))
-gridmet$county <- sapply(strsplit(gridmet$polyname, ","), "[[", 2)
 
-# simplify the county names
-gridmet$county <- simplifynames(gridmet$county)
+# simplify the district names
+gridmet$district <- simplifynames(gridmet$district)
 
 # put aside this set for use in the regression
 dailyextr <- gridmet
@@ -231,9 +225,9 @@ wnv$year <- as.numeric(format(wnv$col_date, "%Y"))
 
 
 ```{r mosquito222, echo=FALSE}
-# convert county to factor
-wnv$county <- simplifynames(wnv$county)
-wnv$county <- factor(wnv$county)
+# convert district to factor
+wnv$district <- simplifynames(wnv$district)
+wnv$district <- factor(wnv$district)
 
 # convert date to a date object
 wnv$col_date <- as.Date(wnv$col_date, '%m/%d/%Y')
@@ -251,8 +245,8 @@ wnv$doy      <- as.numeric(format(wnv$col_date, "%j"))
 wnv$weeknum  <- as.numeric(format(wnv$col_date, "%U"))
 #wnv <- wnv[which(wnv$species == "Culex tarsalis"),]
 wnv$species <- NULL
-wnv$county <- factor(wnv$county)
-wnv$county <- droplevels(wnv$county)
+wnv$district <- factor(wnv$district)
+wnv$district <- droplevels(wnv$district)
 
 # figure out which years we're modeling
 minmosqyear <- min(wnv$year, na.rm=TRUE)
@@ -282,21 +276,21 @@ perpos <- 100*round(wnvnumerator/wnvdenominator, 3)
 There are `r nrow2` samples in the vector testing database. For `r maxmosqyear`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. The regions used for stratification are mapped below; districts are thought to share risk more closely with others in the same strata, although all districts share some level of risk with all other districts. 
 
 ```{r mosquito2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
-# import county identifiers
+# import district identifiers
 strata <- read.csv(stratafile)
-strata$county <- simplifynames(strata$NAME)
-strata <- strata[c("county", "strata")]
+strata$district <- simplifynames(strata$district)
+strata <- strata[c("district", "strata")]
 wnv <- merge(x=wnv, y=strata,
-             by.x="county",
-             by.y="county",
+             by.x="district",
+             by.y="district",
              all.x=TRUE)
 
-# figure out how many distinct counties we have left
-countylist           <- data.frame(county=unique(wnv$county))
-distinctcounties     <- length(unique(wnv$county))
-countylist$countynum <- seq(from=1, to=distinctcounties, by=1)
-wnv <- merge(x=wnv, y=countylist,
-             by="county",
+# figure out how many distinct districts we have left
+districtlist           <- data.frame(district=unique(wnv$district))
+distinctdistricts     <- length(unique(wnv$district))
+districtlist$districtnum <- seq(from=1, to=distinctdistricts, by=1)
+wnv <- merge(x=wnv, y=districtlist,
+             by="district",
              all=TRUE)
 
 # create a variable that at least has a little chance of being orthogonal to 1.
@@ -357,9 +351,9 @@ human$chardate <- as.character(levels(human$creationdate))[as.numeric(human$crea
 human$creationdate <- as.Date(human$creationdate, "%m/%d/%Y")
 human$creationyear <- as.numeric(format(human$creationdate, "%Y"))
 human$creationmonth <- as.numeric(format(human$creationdate, "%m"))
-# simplify county names
-human$county <- simplifynames(human$county)
-human$county <- factor(human$county)
+# simplify district names
+human$district <- simplifynames(human$district)
+human$district <- factor(human$district)
 human$doy <- as.numeric(format(human$creationdate, "%j"))
 
 # retain only those in the right date range
@@ -376,8 +370,8 @@ minobservedhumandate <- min(human$creationdate)
 # set up the data frame so that it ends at the maxdesiredhumandate 
 filledweeks <- seq(from=maxdesiredhumandate, to=minobservedhumandate, by=-7)
 
-fullcasemat <- expand.grid(sort(unique(human$county)), filledweeks)
-names(fullcasemat) <- c("county", "weekstartdate")
+fullcasemat <- expand.grid(sort(unique(human$district)), filledweeks)
+names(fullcasemat) <- c("district", "weekstartdate")
 head(fullcasemat)
 fullcasemat$anycases   <- rep(0, nrow(fullcasemat))
 fullcasemat$totalcases <- rep(0, nrow(fullcasemat))
@@ -386,9 +380,9 @@ fullcasemat$observed   <- 1*((fullcasemat$weekstartdate >= minobservedhumandate)
 for (i in 1:nrow(fullcasemat)) {
   
   thisweekstartdate <- fullcasemat$weekstartdate[i]
-  thiscounty        <- fullcasemat$county[i]
+  thisdistrict        <- fullcasemat$district[i]
   
-  tempcases <- human[which(human$county == thiscounty),]
+  tempcases <- human[which(human$district == thisdistrict),]
   tempcases <- tempcases[which(tempcases$creationdate >= thisweekstartdate),]
   tempcases <- tempcases[which(tempcases$creationdate <= (thisweekstartdate + 6)),]
   
@@ -415,26 +409,26 @@ observedfraction <- 100*round(observedbefore / observedtotal, 2)
 ```
 ```{r stratamap, include=FALSE, echo=FALSE}
 
-county_shapes <- readShapePoly(countyshapefile)
+district_shapes <- readShapePoly(districtshapefile)
 # simplify name
-county_shapes$county <- simplifynames(county_shapes$NAME)
-crs(county_shapes) <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80     +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
-projected_counties <- spTransform(county_shapes, crs("+proj=longlat +datum=WGS84 +no_defs"))
-projected_counties@data$id = rownames(projected_counties@data)
-projected_counties.df <- tidy(projected_counties)
-projected_counties.df <- left_join(projected_counties.df, projected_counties@data, by="id")
+district_shapes$district <- simplifynames(district_shapes$NAME)
+crs(district_shapes) <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80     +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+projected_districts <- spTransform(district_shapes, crs("+proj=longlat +datum=WGS84 +no_defs"))
+projected_districts@data$id = rownames(projected_districts@data)
+projected_districts.df <- tidy(projected_districts)
+projected_districts.df <- left_join(projected_districts.df, projected_districts@data, by="id")
 
 stratamapcsv <- read.csv(stratafile)
-stratamapcsv$county <- simplifynames(stratamapcsv$NAME)
-stratamapcsv <- stratamapcsv[c("county", "strata")]
+stratamapcsv$district <- simplifynames(stratamapcsv$district)
+stratamapcsv <- stratamapcsv[c("district", "strata")]
 
-projected_counties.df <- left_join(projected_counties.df, stratamapcsv,
-                                   by="county")
+projected_districts.df <- left_join(projected_districts.df, stratamapcsv,
+                                   by="district")
 
-projected_counties.df$stratum <- factor(projected_counties.df$strata.x)
+projected_districts.df$stratum <- factor(projected_districts.df$strata.x)
 ```
 ```{r stratmap2, include=TRUE, echo=FALSE, fig.width=7, fig.height=3}
-thisplot <- ggplot(projected_counties.df) +
+thisplot <- ggplot(projected_districts.df) +
       aes(long,lat,fill=stratum,group=group,id=id,guides=FALSE) +
       geom_polygon() + xlab("") + ylab("") +
       geom_path(color="black") +
@@ -515,48 +509,48 @@ The graphs below show observed statewide risk (black) and estimated risk (red) u
 dailyextr <- data.frame(dailyextr)
 dailyextr$var1 <- dailyextr[,which(colnames(dailyextr) == var1name)]
 dailyextr$var2 <- dailyextr[,which(colnames(dailyextr) == var2name)]
-dailyextr <- dailyextr[c("county","date","var1","var2")]
-dailyextr$county <- simplifynames(dailyextr$county)
+dailyextr <- dailyextr[c("district","date","var1","var2")]
+dailyextr$district <- simplifynames(dailyextr$district)
 # fill in missing and future climatological data
-totaldailyextr <- expand.grid(county=unique(dailyextr$county),
+totaldailyextr <- expand.grid(district=unique(dailyextr$district),
                               date=seq(from=as.Date("2003-01-01", "%Y-%m-%d"),
                                        to=maxdesiredhumandate,
                                        by=1))
 dailyextr <- merge(x=totaldailyextr, y=dailyextr,
-                   by.x=c("county","date"),
-                   by.y=c("county","date"),
+                   by.x=c("district","date"),
+                   by.y=c("district","date"),
                    all.x=TRUE)
 dailyextr$doy <- as.numeric(format(dailyextr$date, "%j"))
 
-dailyextr <- group_by(dailyextr, county, doy)
-countydoymean <- dplyr::summarize(dailyextr,
+dailyextr <- group_by(dailyextr, district, doy)
+districtdoymean <- dplyr::summarize(dailyextr,
                            meanvar1=mean(var1, na.rm=TRUE),
                            meanvar2=mean(var2, na.rm=TRUE))
 dailyextr <- ungroup(dailyextr)                           
 
-dailyextr <- left_join(dailyextr, countydoymean,
-                   by=c("county","doy"))
+dailyextr <- left_join(dailyextr, districtdoymean,
+                   by=c("district","doy"))
 
 dailyextr$var1[is.na(dailyextr$var1)] <- dailyextr$meanvar1[is.na(dailyextr$var1)]
 dailyextr$var2[is.na(dailyextr$var2)] <- dailyextr$meanvar2[is.na(dailyextr$var2)]
 
 # BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-rm(countydoymean)
+rm(districtdoymean)
 dailyextr$meanvar1 <- NULL
 dailyextr$meanvar2 <- NULL
 gc()
 
-# we need the counties to be in lower case to merge with the gridMET data
-fullcasemat$county <- simplifynames(fullcasemat$county)
+# we need the districts to be in lower case to merge with the gridMET data
+fullcasemat$district <- simplifynames(fullcasemat$district)
 
-datalagger <- expand.grid(unique(fullcasemat$county),
+datalagger <- expand.grid(unique(fullcasemat$district),
                           unique(fullcasemat$weekstartdate),
                           seq(from=0, to=laglen-1, by=1))
-names(datalagger) <- c("county","date","lag")
+names(datalagger) <- c("district","date","lag")
 datalagger$laggeddate <- datalagger$date-datalagger$lag
 
 datalagger <- left_join(datalagger, dailyextr,
-                        by=c("county"="county",
+                        by=c("district"="district",
                              "laggeddate"="date"))
 
 # BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -564,11 +558,11 @@ rm(dailyextr)
 gc()
 
 # pivot
-mean1data <- dcast(datalagger, county + date ~ lag, value.var="var1")
+mean1data <- dcast(datalagger, district + date ~ lag, value.var="var1")
 names(mean1data) <- paste("var1_",names(mean1data),sep="")
 head(mean1data)
 
-mean2data <- dcast(datalagger, county + date ~ lag, value.var="var2")
+mean2data <- dcast(datalagger, district + date ~ lag, value.var="var2")
 names(mean2data) <- paste("var2_",names(mean2data),sep="")
 head(mean2data)
 
@@ -578,12 +572,12 @@ gc()
 
 # and put all this lagged info back into the total case matrix
 fullcasemat <- merge(x=fullcasemat, y=mean1data,
-                     by.x=c("county", "weekstartdate"),
-                     by.y=c("var1_county","var1_date"),
+                     by.x=c("district", "weekstartdate"),
+                     by.y=c("var1_district","var1_date"),
                      all.x=TRUE)
 fullcasemat <- merge(x=fullcasemat, y=mean2data,
-                     by.x=c("county", "weekstartdate"),
-                     by.y=c("var2_county","var2_date"),
+                     by.x=c("district", "weekstartdate"),
+                     by.y=c("var2_district","var2_date"),
                      all.x=TRUE)
 
 # BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -630,9 +624,9 @@ stratayearmosq <- randeffs
 stratayearmosq <- stratayearmosq[c("stratayear","mosqinfect")]
 names(stratayearmosq) <- c("stratayear","MIRsummarystat")
 
-# import county identifiers
+# import district identifiers
 fullcasemat <- merge(x=fullcasemat, y=strata,
-                     by.x="county", by.y="county",
+                     by.x="district", by.y="district",
                      all.x=TRUE)
 fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
 fullcasemat$stratayear <- paste(fullcasemat$strata, fullcasemat$year, sep=":")
@@ -661,9 +655,9 @@ fullcasemat$stratayear <- NULL
 
 ```{r humanreg, echo=FALSE, include=FALSE}
 
-# get rid of counties that never have a positive case in the time period
+# get rid of districts that never have a positive case in the time period
 fullcasemat$doy <- as.numeric(format(fullcasemat$weekstartdate, "%j"))
-firstreg  <- glm(anycases ~ 0+MIRsummarystat+county+
+firstreg  <- glm(anycases ~ 0+MIRsummarystat+district+
                    band1summaries+
                    band2summaries+
                    band1summaries:doy+
@@ -671,12 +665,12 @@ firstreg  <- glm(anycases ~ 0+MIRsummarystat+county+
                  family=binomial(), data=fullcasemat,
                  subset=observed==1)
 
-
+summary(firstreg)
 
 
 # show predictions
-preds <- predict(firstreg, type="link", newdata=fullcasemat, se.fit=TRUE)
-fullcasemat$est <- predict(firstreg, type="response", newdata=fullcasemat)
+preds <- predict(firstreg, type="link", newdata=fullcasemat, se.fit=TRUE, newlevels=TRUE)
+fullcasemat$est <- predict(firstreg, type="response", newdata=fullcasemat, newlevels=TRUE)
 
 preds <- as.matrix(cbind(preds$fit, preds$se.fit))
 preds <- data.frame(preds)
@@ -730,7 +724,7 @@ thisplot <- ggplot(tempdf2) + geom_line(aes(x=newdate,
   scale_x_continuous(breaks=seq(from=minmosqyear,to=(maxmosqyear+1),by=1),
                      labels=c(seq(from=minmosqyear, to=maxmosqyear, by=1), ""),
                      limits=c((minmosqyear+0.125),(maxmosqyear+1))) +
-  ylab("Proportion of counties positive") +
+  ylab("Proportion of districts positive") +
   theme(panel.grid.minor.x=element_blank()) +
   theme(axis.text.x = element_text(hjust=-0.225))
 plot(thisplot)
@@ -772,7 +766,7 @@ tempdf$year <- factor(tempdf$year)
 tempdf2 <- thisyear[thisyear$weekstartdate >= weekinquestionSun,]
 tempdf2 <- tempdf2[1,]
 ```
-Predictions for `r maxmosqyear` are compared to observations in `r compyear1` and `r compyear2`. We expect `r round(66*tempdf2$est,1)` counties to have at least one human case between `r weekinquestionSunstr` `r weekinquestionSun` and `r weekinquestionSatstr` `r weekinquestionSat`.
+Predictions for `r maxmosqyear` are compared to observations in `r compyear1` and `r compyear2`. We expect `r round(66*tempdf2$est,1)` districts to have at least one human case between `r weekinquestionSunstr` `r weekinquestionSun` and `r weekinquestionSatstr` `r weekinquestionSat`.
 
 ```{r plotblah, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 thisplot <- ggplot(tempdf) + geom_line(data=tempdf, aes(x=weekstartdate,
@@ -785,7 +779,7 @@ thisplot <- ggplot(tempdf) + geom_line(data=tempdf, aes(x=weekstartdate,
                limits=c(as.Date(paste(maxmosqyear, "-05-01", sep=""), "%Y-%m-%d"),
                         as.Date(paste(maxmosqyear, "-11-15", sep=""), "%Y-%m-%d")),
                labels=c("May","Jun","Jul","Aug","Sep","Oct","Nov","")) +
-  ylab("Proportion of counties positive") +
+  ylab("Proportion of districts positive") +
   theme(panel.grid.minor.x=element_blank()) +
   scale_linetype_manual(values=c(3,2,1)) +
   scale_color_manual(values=c("black","black","red"))
@@ -807,7 +801,7 @@ ggsave(paste(graphicoutputdir,
 ```
 
 ```{r echo=FALSE}
-write.csv(x=fullcasemat[c("county","weekstartdate",
+write.csv(x=fullcasemat[c("district","weekstartdate",
                           "anycases","totalcases", "est")],
           file=paste(fullcasematoutputdir, "case matrix.csv", sep=""))
 fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
@@ -821,34 +815,34 @@ positivesthisyear <- round(sum(thisyear$est, na.rm=TRUE), 1)
 casesthisyear     <- round(positivesthisyear * multiplier, 1)
 ```
 
-We expect that there will be `r positivesthisyear` positive county-weeks this year. If we assume that each positive county-week corresponds to `r multiplier` cases, which is an estimate based on historical data, then this yields a total of `r casesthisyear` cases estimated for `r maxmosqyear`.
+We expect that there will be `r positivesthisyear` positive district-weeks this year. If we assume that each positive district-week corresponds to `r multiplier` cases, which is an estimate based on historical data, then this yields a total of `r casesthisyear` cases estimated for `r maxmosqyear`.
 
 \newpage
 ## Results for `r weekinquestionSun` to `r format(weekinquestionSat, "%m-%d")`
 
-We visualize the raw estimated risk for `r weekinquestion` below. If a county is darkest blue, then we estimate that there should be no human cases reported for this county, during this week. If a county is brightest red, we are certain that there will be at least one human case reported for this county, during this week.
+We visualize the raw estimated risk for `r weekinquestion` below. If a district is darkest blue, then we estimate that there should be no human cases reported for this district, during this week. If a district is brightest red, we are certain that there will be at least one human case reported for this district, during this week.
 
 ```{r shapefile, include=FALSE, echo=FALSE, warnings=FALSE}
-county_shapes <- readShapePoly(countyshapefile)
-county_shapes$NAME <- simplifynames(county_shapes$NAME)
-crs(county_shapes) <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80     +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
-projected_counties <- spTransform(county_shapes, crs("+proj=longlat +datum=WGS84 +no_defs"))
-projected_counties@data$id = rownames(projected_counties@data)
-projected_counties.df <- tidy(projected_counties)
-projected_counties.df <- left_join(projected_counties.df, projected_counties@data, by="id")
-projected_counties.df$county <- simplifynames(projected_counties.df$NAME)
+district_shapes <- readShapePoly(districtshapefile)
+district_shapes$NAME <- simplifynames(district_shapes$NAME)
+crs(district_shapes) <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80     +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+projected_districts <- spTransform(district_shapes, crs("+proj=longlat +datum=WGS84 +no_defs"))
+projected_districts@data$id = rownames(projected_districts@data)
+projected_districts.df <- tidy(projected_districts)
+projected_districts.df <- left_join(projected_districts.df, projected_districts@data, by="id")
+projected_districts.df$district <- simplifynames(projected_districts.df$NAME)
 
 # get this week's predictions
 thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
 thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
-thisweek <- thisweek[c("county", "est")]
+thisweek <- thisweek[c("district", "est")]
 
-projected_counties.df <- left_join(projected_counties.df, thisweek,
-                                   by="county")
-projected_counties.df$est[is.na(projected_counties.df$est)] <- min(projected_counties.df$est, na.rm=TRUE)
+projected_districts.df <- left_join(projected_districts.df, thisweek,
+                                   by="district")
+projected_districts.df$est[is.na(projected_districts.df$est)] <- min(projected_districts.df$est, na.rm=TRUE)
 ```
 ```{r shapefile2, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-thisplot <- ggplot(projected_counties.df) +
+thisplot <- ggplot(projected_districts.df) +
       aes(long,lat,fill=est,group=group,id=id,guides=FALSE) +
       geom_polygon() + xlab("") + ylab("") +
       geom_path(color="black") +
@@ -881,7 +875,7 @@ This map indicates whether probabilities reported in the previous map are higher
 ```{r riskcalcs, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
 thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
-thisweek <- thisweek[c("county", "est", "doy")]
+thisweek <- thisweek[c("district", "est", "doy")]
 
 approxdoy <- thisweek$doy[1]
 
@@ -890,12 +884,12 @@ fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
 doypreds <- data.frame()
 for (curyear in unique(fullcasemat$year)) {
   
-  for (curcounty in unique(fullcasemat$county)) {
+  for (curdistrict in unique(fullcasemat$district)) {
     
     thisdf <- fullcasemat[fullcasemat$year == curyear,]
-    thisdf <- thisdf[thisdf$county == curcounty,]
+    thisdf <- thisdf[thisdf$district == curdistrict,]
     
-    tempdf <- data.frame(county = curcounty,
+    tempdf <- data.frame(district = curdistrict,
                          year = curyear,
                          est = approx(x=thisdf$doy,
                                       y=thisdf$est,
@@ -908,9 +902,9 @@ for (curyear in unique(fullcasemat$year)) {
 }
 
 doypreds2 <- data.frame()
-for (curcounty in unique(doypreds$county)) {
+for (curdistrict in unique(doypreds$district)) {
 
-  tempdf <- doypreds[doypreds$county == curcounty,]
+  tempdf <- doypreds[doypreds$district == curdistrict,]
   tempdf$percentile <- rank(tempdf$est, ties.method="random") / length(tempdf$est)
   
   doypreds2 <- bind_rows(doypreds2, tempdf)
@@ -924,10 +918,10 @@ doypreds$riskcategory <- " About average    "
 doypreds$riskcategory[doypreds$percentile <= riskalpha/2] <- " Lower than usual    "
 doypreds$riskcategory[doypreds$percentile >= 1-(riskalpha/2)] <- " Higher than usual    "
 doypredscurrent <- doypreds[doypreds$year == as.numeric(format(weekinquestion, "%Y")),]
-projected_counties.df <- left_join(projected_counties.df, doypredscurrent,
-                                   by="county")
-projected_counties.df$riskcategory[is.na(projected_counties.df$riskcategory)] <- " Not able to model    "
-thisplotrisk <- ggplot(projected_counties.df) +
+projected_districts.df <- left_join(projected_districts.df, doypredscurrent,
+                                   by="district")
+projected_districts.df$riskcategory[is.na(projected_districts.df$riskcategory)] <- " Not able to model    "
+thisplotrisk <- ggplot(projected_districts.df) +
       aes(long,lat,fill=riskcategory,group=group,guides=FALSE) +
       geom_polygon() + 
       geom_path(color="black") +

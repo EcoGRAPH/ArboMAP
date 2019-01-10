@@ -1,4 +1,4 @@
-county,creationdate
+district,creationdate
 brown,7/4/2004
 brown,7/11/2004
 brown,8/8/2004
@@ -359,7 +359,7 @@ jones,8/21/2005
 lincoln,8/21/2005
 mellette,8/21/2005
 roberts,8/21/2005
-shannon,8/21/2005
+oglala lakota,8/21/2005
 sully,8/21/2005
 beadle,8/28/2005
 brown,8/28/2005
@@ -429,7 +429,7 @@ lawrence,7/23/2006
 mccook,7/23/2006
 minnehaha,7/23/2006
 pennington,7/23/2006
-shannon,7/23/2006
+oglala lakota,7/23/2006
 ziebach,7/23/2006
 brookings,7/30/2006
 charlesmix,7/30/2006
@@ -442,7 +442,7 @@ deuel,8/6/2006
 edmunds,8/6/2006
 meade,8/6/2006
 roberts,8/6/2006
-shannon,8/6/2006
+oglala lakota,8/6/2006
 todd,8/6/2006
 union,8/6/2006
 brookings,8/13/2006
@@ -540,7 +540,7 @@ day,7/29/2007
 lake,7/29/2007
 potter,7/29/2007
 sanborn,7/29/2007
-shannon,7/29/2007
+oglala lakota,7/29/2007
 spink,7/29/2007
 brookings,8/5/2007
 brown,8/5/2007
@@ -577,7 +577,7 @@ lincoln,8/26/2007
 meade,8/26/2007
 mellette,8/26/2007
 pennington,8/26/2007
-shannon,8/26/2007
+oglala lakota,8/26/2007
 spink,8/26/2007
 tripp,8/26/2007
 union,8/26/2007
@@ -617,7 +617,7 @@ minnehaha,8/3/2008
 douglas,8/10/2008
 mccook,8/10/2008
 potter,8/10/2008
-shannon,8/10/2008
+oglala lakota,8/10/2008
 beadle,8/17/2008
 grant,8/17/2008
 jones,8/17/2008
@@ -830,7 +830,7 @@ jerauld,9/16/2012
 kingsbury,9/16/2012
 lincoln,9/16/2012
 marshall,9/16/2012
-shannon,9/16/2012
+oglala lakota,9/16/2012
 spink,9/16/2012
 union,9/16/2012
 bennett,9/23/2012
@@ -838,12 +838,12 @@ hand,9/23/2012
 hughes,9/23/2012
 clay,9/30/2012
 hamlin,9/30/2012
-shannon,9/30/2012
+oglala lakota,9/30/2012
 spink,9/30/2012
 spink,10/7/2012
 stanley,10/7/2012
 jerauld,10/14/2012
-shannon,10/14/2012
+oglala lakota,10/14/2012
 day,6/30/2013
 roberts,6/30/2013
 deuel,7/7/2013
@@ -994,7 +994,7 @@ brule,7/19/2015
 edmunds,7/19/2015
 jones,7/19/2015
 lincoln,7/19/2015
-shannon,7/19/2015
+oglala lakota,7/19/2015
 dewey,7/26/2015
 marshall,7/26/2015
 pennington,7/26/2015
@@ -1150,7 +1150,7 @@ lake,8/27/2017
 lawrence,8/27/2017
 marshall,8/27/2017
 meade,8/27/2017
-shannon,8/27/2017
+oglala lakota,8/27/2017
 brookings,9/3/2017
 hutchinson,9/3/2017
 lincoln,9/3/2017
@@ -1202,7 +1202,7 @@ lake,8/27/2017
 lawrence,8/27/2017
 marshall,8/27/2017
 meade,8/27/2017
-shannon,8/27/2017
+oglala lakota,8/27/2017
 brookings,9/3/2017
 hutchinson,9/3/2017
 lincoln,9/3/2017
@@ -1254,7 +1254,7 @@ lake,8/27/2017
 lawrence,8/27/2017
 marshall,8/27/2017
 meade,8/27/2017
-shannon,8/27/2017
+oglala lakota,8/27/2017
 brookings,9/3/2017
 hutchinson,9/3/2017
 lincoln,9/3/2017
@@ -1306,7 +1306,7 @@ lake,8/27/2017
 lawrence,8/27/2017
 marshall,8/27/2017
 meade,8/27/2017
-shannon,8/27/2017
+oglala lakota,8/27/2017
 brookings,9/3/2017
 hutchinson,9/3/2017
 lincoln,9/3/2017

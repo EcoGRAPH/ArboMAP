@@ -1,4 +1,4 @@
-county,col_date,wnv_result,pool_size,species
+district,col_date,wnv_result,pool_size,species
 beadle,7/15/2016,1,5,Culex tarsalis
 beadle,6/19/2007,1,50,Culex tarsalis
 beadle,6/21/2007,1,50,Culex tarsalis
