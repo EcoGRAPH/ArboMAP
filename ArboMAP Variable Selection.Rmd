@@ -6,6 +6,7 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
+rm(list=ls())
 knitr::opts_chunk$set(echo = TRUE)
 # define some helpful functions
 '%!in%' <- function(x,y)!('%in%'(x,y))
@@ -367,9 +368,8 @@ names(modelstotry) <- c("var1", "var2")
 
 ```{r humandata2, echo=TRUE, warnings=FALSE, include=FALSE}
 modelstotry$AIC <- NA
+curmodelnum <- 1
 for (curmodelnum in 1:nrow(modelstotry)) {
-  
-  head(dailyextr)
   
   curvar1 <- modelstotry$var1[curmodelnum]
   curvar2 <- modelstotry$var2[curmodelnum]
