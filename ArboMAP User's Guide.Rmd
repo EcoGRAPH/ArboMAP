@@ -21,7 +21,7 @@ ArboMAP is a program used to model and predict cases of vector-borne disease. He
 * cases of disease are assigned to districts (states, counties, etc.) and cases are not too rare - every modeled district should have at least one case over the period of study, as the model will assume a district is permanently immune if no cases have been observed there
 * some measure of pathogen in the environment is available; e.g. here we use the rate at which pools of mosquitoes test positive for the virus.
 
-In what follows we use the language of our West Nile virus studies (mosquitoes, counties, etc.) but the modeling approach does not rely on those details and any appropriate data set can be substituted.
+In what follows we will occasionally use the language of our West Nile virus studies (mosquitoes, counties, etc.) but the modeling approach does not rely on those details and any appropriate data set can be substituted.
 
 The ArboMAP user guide consists of four main sections. The first section describes how to install the necessary software needed to run the system. The second section describes the steps that need to be taken every year before the beginning of the WNV season to prepare for forecasting. The third section description the steps that need to be taken each time a new forecast is generated. The final section describes the outputs produces by ArboMAP and explains how to interpret the forecast charts and maps.
 
@@ -38,6 +38,10 @@ However, in 2012 there was another outbreak, with hundreds of cases in South Dak
 In fact, yes. Work by Dr. Michael Wimberly's research group has shown that a relatively simple statistical model, relying on weather and mosquito infection data, can be used to predict the risk of infection on a county-week basis. For more background, you will want to consult relevant journal articles, which are listed at the end of this document. In particular, the paper by Davis et al. (2018 in Acta Tropica) provides details about the underlying statistical model.
 
 # Setting up for the initial run
+
+## A note on prepackaged data
+
+ArboMAP comes packaged with example human, mosquito, and weather data. The weather data are real, but the human and mosquito data were generated randomly according to model estimates from our WNV study in South Dakota. Hence, the data "look like" real human and mosquito data, but are synthetic and *should not be used* for any actual scientific study. They are included merely to check that the installation and settings are correct.
 
 ## Some accounts you'll need
 
@@ -97,21 +101,21 @@ Finally, the `ArboMAP.Rmd` file contains all the modeling code. This file is ope
 
 ## Files and settings
 
-The Rmd file, which you will open in RStudio, contains a preface (shown below) with settings that tells the program where to find the various pieces of data used to make predictions. Errors in these filenames are a common reason that the code will refuse to run.
+The ArboMAP User's Guide.Rmd file, which you will open in RStudio, contains a preface (shown below) with settings that tells the program where to find the various pieces of data used to make predictions. Errors in these filenames are a common reason that the code will refuse to run.
 
 * `graphicoutputdir` tells the program where to store its graphical outputs. You may want to use some of the graphics in the PDF for your own purposes, so they will be stored in PNG format in this directory.
 * `humandatafile` contains the human WNV cases
 * `maxobservedhumandate` tells the program which is the last human case that should be used in modeling. If you happen to know that there are some cases in 2018 and you're predicting 2018, then you should set this to the end of 2017. We do not use the current year's data in making predictions, and trying to do so will mess up the predictions. This is an extra safeguard in case you do accidentally update the case file to include data from this year.
 * `weekinquestion` tells the program which week you'd like to obtain predictions for. Weeks in this program begin on Sunday and run until the next Saturday, and the weekinquestion date will automatically be rounded to the previous Sunday. For example, if 2018-07-16 happens to be a Monday, then the week examined is 2018-07-15 (Sunday) through 2018-07-21 (Saturday).
 * `weatherpathstr` indicates the directory where all the weather data CSV files are stored
-* `wearhersummaryfile` is the name of the file that the program will create to summarize all the CSV files. Since it's possible you've downloaded a year many times (especially the current year), the program has to create a summary file and stores it with the rest of the weather data. Other than this extra file and all the CSV files, there should be nothing else in this directory.
+* `weathersummaryfile` is the name of the file that the program will create to summarize all the CSV files. Since it's possible you've downloaded a year many times (especially the current year), the program has to create a summary file and stores it with the rest of the weather data. Other than this extra file and all the CSV files, there should be nothing else in this directory.
 * `acttestfile` and `arctestfile` tell us where to find the active and archive mosquito testing data
 * `stratafile` tells us where to find the file containing the data to split up the state into four regions to model the mosquito infection rate (see below)
 * `countyshapefile` points to the SHP file for mapping SD counties
 * `compyear1` and `compyear2` indicate which two years in the past we'd like to compare the current year to in one of the graphics.
+* `var1name` and `var2name` indicate which two weather variables you'd like to use as predictors in the model. By default, these are set to mean daily temperature from the gridMET set (tmeanc) and the vapor pressure deficit (vpd). If you are not certain which variables you would like to use, read the selection below on selection of covariates.
 
 `Maxobservedhumandate` should be updated at the beginning of every season to point to the end of last year, so that only human cases in previous years are used to condition the model's predictions. `Weekinquestion` should be updated weekly.
-
 
 ```{r echo=FALSE, out.width='80%'}
 knitr::include_graphics('pictures for setup document/files and settings in rmarkdown.PNG')
@@ -165,7 +169,7 @@ Note that it doesn't matter how many times you download a date's weather data, a
 
 #### If you're not using GEE
 
-Although GEE is recommended for a variety of reasons, you might obtain your environmental data from elsewhere. Below is format expected of any CSV file that you might instead supply. Fips is a numerical code tying areal units (e.g. counties) to the measurements of the environment; here, this is the Federal Information Processing Standard that the US uses to identify counties. You can use whichever unique identifier ties environment to district. The "doy" indicates the day of the year (1-366). The remaining columns are measurements of environmental conditions. If your measurements are not daily (e.g. 7-day precipitation totals), they will need to be resampled to that temporal resolution.
+Although GEE is recommended for a variety of reasons, you might obtain your environmental data from elsewhere. Below is format expected of any CSV file that you might instead supply. District is a human-readable name identifying the area where the weather measurement was taken. The "doy" indicates the day of the year (1-366). The remaining columns are measurements of environmental conditions. If your measurements are not daily (e.g. 7-day precipitation totals), they will need to be resampled to that temporal resolution.
 
 ```{r echo=FALSE, out.width='60%'}
 knitr::include_graphics('pictures for setup document/whats inside gridmet data.PNG')
@@ -265,7 +269,6 @@ Note that the MIGR is a single number, derived from a model that fits all of a y
 knitr::include_graphics('pictures for setup document/mosqinfectgrowthrates.PNG')
 ```
 
-
 ### \ \ \ \ \ Multi-year WNV forecasting chart
 
 Next are the model outputs. For each week of a year, the model estimates what proportion of counties will report at least one human case based on fit to historical data. This is displayed first on a statewide basis - red are estimates and black are observations. For the year in which you're making predictions, observed (black) should be constantly zero. Red should fit historical observations reasonably well - if there are major deviations, then it is likely that some data, probably the human or mosquito data, are in the wrong format.
@@ -299,6 +302,10 @@ knitr::include_graphics('pictures for setup document/map relative.PNG')
 ```
 
 Combining the two maps above, we conclude that it's still early in the season and absolute risk is low, but there are indications that risk is higher than usual in most counties. You will want to interpret the temperature, humidity, and mosquito infection charts to understand exactly why this is the case.
+
+# Selecting covariates to use
+
+ArboMAP also includes an `ArboMAP Variable Selection.Rmd` file, with settings that are almost exactly the same as the `ArboMAP User's Guide.Rmd` file. However, this file will run through all available pairs of covariates and 
 
 # Troubleshooting
 

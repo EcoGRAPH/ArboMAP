@@ -54,10 +54,6 @@ fullcasematoutputdir <- ".\\case matrix with estimates\\"
 mosqmatoutputdir <- ".\\mosquito matrix with estimates\\"
 
 # where are the human data located?
-# this is an example of where we happen to store our actual data
-#humandatafile <- ".\\human case data\\simulated human case data.csv"
-
-# but this directs the program to use simulated human case data that come with ArboMAP
 humandatafile <- ".\\human case data\\simulated human case data.csv"
 
 # what is the date of the last human case we're willing to believe?

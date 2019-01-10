@@ -22,8 +22,8 @@ simplifynames <- function(priornames=NULL) {
   # remove spaces
   priornames <- sub(pattern=" ", replacement="", x=priornames, fixed=TRUE)
   
-  # remove county and parish
-  priornames <- sub(pattern="county", replacement="", x=priornames, fixed=TRUE)
+  # remove district and parish
+  priornames <- sub(pattern="district", replacement="", x=priornames, fixed=TRUE)
   priornames <- sub(pattern="parish", replacement="", x=priornames, fixed=TRUE)
 
   # return names
@@ -48,9 +48,6 @@ for (package in packages) {
 
 ```{r setoptions, include=FALSE, echo=FALSE}
 
-# where do we want the outputs?
-variableselectiondir <- ".\\variable selection output\\"
-
 # where are the human data located?
 humandatafile <- ".\\human case data\\simulated human case data.csv"
 
@@ -59,19 +56,19 @@ humandatafile <- ".\\human case data\\simulated human case data.csv"
 # DO NOT use any human cases from the year you're modeling
 maxobservedhumandate <- as.Date("2017-12-31", "%Y-%m-%d")
 
-# where are the gridmet csv files stored?
-gridmetpathstr <- ".\\gridMet\\"
+# where are the weather csv files stored?
+weatherpathstr <- ".\\weather data\\"
 # what is the name of the summary file to be created?
-gridmetsummaryfile <- "gridmet internal summary.csv"
+weathersummaryfile <- "weather data summary file.csv"
 
 # where are the mosquito test files located?
 mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
 
-# which county stratification scheme are we using?
+# which district stratification scheme are we using?
 stratafile <- ".\\strata\\17-04-20 - classified strata - classic.csv"
 
-# where is the countyshapefile
-countyshapefile <- ".\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
+# where is the districtshapefile
+districtshapefile <- ".\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
 
 # probably don't want to modify what follows, but you have some options if you're comfortable
 
@@ -98,36 +95,33 @@ laglen   <- 181
 dlagdeg  <- 8
 ```
 
-```{r gridmetload, include=FALSE, echo=TRUE}
+```{r weatherload, include=FALSE, echo=TRUE}
 # load and concat files
-gridmetlist <- list.files(path=gridmetpathstr, pattern="(.csv)", recursive=FALSE)
-gridmet <- data.frame()
-for (i in 1:length(gridmetlist)) {
+weatherlist <- list.files(path=weatherpathstr, pattern="(.csv)", recursive=FALSE)
+weather <- data.frame()
+for (i in 1:length(weatherlist)) {
   
-  if (gridmetlist[[i]] != gridmetsummaryfile) {
+  if (weatherlist[[i]] != weathersummaryfile) {
   
-    tempdf <- read.csv(paste(gridmetpathstr, gridmetlist[[i]], sep="")) 
-    gridmet <- bind_rows(gridmet, tempdf)  
+    tempdf <- read.csv(paste(weatherpathstr, weatherlist[[i]], sep="")) 
+    weather <- bind_rows(weather, tempdf)  
     
   }
   
 }
-gridmet$date <- as.Date(paste(gridmet$year,
-                              gridmet$doy,
+weather$date <- as.Date(paste(weather$year,
+                              weather$doy,
                               sep="-"),
                         "%Y-%j")
 
 # get rid of duplicated rows
-gridmet$fipsdate <- paste(gridmet$Fips, gridmet$date)
-gridmet <- subset(gridmet, !duplicated(gridmet$fipsdate))
-gridmet$Fipsdate <- NULL
-
-
+weather$districtdate <- paste(weather$district, weather$date)
+weather <- subset(weather, !duplicated(weather$districtdate))
 
 # plot normals and this year
-gridmet <- group_by(gridmet,
+weather <- group_by(weather,
                     doy)
-doymet  <- dplyr::summarize(gridmet,
+doymet  <- dplyr::summarize(weather,
                      med_tmeanc = quantile(tmeanc, probs=0.50, na.rm=TRUE),
                      med_rmean  = quantile(rmean,  probs=0.50, na.rm=TRUE),
                      med_vpd    = quantile(vpd,    probs=0.50, na.rm=TRUE),
@@ -137,10 +131,10 @@ doymet  <- dplyr::summarize(gridmet,
                      min_tmeanc = min(tmeanc, na.rm=TRUE),
                      min_rmean  = min(rmean,  na.rm=TRUE),
                      min_vpd    = min(vpd,    na.rm=TRUE))
-gridmet <- ungroup(gridmet)
+weather <- ungroup(weather)
 
-thisyear <- max(gridmet$year, na.rm=TRUE)
-thisyear <- subset(gridmet, year == thisyear)
+thisyear <- max(weather$year, na.rm=TRUE)
+thisyear <- subset(weather, year == thisyear)
 thisyear <- group_by(thisyear, doy)
 thisyear <- dplyr::summarize(thisyear,
                       med_tmeanc = quantile(tmeanc, probs=0.50, na.rm=TRUE),
@@ -162,18 +156,12 @@ meanvapd.x <- round(mean(tempdf$med_vpd.x, na.rm=TRUE), 1)
 meanvapd.y <- round(mean(tempdf$med_vpd.y, na.rm=TRUE), 1)
 ```
 
-```{r gridmetplots, fig.width=7, fig.height=5, echo=FALSE}
-# figure out which fips is which county
-gridmet <- left_join(gridmet,
-                     county.fips,
-                     by=c("Fips"="fips"))
-gridmet$county <- sapply(strsplit(gridmet$polyname, ","), "[[", 2)
-
-# simplify the county names
-gridmet$county <- simplifynames(gridmet$county)
+```{r weatherplots, fig.width=7, fig.height=5, echo=FALSE}
+# simplify the district names
+weather$district <- simplifynames(weather$district)
 
 # put aside this set for use in the regression
-dailyextr <- gridmet
+dailyextr <- weather
 ```
 
 ```{r mosquito, echo=FALSE} 
@@ -186,9 +174,9 @@ wnv$year <- as.numeric(format(wnv$col_date, "%Y"))
 
 
 ```{r mosquito222, echo=FALSE}
-# convert county to factor
-wnv$county <- simplifynames(wnv$county)
-wnv$county <- factor(wnv$county)
+# convert district to factor
+wnv$district <- simplifynames(wnv$district)
+wnv$district <- factor(wnv$district)
 
 # convert date to a date object
 wnv$col_date <- as.Date(wnv$col_date, '%m/%d/%Y')
@@ -207,14 +195,14 @@ wnv$weeknum  <- as.numeric(format(wnv$col_date, "%U"))
 #wnv <- wnv[which(wnv$species == "Culex tarsalis"),]
 wnv$species <- NULL
 
-# fix some of the bad county names, delete what we can't use
-#wnv <- wnv[which(wnv$county %!in% c("doh",
+# fix some of the bad district names, delete what we can't use
+#wnv <- wnv[which(wnv$district %!in% c("doh",
 #                                    "doh-withers",
 #                                    "mitchell-carlson",
 #                                    "unknown",
 #                                    "")),]
-wnv$county <- factor(wnv$county)
-wnv$county <- droplevels(wnv$county)
+wnv$district <- factor(wnv$district)
+wnv$district <- droplevels(wnv$district)
 
 # figure out which years we're modeling
 minmosqyear <- min(wnv$year, na.rm=TRUE)
@@ -239,21 +227,21 @@ wnvnumerator <- nrow(tempdf[tempdf$wnv_result == 1,])
 ```
 
 ```{r mosquito2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
-# import county identifiers
+# import district identifiers
 strata <- read.csv(stratafile)
-strata$county <- simplifynames(strata$NAME)
-strata <- strata[c("county", "strata")]
+strata$district <- simplifynames(strata$district)
+strata <- strata[c("district", "strata")]
 wnv <- merge(x=wnv, y=strata,
-             by.x="county",
-             by.y="county",
+             by.x="district",
+             by.y="district",
              all.x=TRUE)
 
 # figure out how many distinct counties we have left
-countylist           <- data.frame(county=unique(wnv$county))
-distinctcounties     <- length(unique(wnv$county))
-countylist$countynum <- seq(from=1, to=distinctcounties, by=1)
-wnv <- merge(x=wnv, y=countylist,
-             by="county",
+districtlist           <- data.frame(district=unique(wnv$district))
+distinctcounties     <- length(unique(wnv$district))
+districtlist$districtnum <- seq(from=1, to=distinctcounties, by=1)
+wnv <- merge(x=wnv, y=districtlist,
+             by="district",
              all=TRUE)
 
 # create a variable that at least has a little chance of being orthogonal to 1.
@@ -296,9 +284,9 @@ human$chardate <- as.character(levels(human$creationdate))[as.numeric(human$crea
 human$creationdate <- as.Date(human$creationdate, "%m/%d/%Y")
 human$creationyear <- as.numeric(format(human$creationdate, "%Y"))
 human$creationmonth <- as.numeric(format(human$creationdate, "%m"))
-# simplify county names
-human$county <- simplifynames(human$county)
-human$county <- factor(human$county)
+# simplify district names
+human$district <- simplifynames(human$district)
+human$district <- factor(human$district)
 human$doy <- as.numeric(format(human$creationdate, "%j"))
 
 # retain only those in the right date range
@@ -315,8 +303,8 @@ minobservedhumandate <- min(human$creationdate)
 # set up the data frame so that it ends at the maxdesiredhumandate 
 filledweeks <- seq(from=maxdesiredhumandate, to=minobservedhumandate, by=-7)
 
-fullcasemat <- expand.grid(sort(unique(human$county)), filledweeks)
-names(fullcasemat) <- c("county", "weekstartdate")
+fullcasemat <- expand.grid(sort(unique(human$district)), filledweeks)
+names(fullcasemat) <- c("district", "weekstartdate")
 head(fullcasemat)
 fullcasemat$anycases   <- rep(0, nrow(fullcasemat))
 fullcasemat$totalcases <- rep(0, nrow(fullcasemat))
@@ -325,9 +313,9 @@ fullcasemat$observed   <- 1*((fullcasemat$weekstartdate >= minobservedhumandate)
 for (i in 1:nrow(fullcasemat)) {
   
   thisweekstartdate <- fullcasemat$weekstartdate[i]
-  thiscounty        <- fullcasemat$county[i]
+  thisdistrict        <- fullcasemat$district[i]
   
-  tempcases <- human[which(human$county == thiscounty),]
+  tempcases <- human[which(human$district == thisdistrict),]
   tempcases <- tempcases[which(tempcases$creationdate >= thisweekstartdate),]
   tempcases <- tempcases[which(tempcases$creationdate <= (thisweekstartdate + 6)),]
   
@@ -354,23 +342,22 @@ observedfraction <- 100*round(observedbefore / observedtotal, 2)
 ```
 ```{r stratamap, include=FALSE, echo=FALSE}
 
-county_shapes <- readShapePoly(countyshapefile)
+district_shapes <- readShapePoly(districtshapefile)
 # simplify name
-county_shapes$county <- simplifynames(county_shapes$NAME)
+district_shapes$district <- simplifynames(district_shapes$NAME)
 stratamapcsv <- read.csv(stratafile)
-stratamapcsv$county <- simplifynames(stratamapcsv$NAME)
-stratamapcsv <- stratamapcsv[c("county", "strata")]
+stratamapcsv$district <- simplifynames(stratamapcsv$district)
+stratamapcsv <- stratamapcsv[c("district", "strata")]
 ```
 
+head(dailyextr)
 
 ```{r getlist, echo=FALSE}
-reservednames <- c("Fips",
+reservednames <- c("district",
                    "doy",
                    "year",
                    "date",
-                   "fipsdate",
-                   "polyname",
-                   "county")
+                   "districtdate")
 weathernames <- colnames(dailyextr)
 weathernames <- weathernames[weathernames %!in% reservednames]
 
@@ -382,55 +369,57 @@ names(modelstotry) <- c("var1", "var2")
 modelstotry$AIC <- NA
 for (curmodelnum in 1:nrow(modelstotry)) {
   
+  head(dailyextr)
+  
   curvar1 <- modelstotry$var1[curmodelnum]
   curvar2 <- modelstotry$var2[curmodelnum]
   dailyextr <- data.frame(dailyextr)
   dailyextr$var1 <- dailyextr[,which(colnames(dailyextr) == curvar1)]
   dailyextr$var2 <- dailyextr[,which(colnames(dailyextr) == curvar2)]
 
-  tempdailyextr <- dailyextr[c("county","date","var1","var2")]
-  tempdailyextr$county <- simplifynames(tempdailyextr$county)
+  tempdailyextr <- dailyextr[c("district","date","var1","var2")]
+  tempdailyextr$district <- simplifynames(tempdailyextr$district)
   # fill in missing and future climatological data
-  totaldailyextr <- expand.grid(county=unique(tempdailyextr$county),
+  totaldailyextr <- expand.grid(district=unique(tempdailyextr$district),
                                 date=seq(from=as.Date("2003-01-01", "%Y-%m-%d"),
                                          to=maxdesiredhumandate,
                                          by=1))
   tempdailyextr <- merge(x=totaldailyextr, y=tempdailyextr,
-                     by.x=c("county","date"),
-                     by.y=c("county","date"),
+                     by.x=c("district","date"),
+                     by.y=c("district","date"),
                      all.x=TRUE)
   tempdailyextr$doy <- as.numeric(format(tempdailyextr$date, "%j"))
   
-  tempdailyextr <- group_by(tempdailyextr, county, doy)
-  countydoymean <- dplyr::summarize(tempdailyextr,
+  tempdailyextr <- group_by(tempdailyextr, district, doy)
+  districtdoymean <- dplyr::summarize(tempdailyextr,
                              meanvar1=mean(var1, na.rm=TRUE),
                              meanvar2=mean(var2, na.rm=TRUE))
   tempdailyextr <- ungroup(tempdailyextr)                           
   
-  tempdailyextr <- left_join(tempdailyextr, countydoymean,
-                     by=c("county","doy"))
+  tempdailyextr <- left_join(tempdailyextr, districtdoymean,
+                     by=c("district","doy"))
   
   tempdailyextr$var1[is.na(tempdailyextr$var1)] <- tempdailyextr$meanvar1[is.na(tempdailyextr$var1)]
   tempdailyextr$var2[is.na(tempdailyextr$var2)] <- tempdailyextr$meanvar2[is.na(tempdailyextr$var2)]
   
   # BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  rm(countydoymean)
+  rm(districtdoymean)
   tempdailyextr$meanvar1 <- NULL
   tempdailyextr$meanvar2 <- NULL
   gc()
   
-  # we need the counties to be in lower case to merge with the gridMET data
+  # we need the counties to be in lower case to merge with the weather data
   tempfullcasemat <- fullcasemat
-  tempfullcasemat$county <- simplifynames(tempfullcasemat$county)
+  tempfullcasemat$district <- simplifynames(tempfullcasemat$district)
   
-  datalagger <- expand.grid(unique(tempfullcasemat$county),
+  datalagger <- expand.grid(unique(tempfullcasemat$district),
                             unique(tempfullcasemat$weekstartdate),
                             seq(from=0, to=laglen-1, by=1))
-  names(datalagger) <- c("county","date","lag")
+  names(datalagger) <- c("district","date","lag")
   datalagger$laggeddate <- datalagger$date-datalagger$lag
   
   datalagger <- left_join(datalagger, tempdailyextr,
-                          by=c("county"="county",
+                          by=c("district"="district",
                                "laggeddate"="date"))
   
   # BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -438,11 +427,11 @@ for (curmodelnum in 1:nrow(modelstotry)) {
   gc()
   
   # pivot
-  mean1data <- dcast(datalagger, county + date ~ lag, value.var="var1")
+  mean1data <- dcast(datalagger, district + date ~ lag, value.var="var1")
   names(mean1data) <- paste("var1_",names(mean1data),sep="")
   head(mean1data)
   
-  mean2data <- dcast(datalagger, county + date ~ lag, value.var="var2")
+  mean2data <- dcast(datalagger, district + date ~ lag, value.var="var2")
   names(mean2data) <- paste("var2_",names(mean2data),sep="")
   head(mean2data)
   
@@ -452,12 +441,12 @@ for (curmodelnum in 1:nrow(modelstotry)) {
   
   # and put all this lagged info back into the total case matrix
   tempfullcasemat <- merge(x=tempfullcasemat, y=mean1data,
-                       by.x=c("county", "weekstartdate"),
-                       by.y=c("var1_county","var1_date"),
+                       by.x=c("district", "weekstartdate"),
+                       by.y=c("var1_district","var1_date"),
                        all.x=TRUE)
   tempfullcasemat <- merge(x=tempfullcasemat, y=mean2data,
-                       by.x=c("county", "weekstartdate"),
-                       by.y=c("var2_county","var2_date"),
+                       by.x=c("district", "weekstartdate"),
+                       by.y=c("var2_district","var2_date"),
                        all.x=TRUE)
   
   # BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -502,9 +491,9 @@ for (curmodelnum in 1:nrow(modelstotry)) {
   stratayearmosq <- stratayearmosq[c("stratayear","mosqinfect")]
   names(stratayearmosq) <- c("stratayear","MIRsummarystat")
   
-  # import county identifiers
+  # import district identifiers
   tempfullcasemat <- merge(x=tempfullcasemat, y=strata,
-                       by.x="county", by.y="county",
+                       by.x="district", by.y="district",
                        all.x=TRUE)
   tempfullcasemat$year <- as.numeric(format(tempfullcasemat$weekstartdate, "%Y"))
   tempfullcasemat$stratayear <- paste(tempfullcasemat$strata, tempfullcasemat$year, sep=":")
@@ -532,7 +521,7 @@ for (curmodelnum in 1:nrow(modelstotry)) {
   
   tempfullcasemat$doy <- as.numeric(format(tempfullcasemat$weekstartdate, "%j"))
   
-  firstreg  <- glm(anycases ~ 0+MIRsummarystat+county+
+  firstreg  <- glm(anycases ~ 0+MIRsummarystat+district+
                    band1summaries+
                    band2summaries+
                    band1summaries:doy+
