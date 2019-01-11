@@ -1,7 +1,5 @@
 # Arbovirus Modeling and Prediction to Forecast Mosquito-Borne Disease Outbreaks (ArboMAP)
 
-:mosquito:
-
 ArboMAP is a set of software to be used in the RStudio envionment to model and predict vector-borne diseases, especially arboviruses transmitted by mosquitoes. 
 
 **ArboMAP_User_s_Guide.pdf** contains information on installation and use of ArboMAP. New users should begin by reading through the file completely.  
