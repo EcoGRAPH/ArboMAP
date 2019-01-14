@@ -13,7 +13,7 @@ round_any = function(x, accuracy, f=round){f(x/accuracy) * accuracy}
 options(warn=-1)
 ```
 
-```{r namefunction, include=FALSE}
+```{r createfunctions, include=FALSE}
 simplifynames <- function(priornames=NULL) {
 
   # convert to lower case
@@ -113,7 +113,7 @@ dlagdeg  <- 8
 # Data used for predictions
 ## Weather data
 
-```{r weatherload, include=FALSE, echo=TRUE}
+```{r weatherdataload, include=FALSE, echo=TRUE}
 # load and concat files
 weatherlist <- list.files(path=weatherpathstr, pattern="(.csv)", recursive=FALSE)
 weather <- data.frame()
@@ -195,11 +195,13 @@ grid.arrange(plot1, plot2, nrow=2)
 
 # simplify the district names
 weather$district <- simplifynames(weather$district)
-
-# put aside this set for use in the regression
-dailyextr <- weather
 ```
 ```{r silentsaveweather, include=FALSE, echo=FALSE}
+# put aside this set for use in the regression
+dailyextr <- weather
+rm(weather)
+gc()
+
 ggsave(paste(graphicoutputdir,
              "var1.png",
              sep=""), plot1)
@@ -211,7 +213,7 @@ ggsave(paste(graphicoutputdir,
 \newpage
 ## Vector infection data
 
-```{r mosquito, echo=FALSE} 
+```{r mosquitodataread, echo=FALSE} 
 
 wnv <- read.csv(mosqfile, stringsAsFactors=FALSE)
 wnv$col_date <- as.Date(wnv$col_date, "%m/%d/%Y")
@@ -220,7 +222,7 @@ wnv$year <- as.numeric(format(wnv$col_date, "%Y"))
 ```
 
 
-```{r mosquito222, echo=FALSE}
+```{r mosquitodataprocess, echo=FALSE}
 # convert district to factor
 wnv$district <- simplifynames(wnv$district)
 wnv$district <- factor(wnv$district)
@@ -231,15 +233,10 @@ wnv$col_date <- as.Date(wnv$col_date, '%m/%d/%Y')
 # figure out how many rows we start with
 nrow1 <- nrow(wnv)
 
-# clean the data
-# retain only those in 2004 onward
-wnv <- wnv[wnv$year >= 2004,]
-
 # create some variables we can use to filter
 wnv$col_year <- as.numeric(format(wnv$col_date, "%Y"))
 wnv$doy      <- as.numeric(format(wnv$col_date, "%j"))
 wnv$weeknum  <- as.numeric(format(wnv$col_date, "%U"))
-#wnv <- wnv[which(wnv$species == "Culex tarsalis"),]
 wnv$species <- NULL
 wnv$district <- factor(wnv$district)
 wnv$district <- droplevels(wnv$district)
@@ -271,7 +268,7 @@ perpos <- 100*round(wnvnumerator/wnvdenominator, 3)
 
 There are `r nrow2` samples in the vector testing database. For `r maxmosqyear`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. The regions used for stratification are mapped below; districts are thought to share risk more closely with others in the same strata, although all districts share some level of risk with all other districts. 
 
-```{r mosquito2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
+```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
 # import district identifiers
 strata <- read.csv(stratafile)
 strata$district <- simplifynames(strata$district)
@@ -321,21 +318,12 @@ randeffs$mosqinfect <- predict(infectglm, newdata=randeffs, allow.new.levels = T
 randeffs$stratayear <- paste(randeffs$strata, randeffs$year, sep=":")
 randeffs$adjmosqinfect <- randeffs$mosqinfect - mean(randeffs$mosqinfect,na.rm=TRUE)
 randeffs$stratum <- factor(randeffs$strata)
-thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect, group=stratum, color=stratum)) +
-  geom_abline(slope=0, intercept=0, linetype=2) +
-  scale_x_continuous(breaks=minmosqyear:maxmosqyear) +
-  theme(axis.text.x=element_text(angle=45, hjust=1),
-        panel.grid.minor=element_blank(),
-        panel.grid.major.y=element_blank())+
-  xlab("") + ylab("Relative risk due to\nvector infection growth rate")
-plot(thisplot)
 ```
 ```{r silentsavemosq, include=FALSE, echo=FALSE}
+plot(thisplot)
 ggsave(paste(graphicoutputdir,
              "vector infection rates.png",
              sep=""), thisplot)
-
-
 ```
 
 ```{r humandata, include=FALSE, echo=TRUE}
@@ -448,7 +436,7 @@ ggsave(paste(graphicoutputdir,
 
 The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqyear` is shown here by grouping observations nearby in time.
 
-```{r mosqbymo, include=TRUE, echo=FALSE, fig.width=6, fig.height=3}
+```{r mosqbymonth, include=TRUE, echo=FALSE, fig.width=6, fig.height=3}
 mosqmopreds <- expand.grid(strata=unique(wnv$strata),
                            year=minmosqyear:maxmosqyear,
                            doy=seq(from=min(wnv$doy, na.rm=TRUE),
@@ -501,7 +489,6 @@ The predictive model of human cases was calibrated using `r totcase` historical 
 The graphs below show observed statewide risk (black) and estimated risk (red) up to `r maxdesiredhumandatestr` `r maxdesiredhumandate`. Observed risk should be completely zero during the last year - these data are not used in the model, and will only be updated once final human case data are received at the end of the year.
 
 ```{r humandata2, echo=TRUE, warnings=FALSE, include=FALSE}
-# select which variables we're going to use!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 dailyextr <- data.frame(dailyextr)
 dailyextr$var1 <- dailyextr[,which(colnames(dailyextr) == var1name)]
 dailyextr$var2 <- dailyextr[,which(colnames(dailyextr) == var2name)]
@@ -530,7 +517,7 @@ dailyextr <- left_join(dailyextr, districtdoymean,
 dailyextr$var1[is.na(dailyextr$var1)] <- dailyextr$meanvar1[is.na(dailyextr$var1)]
 dailyextr$var2[is.na(dailyextr$var2)] <- dailyextr$meanvar2[is.na(dailyextr$var2)]
 
-# BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# garbage collection
 rm(districtdoymean)
 dailyextr$meanvar1 <- NULL
 dailyextr$meanvar2 <- NULL
@@ -549,7 +536,7 @@ datalagger <- left_join(datalagger, dailyextr,
                         by=c("district"="district",
                              "laggeddate"="date"))
 
-# BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# garbage collection
 rm(dailyextr)
 gc()
 
@@ -562,7 +549,7 @@ mean2data <- dcast(datalagger, district + date ~ lag, value.var="var2")
 names(mean2data) <- paste("var2_",names(mean2data),sep="")
 head(mean2data)
 
-# BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# garbage collection
 rm(datalagger)
 gc()
 
@@ -576,7 +563,7 @@ fullcasemat <- merge(x=fullcasemat, y=mean2data,
                      by.y=c("var2_district","var2_date"),
                      all.x=TRUE)
 
-# BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# garbage collection
 rm(mean1data)
 rm(mean2data)
 gc()
@@ -610,7 +597,7 @@ for (j in 1:dlagdeg) {
 fullcasemat$band1summaries <- band1summaries
 fullcasemat$band2summaries <- band2summaries
 
-# bring out your dead!!!!!!!!!!!!!!!!!!!!!!!!!
+# garbage collection
 rm(band1summaries)
 rm(band2summaries)
 gc()
