@@ -18,3 +18,11 @@ of actual data, they are not the actual data, and must not be used as a basis fo
 they are provided so that the user can see an example of the code working well with realistic data.
 
 ArboMAP was developed by the [EcoGRAPH](http://ecograph.net) research group at the University of Oklahoma with support from NASA. We are happy to answer your questions, and we would appreciate feedback on how these tools could be improved. Please contact justinkdavis@ou.edu for technical issues about the code, or mcwimberly@ou.edu for questions about the arbovirus modeling project.
+
+Copyright (C) 2019, J. Davis and M. Wimberly
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as
+published by the Free Software Foundation, version 3. This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details. You should have received a copy of the GNU General Public License along with
+this program. If not, see <http://www.gnu.org/licenses/>.
