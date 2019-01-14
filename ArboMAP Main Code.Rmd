@@ -318,6 +318,13 @@ randeffs$mosqinfect <- predict(infectglm, newdata=randeffs, allow.new.levels = T
 randeffs$stratayear <- paste(randeffs$strata, randeffs$year, sep=":")
 randeffs$adjmosqinfect <- randeffs$mosqinfect - mean(randeffs$mosqinfect,na.rm=TRUE)
 randeffs$stratum <- factor(randeffs$strata)
+thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect, group=stratum, color=stratum)) +
+  geom_abline(slope=0, intercept=0, linetype=2) +
+  scale_x_continuous(breaks=minmosqyear:maxmosqyear) +
+  theme(axis.text.x=element_text(angle=45, hjust=1),
+        panel.grid.minor=element_blank(),
+        panel.grid.major.y=element_blank())+
+  xlab("") + ylab("Relative risk due to\nvector infection growth rate")
 ```
 ```{r silentsavemosq, include=FALSE, echo=FALSE}
 plot(thisplot)
@@ -469,7 +476,6 @@ thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=
         panel.grid.minor = element_blank(),
         panel.background = element_blank(),
         axis.line = element_line(colour = "black"))
-plot(thisplot)
 ```
 ```{r include=FALSE, echo=FALSE}
 ggsave(paste(graphicoutputdir,
@@ -489,6 +495,7 @@ The predictive model of human cases was calibrated using `r totcase` historical 
 The graphs below show observed statewide risk (black) and estimated risk (red) up to `r maxdesiredhumandatestr` `r maxdesiredhumandate`. Observed risk should be completely zero during the last year - these data are not used in the model, and will only be updated once final human case data are received at the end of the year.
 
 ```{r humandata2, echo=TRUE, warnings=FALSE, include=FALSE}
+# select which variables we're going to use!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 dailyextr <- data.frame(dailyextr)
 dailyextr$var1 <- dailyextr[,which(colnames(dailyextr) == var1name)]
 dailyextr$var2 <- dailyextr[,which(colnames(dailyextr) == var2name)]
