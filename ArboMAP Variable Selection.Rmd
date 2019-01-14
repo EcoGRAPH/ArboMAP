@@ -186,9 +186,6 @@ wnv$col_date <- as.Date(wnv$col_date, '%m/%d/%Y')
 nrow1 <- nrow(wnv)
 
 # clean the data
-# retain only those in 2004 onward
-wnv <- wnv[wnv$year >= 2004,]
-
 # create some variables we can use to filter
 wnv$col_year <- as.numeric(format(wnv$col_date, "%Y"))
 wnv$doy      <- as.numeric(format(wnv$col_date, "%j"))
@@ -400,7 +397,7 @@ for (curmodelnum in 1:nrow(modelstotry)) {
   tempdailyextr$var1[is.na(tempdailyextr$var1)] <- tempdailyextr$meanvar1[is.na(tempdailyextr$var1)]
   tempdailyextr$var2[is.na(tempdailyextr$var2)] <- tempdailyextr$meanvar2[is.na(tempdailyextr$var2)]
   
-  # BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # garbage collection
   rm(districtdoymean)
   tempdailyextr$meanvar1 <- NULL
   tempdailyextr$meanvar2 <- NULL
@@ -420,7 +417,7 @@ for (curmodelnum in 1:nrow(modelstotry)) {
                           by=c("district"="district",
                                "laggeddate"="date"))
   
-  # BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # garbage collection
   rm(tempdailyextr)
   gc()
   
@@ -433,7 +430,7 @@ for (curmodelnum in 1:nrow(modelstotry)) {
   names(mean2data) <- paste("var2_",names(mean2data),sep="")
   head(mean2data)
   
-  # BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # garbage collection
   rm(datalagger)
   gc()
   
@@ -447,7 +444,7 @@ for (curmodelnum in 1:nrow(modelstotry)) {
                        by.y=c("var2_district","var2_date"),
                        all.x=TRUE)
   
-  # BRING OUT YOUR DEAD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # garbage collection
   rm(mean1data)
   rm(mean2data)
   gc()
@@ -479,7 +476,7 @@ for (curmodelnum in 1:nrow(modelstotry)) {
   tempfullcasemat$band1summaries <- band1summaries
   tempfullcasemat$band2summaries <- band2summaries
   
-  # bring out your dead!!!!!!!!!!!!!!!!!!!!!!!!!
+  # garbage collection
   rm(band1summaries)
   rm(band2summaries)
   gc()
