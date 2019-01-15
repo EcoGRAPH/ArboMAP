@@ -190,15 +190,11 @@ nrow1 <- nrow(wnv)
 wnv$col_year <- as.numeric(format(wnv$col_date, "%Y"))
 wnv$doy      <- as.numeric(format(wnv$col_date, "%j"))
 wnv$weeknum  <- as.numeric(format(wnv$col_date, "%U"))
-#wnv <- wnv[which(wnv$species == "Culex tarsalis"),]
+
+# currently, the species column should be filtered before running the code
 wnv$species <- NULL
 
-# fix some of the bad district names, delete what we can't use
-#wnv <- wnv[which(wnv$district %!in% c("doh",
-#                                    "doh-withers",
-#                                    "mitchell-carlson",
-#                                    "unknown",
-#                                    "")),]
+# drop districts which do not actually appear in the data after filtering
 wnv$district <- factor(wnv$district)
 wnv$district <- droplevels(wnv$district)
 
