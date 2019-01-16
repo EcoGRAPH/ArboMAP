@@ -38,7 +38,8 @@ packages <- c("reshape2", "ggplot2", "gridExtra",
               "lme4","pracma","dplyr","maptools",
               "raster","spdep","mgcv","sp","rgdal",
               "GISTools","data.table","splines","maps",
-              "broom","mapproj", "Hmisc", "knitr")
+              "broom","mapproj", "Hmisc", "knitr",
+              "pROC")
 for (package in packages) {
     if (!require(package, character.only=T, quietly=T)) {
         install.packages(package)
@@ -257,7 +258,7 @@ infectglm <- glmer(wnv_result ~ 1+dminus+
 
 wnv$est <- predict(infectglm, newdata=wnv, type="response")
 # predict random effects for all years
-# dminus cannot be set to simply 0 - we have to 
+# dminus cannot be set to simply 0 - we have to make sure the number isn't read in as a factor, or this will fail
 randeffs <- expand.grid(strata=unique(wnv$strata),
                         year=minmosqyear:maxmosqyear,
                         dminus=0.00001)
@@ -360,6 +361,7 @@ names(modelstotry) <- c("var1", "var2")
 
 ```{r humandata2, echo=TRUE, warnings=FALSE, include=FALSE}
 modelstotry$AIC <- NA
+modelstotry$AUC <- NA
 for (curmodelnum in 1:nrow(modelstotry)) {
   
   curvar1 <- modelstotry$var1[curmodelnum]
@@ -523,6 +525,7 @@ for (curmodelnum in 1:nrow(modelstotry)) {
   tempfullcasemat$est <- predict(firstreg, type="response", newdata=tempfullcasemat)
 
   modelstotry$AIC[curmodelnum] <- extractAIC(firstreg)[2]
+  modelstotry$AUC[curmodelnum] <- auc(tempfullcasemat$anycases, tempfullcasemat$est)
   
 }
 modelstotry <- modelstotry[order(modelstotry$AIC),]

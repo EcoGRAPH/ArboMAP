@@ -280,7 +280,7 @@ wnv <- merge(x=wnv, y=strata,
 
 # figure out how many distinct districts we have left
 districtlist           <- data.frame(district=unique(wnv$district))
-distinctdistricts     <- length(unique(wnv$district))
+distinctdistricts      <- length(unique(wnv$district))
 districtlist$districtnum <- seq(from=1, to=distinctdistricts, by=1)
 wnv <- merge(x=wnv, y=districtlist,
              by="district",
@@ -308,7 +308,7 @@ write.csv(x=wnv, file=paste(mosqmatoutputdir,
                             sep=""))
 
 # predict random effects for all years
-# dminus cannot be set to simply 0 - we have to 
+# dminus cannot be set to simply 0 - we have to make sure this isn't read in as a factor
 randeffs <- expand.grid(strata=unique(wnv$strata),
                         year=minmosqyear:maxmosqyear,
                         dminus=0.00001)
@@ -367,7 +367,7 @@ head(fullcasemat)
 fullcasemat$anycases   <- rep(0, nrow(fullcasemat))
 fullcasemat$totalcases <- rep(0, nrow(fullcasemat))
 fullcasemat$observed   <- 1*((fullcasemat$weekstartdate >= minobservedhumandate)&
-                               (fullcasemat$weekstartdate <= maxobservedhumandate))
+                             (fullcasemat$weekstartdate <= maxobservedhumandate))
 for (i in 1:nrow(fullcasemat)) {
   
   thisweekstartdate <- fullcasemat$weekstartdate[i]
