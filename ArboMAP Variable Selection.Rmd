@@ -42,7 +42,7 @@ packages <- c("reshape2", "ggplot2", "gridExtra",
               "pROC")
 for (package in packages) {
     if (!require(package, character.only=T, quietly=T)) {
-        install.packages(package)
+        install.packages(package, repos='http://cran.us.r-project.org')
         library(package, character.only=T)
     }
 }
@@ -535,6 +535,8 @@ var2 <- modelstotry$var2[1]
 ```
 
 Variable selection has been performed, with environmental variables chosen pairwise from the available environmental covariates. There were `r nrow(modelstotry)` models considered, and these are ordered below by the Akaike information criterion (AIC). A lower AIC in this case means the model fit the observed data better, so we generally assume that the first model on the list is the best model, and use these two variables for modeling and prediction.
+
+The "area under the curve" (AUC) which is also known as the c-statistic, is also calculated for all models. This measure ranges from 0, indicating a model that is never able to correctly discriminate between positive and negative district-weeks, and 1, whenever the model is able to discriminate perfectly. Think of it roughly as an R2 for logistic regression models. It is calculated on all available data and may be artificially high, since it is usually easy, for example, to predict that there will be no human disease in cold months. This metric should probably correlate with the AIC, but should probably not be used for model selection. You should hope to see values above 0.60, and typically we would want to see models with 0.70 or higher.
 
 Here, therefore, we recommend `r var1` and `r var2` as predictors in the `ArboMAP Main Code.Rmd` file.
 
