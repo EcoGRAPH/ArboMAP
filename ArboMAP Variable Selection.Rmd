@@ -161,8 +161,9 @@ meanvapd.y <- round(mean(tempdf$med_vpd.y, na.rm=TRUE), 1)
 # simplify the district names
 weather$district <- simplifynames(weather$district)
 
-# put aside this set for use in the regression
+# change the name of this set
 dailyextr <- weather
+rm(weather)
 ```
 
 ```{r mosquito, echo=FALSE} 
@@ -359,7 +360,6 @@ names(modelstotry) <- c("var1", "var2")
 
 ```{r humandata2, echo=TRUE, warnings=FALSE, include=FALSE}
 modelstotry$AIC <- NA
-curmodelnum <- 1
 for (curmodelnum in 1:nrow(modelstotry)) {
   
   curvar1 <- modelstotry$var1[curmodelnum]
