@@ -30,7 +30,7 @@ Map.setCenter(-85, 39, 4);
 
 // Start and end dates for the data summary
 var startdate = ee.Date('1999-01-01');
-var enddate = ee.Date('2018-12-31');
+var enddate = ee.Date('2019-12-31');
 
 // One or more states for which to do county-level summaries
 var mystates = "46";
