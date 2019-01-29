@@ -23,7 +23,7 @@ simplifynames <- function(priornames=NULL) {
   priornames <- sub(pattern=" ", replacement="", x=priornames, fixed=TRUE)
   
   # remove district and parish
-  priornames <- sub(pattern="district", replacement="", x=priornames, fixed=TRUE)
+  priornames <- sub(pattern="county", replacement="", x=priornames, fixed=TRUE)
   priornames <- sub(pattern="parish", replacement="", x=priornames, fixed=TRUE)
 
   # return names
