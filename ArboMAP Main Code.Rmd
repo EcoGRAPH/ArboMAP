@@ -460,22 +460,43 @@ comparison1 <- mosqmopreds[mosqmopreds$year == compyear1,]
 comparison2 <- mosqmopreds[mosqmopreds$year == compyear2,]
 
 thisyeardot <- wnv[wnv$year == maxmosqyear,]
-thisyeardot$rounddoy <- cut2(thisyeardot$doy, g=6)
-thisyeardot <- group_by(thisyeardot, rounddoy)
-thisyeardot <- dplyr::summarize(thisyeardot,
-                      meanpos = mean(wnv_result, na.rm=TRUE),
-                      meandoy = mean(doy, na.rm=TRUE))
-thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
-                                                 color="grey", alpha=0.5) +
-  geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
-  geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
-  geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
-  geom_point(data=thisyeardot, aes(x=meandoy, y=meanpos), color="red") +
-  xlab("day of the year") + ylab("Vector pool positive rate") +
-  theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.background = element_blank(),
-        axis.line = element_line(colour = "black"))
+
+if (sum(!is.na(thisyeardot$doy)) > 20) {
+
+  thisyeardot$rounddoy <- cut2(thisyeardot$doy, g=6)
+  thisyeardot <- group_by(thisyeardot, rounddoy)
+  thisyeardot <- dplyr::summarize(thisyeardot,
+                        meanpos = mean(wnv_result, na.rm=TRUE),
+                        meandoy = mean(doy, na.rm=TRUE))
+  thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
+                                                   color="grey", alpha=0.5) +
+    geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
+    geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
+    geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
+    geom_point(data=thisyeardot, aes(x=meandoy, y=meanpos), color="red") +
+    xlab("day of the year") + ylab("Vector pool positive rate") +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.background = element_blank(),
+          axis.line = element_line(colour = "black"))
+  
+} else {
+  
+  thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
+                                                   color="grey", alpha=0.5) +
+    geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
+    geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
+    geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
+    xlab("day of the year") + ylab("Vector pool positive rate") +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.background = element_blank(),
+          axis.line = element_line(colour = "black"))
+  
+}
+
+
+
 ```
 ```{r include=FALSE, echo=FALSE}
 ggsave(paste(graphicoutputdir,
