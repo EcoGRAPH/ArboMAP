@@ -441,7 +441,7 @@ ggsave(paste(graphicoutputdir,
 
 ```
 
-The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqyear` is shown here by grouping observations nearby in time.
+The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqyear` is shown here by grouping observations nearby in time. If these dots do not appear, your data set probably has fewer than 20 tested pools this year.
 
 ```{r mosqbymonth, include=TRUE, echo=FALSE, fig.width=6, fig.height=3}
 mosqmopreds <- expand.grid(strata=unique(wnv$strata),
@@ -900,13 +900,17 @@ for (curyear in unique(fullcasemat$year)) {
     thisdf <- fullcasemat[fullcasemat$year == curyear,]
     thisdf <- thisdf[thisdf$district == curdistrict,]
     
-    tempdf <- data.frame(district = curdistrict,
-                         year = curyear,
-                         est = approx(x=thisdf$doy,
-                                      y=thisdf$est,
-                                      xout=approxdoy)$y)
+    if(sum(!is.na(thisdf$est)) > 1) {
     
-    doypreds <- bind_rows(doypreds, tempdf)
+      tempdf <- data.frame(district = curdistrict,
+                           year = curyear,
+                           est = approx(x=thisdf$doy,
+                                        y=thisdf$est,
+                                        xout=approxdoy)$y)
+      
+      doypreds <- bind_rows(doypreds, tempdf)
+      
+    }
     
   }
   
