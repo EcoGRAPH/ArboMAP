@@ -496,7 +496,7 @@ if (sum(!is.na(thisyeardot$doy)) > 20) {
 }
 
 
-
+plot(thisplot)
 ```
 ```{r include=FALSE, echo=FALSE}
 ggsave(paste(graphicoutputdir,
