@@ -40,7 +40,7 @@ packages <- c("reshape2", "ggplot2", "gridExtra",
               "broom","mapproj", "Hmisc")
 for (package in packages) {
     if (!require(package, character.only=T, quietly=T)) {
-        install.packages(package)
+        install.packages(package, repos = "http://cran.us.r-project.org")
         library(package, character.only=T)
     }
 }
