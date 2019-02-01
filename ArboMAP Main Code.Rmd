@@ -266,7 +266,7 @@ numpos <- wnvnumerator
 perpos <- 100*round(wnvnumerator/wnvdenominator, 3)
 ```
 
-There are `r nrow2` samples in the vector testing database. For `r maxmosqyear`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. The regions used for stratification are mapped below; districts are thought to share risk more closely with others in the same strata, although all districts share some level of risk with all other districts. 
+There are `r nrow2` samples in the vector testing database. For `r maxmosqyear`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. The regions used for stratification are mapped below; districts are thought to share risk more closely with others in the same strata, although all districts share some level of risk with all other districts.  
 
 ```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
 # import district identifiers
