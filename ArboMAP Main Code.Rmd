@@ -40,7 +40,7 @@ packages <- c("reshape2", "ggplot2", "gridExtra",
               "broom","mapproj", "Hmisc")
 for (package in packages) {
     if (!require(package, character.only=T, quietly=T)) {
-        install.packages(package)
+        install.packages(package, repos = "http://cran.us.r-project.org")
         library(package, character.only=T)
     }
 }
@@ -266,7 +266,7 @@ numpos <- wnvnumerator
 perpos <- 100*round(wnvnumerator/wnvdenominator, 3)
 ```
 
-There are `r nrow2` samples in the vector testing database. For `r maxmosqyear`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. The regions used for stratification are mapped below; districts are thought to share risk more closely with others in the same strata, although all districts share some level of risk with all other districts. 
+There are `r nrow2` samples in the vector testing database. For `r maxmosqyear`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. The regions used for stratification are mapped below; districts are thought to share risk more closely with others in the same strata, although all districts share some level of risk with all other districts.  
 
 ```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
 # import district identifiers
@@ -441,7 +441,7 @@ ggsave(paste(graphicoutputdir,
 
 ```
 
-The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqyear` is shown here by grouping observations nearby in time. If these dots do not appear, your data set probably has fewer than 20 tested pools this year.
+The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqyear` is shown here by grouping observations nearby in time.
 
 ```{r mosqbymonth, include=TRUE, echo=FALSE, fig.width=6, fig.height=3}
 mosqmopreds <- expand.grid(strata=unique(wnv$strata),
