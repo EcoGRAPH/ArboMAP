@@ -276,14 +276,14 @@ randeffs$stratum <- factor(randeffs$strata)
 # import data
 human <- read.csv(humandatafile)
 begrow <- nrow(human)
-human$chardate <- as.character(levels(human$creationdate))[as.numeric(human$creationdate)]
-human$creationdate <- as.Date(human$creationdate, "%m/%d/%Y")
-human$creationyear <- as.numeric(format(human$creationdate, "%Y"))
-human$creationmonth <- as.numeric(format(human$creationdate, "%m"))
+human$chardate <- as.character(levels(human$date))[as.numeric(human$date)]
+human$date <- as.Date(human$date, "%m/%d/%Y")
+human$creationyear <- as.numeric(format(human$date, "%Y"))
+human$creationmonth <- as.numeric(format(human$date, "%m"))
 # simplify district names
 human$district <- simplifynames(human$district)
 human$district <- factor(human$district)
-human$doy <- as.numeric(format(human$creationdate, "%j"))
+human$doy <- as.numeric(format(human$date, "%j"))
 
 # retain only those in the right date range
 hWNVminyear <- minmosqyear
@@ -294,7 +294,7 @@ human <- human[which((human$creationyear >= hWNVminyear) & (human$creationyear <
 human <- human[which((human$creationmonth >= 5) & (human$creationmonth <= 11)),]
 
 # create the full list of weeks
-minobservedhumandate <- min(human$creationdate)
+minobservedhumandate <- min(human$date)
 
 # set up the data frame so that it ends at the maxdesiredhumandate 
 filledweeks <- seq(from=maxdesiredhumandate, to=minobservedhumandate, by=-7)
@@ -312,8 +312,8 @@ for (i in 1:nrow(fullcasemat)) {
   thisdistrict        <- fullcasemat$district[i]
   
   tempcases <- human[which(human$district == thisdistrict),]
-  tempcases <- tempcases[which(tempcases$creationdate >= thisweekstartdate),]
-  tempcases <- tempcases[which(tempcases$creationdate <= (thisweekstartdate + 6)),]
+  tempcases <- tempcases[which(tempcases$date >= thisweekstartdate),]
+  tempcases <- tempcases[which(tempcases$date <= (thisweekstartdate + 6)),]
   
   fullcasemat$anycases[i] <- 1*(nrow(tempcases) > 0)
   if (nrow(tempcases) > 0) {
