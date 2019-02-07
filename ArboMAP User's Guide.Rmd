@@ -125,15 +125,13 @@ knitr::include_graphics('pictures for setup document/files and settings in rmark
 
 ### \ \ \ \ \ Obtaining the gridMET data
 
-ArboMAP requires weather data to make its predictions. You will use likely Google Earth Engine (GEE) to download historical weather data beginning a full year before your human case data (e.g. if you begin modeling in 2001, you will need to download all data beginning in 2000). If you want to download all available historical data, it will not hurt the calculations; simply begin in 1950). You will only need to download historical data once; every other time you run the program, you will only need to download the most recent year's weather data from GEE.
-
-You will be given a link to code you can use to download the weather data. Once you click on this link and sign in to the Google account you used to sign up for Google Earth Engine, you should see a page like the following:
+ArboMAP requires weather data to make its predictions. You will use likely Google Earth Engine (GEE) to download historical weather data beginning a full year before your human case data (e.g. if you begin modeling in 2001, you will need to download all data beginning in 2000). If you want to download all available historical data, it will not hurt the calculations; simply begin in 1950). You will only need to download historical data once; every other time you run the program, you will only need to download the most recent year's weather data from GEE. Navigate to code.earthengine.google.com and sign up for an account if you have not already.
 
 ```{r echo=FALSE, out.width='80%'}
 knitr::include_graphics('pictures for setup document/google earth login.PNG')
 ```
 
-Click on the textured bar above \"Show Code\" and drag down to view the code. You don't need to modify any of the code, but this will allow you to see the Tasks tab, which will allow you to download the data. Set the \"Start Date for Summary\" to YYYY-01-01, where YYYY is the year of data you wish to begin in, and set the \"End Date for Summary\" to some point in the future. You can set the End Date to 2050-01-01, and you will be given the most up-to-date weather data. 
+Click on the textured bar above \"Show Code\" and drag down to view the code. Paste into the code window the contents of the GRIDMET_downloader_v1_0.js file, included in the ArboMAP repository. Then click on "run" to render the GUI.  You don't need to modify any of the code, but this will allow you to see the Tasks tab, which will allow you to download the data. Set the \"Start Date for Summary\" to YYYY-01-01, where YYYY is the year of data you wish to begin in, and set the \"End Date for Summary\" to some point in the future. You can set the End Date to 2050-01-01, and you will be given the most up-to-date weather data. 
 
 ```{r echo=FALSE, out.width='40%'}
 knitr::include_graphics('pictures for setup document/google earth set year.PNG')
