@@ -137,7 +137,7 @@ Click on the textured bar above \"Show Code\" and drag down to view the code. Pa
 knitr::include_graphics('pictures for setup document/google earth set year.PNG')
 ```
 
-You can change some of the other options, if you'd like to modify your download. If you're not using the data for South Dakota, for example, which has FIPS code 46, you can choose another state from the list of codes (**[click here for codes](https://en.wikipedia.org/wiki/Federal_Information_Processing_Standard_state_code)**).
+You can change some of the other options, if you'd like to modify your download. If you're not using the data for South Dakota, for example, which has FIPS code 46, you can choose another state from the list of codes (**[click here for codes](https://en.wikipedia.org/wiki/Federal_Information_Processing_Standard_state_code)**). You will need to use the two-digit code (e.g. Colorado is 08, not 8). 
 
 Click on \"Download Summary.\" This will create a task called myExportTable Task under the Tasks tab. Click on Run. If you do see this or any of the code, click on the textured bar directly above the map and drag down. This should reveal the code windows.
 
