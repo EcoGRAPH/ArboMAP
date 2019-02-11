@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////
-// GRIDMET Viewer and Downloader Version 1.0
+// GRIDMET Viewer and Downloader Version 1.1
 // Developed as part of the Arbovirus Modeling and Prediction System
 // Description: This Google Earth Engine script was developed to facilitate access to
 // county-level summaries of gridded meteorological data to support West Nile virus 
@@ -7,12 +7,12 @@
 // summarized meteorological data. Users can also explore maps of daily temperature 
 // anomalies via the graphical user interface.
 // 
-// Developed by: 	Michael C. Wimberly
-//					South Dakota State University
-//					Geospatial Sciences Center of Excellence
-//					michael.wimberly@sdstate.edu
+// Developed by:Michael C. Wimberly and Justin K. Davis
+//              University of OKlahoma
+//              Department of Geography and Environmental Sustainaiblity
+//              mcwimberly@ou.edu
 //
-// Last Update: August 1, 2018
+// Last Update: February 8, 2019
 ////////////////////////////////////////////////////////////////////////////////
 
 //var counties = ee.FeatureCollection("ft:1S4EB6319wWW2sWQDPhDvmSBIVrD3iEmCLYB7nMM"),
@@ -44,15 +44,6 @@ var make_datelist = function(n) {
 dates = dates.map(make_datelist);
  
 // include only our selected state
-var selectedstate = counties.filter(ee.Filter.equals("STATEFP",mystates));
-// Create an empty image into which to paint the features, cast to byte.
-var empty = ee.Image().byte();
-var countybound = empty.paint({
-  featureCollection: selectedstate,
-  color: 1,
-  width: 3
-});
-Map.addLayer(countybound,{color: '000000'},'counties');  
 
 ////////////////////////////////////////////////////////////////////////////////
 // Step 2: Calculate the summary variables
@@ -186,6 +177,8 @@ var exportzonal = function() {
   // Map the function over the image collection
   var curstate_sum = fipsinput.getValue();
   var statenum_sum = curstate_sum;
+  var selectedstate = counties.filter(ee.Filter.equals("STATEFP", curstate_sum));
+// Create an empty image into which to paint the features, cast to byte.
   var gridmet_sum = gridmet_calc.filterDate(sddate, eddate);
  // Function to calculate zonal statistics by county
   var zonalsum = function(image) { 
@@ -220,6 +213,7 @@ var exportzonal = function() {
 ////////////////////////////////////////////////////////////////////////////////
 
 var tempPal = ['blue', 'red']; // store palette as variable
+var empty = ee.Image().byte();
 
 // Function to visualize the layers
 // Gets updated whenever slides are moved or a new state is entered
