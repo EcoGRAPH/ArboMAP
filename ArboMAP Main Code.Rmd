@@ -37,7 +37,7 @@ packages <- c("reshape2", "ggplot2", "gridExtra",
               "lme4","pracma","dplyr","maptools",
               "raster","spdep","mgcv","sp","rgdal",
               "GISTools","data.table","splines","maps",
-              "broom","mapproj", "Hmisc")
+              "broom","mapproj", "Hmisc", "parallel")
 for (package in packages) {
     if (!require(package, character.only=T, quietly=T)) {
         install.packages(package, repos = "http://cran.us.r-project.org")
@@ -591,43 +591,40 @@ fullcasemat <- merge(x=fullcasemat, y=mean2data,
                      by.y=c("var2_district","var2_date"),
                      all.x=TRUE)
 
-# garbage collection
-rm(mean1data)
-rm(mean2data)
-gc()
+# turn these into matrices
+fullcasemat$var1 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
+                                                pattern="var1_",
+                                                fixed=TRUE)])
+fullcasemat$var2 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
+                                                pattern="var2_",
+                                                fixed=TRUE)])
+fullcasemat[,grep(x=colnames(fullcasemat), pattern="var1_", fixed=TRUE)] <- NULL
+fullcasemat[,grep(x=colnames(fullcasemat), pattern="var2_", fixed=TRUE)] <- NULL
 
-lagframe <- data.frame(x=seq(from=1, to=laglen, by=1))
-alpha <- 1/4
-distlagfunc <- ns(lagframe$x, intercept=TRUE,
-                  knots=quantile(lagframe$x,
-                                 probs=seq(from=alpha, to=1-alpha, by=alpha),
-                                 na.rm=TRUE))
-matplot(distlagfunc, type="l")
-dlagdeg <- size(distlagfunc)[2]
+# import strata
+fullcasemat <- merge(x=fullcasemat, y=strata,
+                     by.x="district", by.y="district",
+                     all.x=TRUE)
 
-# create actual distributed lag summaries
-band1summaries <- matrix(rep(0, nrow(fullcasemat)*dlagdeg), nrow(fullcasemat), dlagdeg)
-band2summaries <- matrix(rep(0, nrow(fullcasemat)*dlagdeg), nrow(fullcasemat), dlagdeg)
-
-names(fullcasemat)
-min1index <- which(names(fullcasemat) == "var1_0")
-min2index <- which(names(fullcasemat) == "var2_0")
-fullcasemat <- data.frame(fullcasemat)
-band1temp <- as.matrix(fullcasemat[,(min1index:(min1index+laglen-1))])
-band2temp <- as.matrix(fullcasemat[,(min2index:(min2index+laglen-1))])
-for (j in 1:dlagdeg) {
+# stratify covariates
+for (curstrata in unique(fullcasemat$strata)) {
   
-  band1summaries[,j] <- band1temp %*% distlagfunc[,j]
-  band2summaries[,j] <- band2temp %*% distlagfunc[,j]
+  fullcasemat[c(paste("dl_var1_", curstrata, sep=""))] <- fullcasemat$var1 * (fullcasemat$strata == curstrata)
+  fullcasemat[c(paste("dl_var2_", curstrata, sep=""))] <- fullcasemat$var2 * (fullcasemat$strata == curstrata)
   
 }
 
-fullcasemat$band1summaries <- band1summaries
-fullcasemat$band2summaries <- band2summaries
+# create lag matrix
+fullcasemat$lag <- fullcasemat$var1
+for (curcol in 1:dim(fullcasemat$lag)[2]) {
+  
+  fullcasemat$lag[,curcol] <- (curcol-1)
+
+}
 
 # garbage collection
-rm(band1summaries)
-rm(band2summaries)
+rm(mean1data)
+rm(mean2data)
 gc()
 
 # include the mosquito summary statistic
@@ -635,10 +632,6 @@ stratayearmosq <- randeffs
 stratayearmosq <- stratayearmosq[c("stratayear","mosqinfect")]
 names(stratayearmosq) <- c("stratayear","MIRsummarystat")
 
-# import district identifiers
-fullcasemat <- merge(x=fullcasemat, y=strata,
-                     by.x="district", by.y="district",
-                     all.x=TRUE)
 fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
 fullcasemat$stratayear <- paste(fullcasemat$strata, fullcasemat$year, sep=":")
 fullcasemat$year <- NULL
@@ -668,20 +661,28 @@ fullcasemat$stratayear <- NULL
 
 # get rid of districts that never have a positive case in the time period
 fullcasemat$doy <- as.numeric(format(fullcasemat$weekstartdate, "%j"))
-firstreg  <- glm(anycases ~ 0+MIRsummarystat+district+
-                   band1summaries+
-                   band2summaries+
-                   band1summaries:doy+
-                   band2summaries:doy,
+
+# make sure district is a factor
+fullcasemat$district <- factor(fullcasemat$district)
+
+myformula <- paste("s(lag, by=",
+                   names(fullcasemat)[grep(x=names(fullcasemat),
+                              pattern="dl_",
+                              fixed=TRUE)],
+                   ", bs='tp')",sep="", collapse=" + ")
+myformula <- paste("anycases ~ 0 + MIRsummarystat + district", myformula, sep=" + ")
+myform <- as.formula(myformula)
+
+cl <- makeCluster(detectCores(logical=FALSE)-1)
+firstreg  <- bam(formula=myform,
                  family=binomial(), data=fullcasemat,
-                 subset=observed==1)
-
-summary(firstreg)
-
+                 subset=observed==1,
+                 cluster=cl)
+stopCluster(cl)
 
 # show predictions
 preds <- predict(firstreg, type="link", newdata=fullcasemat, se.fit=TRUE, newlevels=TRUE)
-fullcasemat$est <- predict(firstreg, type="response", newdata=fullcasemat, newlevels=TRUE)
+fullcasemat$est <- 1/(1 + exp(-preds$fit))
 
 preds <- as.matrix(cbind(preds$fit, preds$se.fit))
 preds <- data.frame(preds)
@@ -693,7 +694,6 @@ preds$est   <- preds$est
 preds$upper <- 1 / (1 + exp(-preds$upper))
 preds$lower <- 1 / (1 + exp(-preds$lower))
 preds$est <- 1 / (1 + exp(-preds$est))
-
 
 tempfull <- fullcasemat
 tempfull$preds <- preds$est
