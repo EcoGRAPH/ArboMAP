@@ -49,7 +49,8 @@ for (package in packages) {
 ```{r setoptions, include=FALSE, echo=FALSE}
 
 # model type is either fixed df cubic regression spline or a thin-plate spline
-modeltype <- "fixeddfcr"
+modeltype <- "thinplate"
+if (!(modeltype %in% c("fixeddfcr", "thinplate"))) { modeltype <- "fixeddfcr" }
 
 # where do we want the outputs?
 graphicoutputdir <- ".\\graphical outputs\\"
@@ -90,8 +91,6 @@ compyear1 <- 2012
 compyear2 <- 2017
 
 # probably don't want to modify what follows, but you have some options if you're comfortable
-if (!(modeltype %in% c("fixeddfcr", "thinplate"))) { modeltype <- "fixeddfcr" }
-
 # makes sure we round to the previous Sunday, so that this week is included
 weekinquestionSun <- weekinquestion - (as.numeric(strftime(weekinquestion, '%u')) %% 7)
 weekinquestionSat <- weekinquestionSun + 6
@@ -670,7 +669,7 @@ fullcasemat$doy <- as.numeric(format(fullcasemat$weekstartdate, "%j"))
 fullcasemat$district <- factor(fullcasemat$district)
 
 # create formula
-if (modeltype == "thinplace") {
+if (modeltype == "thinplate") {
   
   myformula <- paste("s(lag, by=",
                      names(fullcasemat)[grep(x=names(fullcasemat),
