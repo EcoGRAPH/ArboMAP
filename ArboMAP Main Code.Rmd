@@ -1025,7 +1025,10 @@ ggsave(paste(graphicoutputdir,
 
 ```
 
-We can visualize the distributed lags by stratum.
+\newpage
+## Dependence on environmental data.
+
+Below, visualize the distributed lags by stratum.
 
 ```{r distributedlags, include=FALSE, echo=FALSE}
 mygam <- plot(firstreg, select=1)
@@ -1061,8 +1064,8 @@ for (i in 1:length(mygam)) {
 ```
 ```{r finalplots, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 ggplot(lag1df) + geom_line(aes(x=x, y=fit, group=stratum, color=stratum)) +
-  ggtitle(paste("distributed lags on ", var1name))
+  ggtitle(paste("distributed lags on ", var1name, sep="")) + xlab("lag")
 ggplot(lag2df) + geom_line(aes(x=x, y=fit, group=stratum, color=stratum)) +
-  ggtitle(paste("distributed lags on ", var2name))
+  ggtitle(paste("distributed lags on ", var2name, sep="")) + xlab("lag")
 ```
 
