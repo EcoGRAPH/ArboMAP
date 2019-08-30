@@ -1054,14 +1054,16 @@ for (i in 1:length(mygam)) {
       newdf <- data.frame(fit=thisplot$fit,
                           x  =thisplot$`x`,
                           stratum=thisplot$ylab)
-      lag1df <- bind_rows(lag2df, newdf)
+      lag2df <- bind_rows(lag2df, newdf)
     
     }
   
 }
 ```
 ```{r finalplots, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-ggplot(lag1df) + geom_line(aes(x=x, y=fit, group=name, stratum=name))
-ggplot(lag2df) + geom_line(aes(x=x, y=fit, group=name, stratum=name))
+ggplot(lag1df) + geom_line(aes(x=x, y=fit, group=stratum, color=stratum)) +
+  ggtitle(paste("distributed lags on ", var1name))
+ggplot(lag2df) + geom_line(aes(x=x, y=fit, group=stratum, color=stratum)) +
+  ggtitle(paste("distributed lags on ", var2name))
 ```
 
