@@ -48,6 +48,10 @@ for (package in packages) {
 
 ```{r setoptions, include=FALSE, echo=FALSE}
 
+# model type is either fixed df cubic regression spline or a thin-plate spline
+modeltype <- "fixeddfcr"
+if (!(modeltype %in% c("fixeddfcr", "thinplate"))) { modeltype <- "fixeddf" }
+
 # where do we want the outputs?
 graphicoutputdir <- ".\\graphical outputs\\"
 fullcasematoutputdir <- ".\\case matrix with estimates\\"
@@ -665,13 +669,31 @@ fullcasemat$doy <- as.numeric(format(fullcasemat$weekstartdate, "%j"))
 # make sure district is a factor
 fullcasemat$district <- factor(fullcasemat$district)
 
-myformula <- paste("s(lag, by=",
-                   names(fullcasemat)[grep(x=names(fullcasemat),
-                              pattern="dl_",
-                              fixed=TRUE)],
-                   ", bs='tp')",sep="", collapse=" + ")
-myformula <- paste("anycases ~ 0 + MIRsummarystat + district", myformula, sep=" + ")
-myform <- as.formula(myformula)
+# create formula
+if (modeltype == "thinplace") {
+  
+  myformula <- paste("s(lag, by=",
+                     names(fullcasemat)[grep(x=names(fullcasemat),
+                                pattern="dl_",
+                                fixed=TRUE)],
+                     ", bs='tp')",sep="", collapse=" + ")
+  myformula <- paste("anycases ~ 0 + MIRsummarystat + district", myformula, sep=" + ")
+  myform <- as.formula(myformula)
+  
+}
+if (modeltype == "fixeddfcr") {
+  
+  myformula <- paste("s(lag, by=",
+                     names(fullcasemat)[grep(x=names(fullcasemat),
+                                pattern="dl_",
+                                fixed=TRUE)],
+                     ", bs='cr', fx=TRUE, k=6)",sep="", collapse=" + ")
+  myformula <- paste("anycases ~ 0 + MIRsummarystat + district", myformula, sep=" + ")
+  myform <- as.formula(myformula)
+  
+}
+
+
 
 cl <- makeCluster(detectCores(logical=FALSE)-1)
 firstreg  <- bam(formula=myform,
@@ -1004,6 +1026,42 @@ ggsave(paste(graphicoutputdir,
 
 ```
 
+We can visualize the distributed lags by stratum.
 
+```{r distributedlags, include=FALSE, echo=FALSE}
+mygam <- plot(firstreg, select=1)
+lag1df <- data.frame()
+lag2df <- data.frame()
+for (i in 1:length(mygam)) {
+  
+  thisplot <- mygam[[i]]
 
+  if (grepl(x=thisplot$ylab,
+            pattern="var1_",
+            fixed=TRUE)) {
+    
+      newdf <- data.frame(fit=thisplot$fit,
+                          x  =thisplot$`x`,
+                          stratum=thisplot$ylab)
+      lag1df <- bind_rows(lag1df, newdf)
+    
+  }
+  
+  if (grepl(x=thisplot$ylab,
+            pattern="var2_",
+            fixed=TRUE)) {
+    
+      newdf <- data.frame(fit=thisplot$fit,
+                          x  =thisplot$`x`,
+                          stratum=thisplot$ylab)
+      lag1df <- bind_rows(lag2df, newdf)
+    
+    }
+  
+}
+```
+```{r finalplots, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
+ggplot(lag1df) + geom_line(aes(x=x, y=fit, group=name, stratum=name))
+ggplot(lag2df) + geom_line(aes(x=x, y=fit, group=name, stratum=name))
+```
 
