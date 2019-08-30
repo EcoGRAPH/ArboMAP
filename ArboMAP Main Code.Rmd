@@ -50,7 +50,6 @@ for (package in packages) {
 
 # model type is either fixed df cubic regression spline or a thin-plate spline
 modeltype <- "fixeddfcr"
-if (!(modeltype %in% c("fixeddfcr", "thinplate"))) { modeltype <- "fixeddf" }
 
 # where do we want the outputs?
 graphicoutputdir <- ".\\graphical outputs\\"
@@ -91,6 +90,7 @@ compyear1 <- 2012
 compyear2 <- 2017
 
 # probably don't want to modify what follows, but you have some options if you're comfortable
+if (!(modeltype %in% c("fixeddfcr", "thinplate"))) { modeltype <- "fixeddfcr" }
 
 # makes sure we round to the previous Sunday, so that this week is included
 weekinquestionSun <- weekinquestion - (as.numeric(strftime(weekinquestion, '%u')) %% 7)
