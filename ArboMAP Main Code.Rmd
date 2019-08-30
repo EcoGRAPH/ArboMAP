@@ -20,11 +20,11 @@ simplifynames <- function(priornames=NULL) {
   priornames <- tolower(priornames)
   
   # remove spaces
-  priornames <- sub(pattern=" ", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern=" ", replacement="", x=priornames, fixed=TRUE)
   
   # remove district and parish
-  priornames <- sub(pattern="county", replacement="", x=priornames, fixed=TRUE)
-  priornames <- sub(pattern="parish", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="county", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="parish", replacement="", x=priornames, fixed=TRUE)
 
   # return names
   return(priornames)
