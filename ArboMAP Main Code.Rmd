@@ -856,9 +856,13 @@ positivesthisyear <- round(sum(thisyear$est, na.rm=TRUE), 1)
 
 byyear <- dplyr::summarize(group_by(previousyears, year),
                            totobs = sum(totalcases, na.rm=TRUE),
-                           anyobs = sum(anycases, na.rm=TRUE))
+                           anyobs = sum(anycases, na.rm=TRUE),
+                           weight = 1)
+byyear <- bind_rows(byyear, data.frame(totobs=0,
+                                       anyobs=0,
+                                       weight=100))
 
-relationship <- gam(totobs ~ s(anyobs), data=byyear)
+relationship <- gam(totobs ~ s(anyobs), weights=weight, data=byyear)
 
 predframe <- data.frame(anyobs = seq(from=0,
                                      to=max(byyear$anyobs, na.rm=TRUE),
