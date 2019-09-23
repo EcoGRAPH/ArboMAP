@@ -868,14 +868,14 @@ predframe$preds <- predict(relationship, newdata = predframe)
 predframe2 <- data.frame(anyobs = sum(thisyear$est, na.rm=TRUE))
 predframe2$preds  <- predict(relationship, newdata = predframe2)
 
-ggplot() + geom_line(data=predframe, aes(x=anyobs, y=preds)) +
-  geom_point(data=predframe2, aes(x=anyobs, y=preds), color="red", size=2) +
+ggplot() + geom_line(data=predframe, aes(x=anyobs, y=preds), color="red", linetype=2) +
+  geom_point(data=predframe2, aes(x=anyobs, y=preds), color="red", size=5) +
   geom_point(data=byyear, aes(x=anyobs, y=totobs)) +
-  geom_abline(slope=1, intercept=0, color="red", linetype=2) +
-  xlab("positive county-weeks") + ylab("total cases that year") 
+  #geom_abline(slope=1, intercept=0, color="red", linetype=2) +
+  xlab("positive county-weeks in a year") + ylab("total cases that year") 
 ```
 
-We expect that there will be `r positivesthisyear` positive district-weeks this year. Since ArboMAP models positive district-weeks rather than total cases, we can only make a rough estimate based on the relationship of cases to district-weeks. If historical patterns hold, we expect there to be `r round(predframe2$preds,1)` cases this year.
+We expect that there will be `r positivesthisyear` positive district-weeks this year. Since ArboMAP models positive district-weeks rather than total cases, we can only make a rough estimate based on the relationship of cases to district-weeks. If historical patterns hold (dashed red line), we expect there to be `r round(predframe2$preds,1)` cases this year (red dot).
 
 \newpage
 ## Results for `r weekinquestionSun` to `r format(weekinquestionSat, "%m-%d")`
