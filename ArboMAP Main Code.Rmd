@@ -51,7 +51,7 @@ for (package in packages) {
 
 # model type is either fixed df cubic regression spline or a thin-plate spline
 modeltype <- "fixeddfcr"
-if (!(modeltype %in% c("fixeddfcr", "thinplate"))) { modeltype <- "fixeddfcr" }
+if (!(modeltype %in% c("fixeddfcr", "thinplate"))) { modeltype <- "thinplate" }
 
 # where do we want the outputs?
 graphicoutputdir <- ".\\graphical outputs\\"
@@ -80,7 +80,7 @@ weathersummaryfile <- "weather data summary file.csv"
 
 # which variables do you want to use?
 var1name <- "tmeanc"
-var2name <- "vpd"
+var2name <- "pr"
 
 # where are the mosquito test files located?
 mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
@@ -279,7 +279,7 @@ perpos <- 100*round(wnvnumerator/wnvdenominator, 3)
 
 There are `r nrow2` samples in the vector testing database. For `r maxmosqyear`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. The regions used for stratification are mapped below; districts are thought to share risk more closely with others in the same strata, although all districts share some level of risk with all other districts.  
 
-```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
+```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
 # import district identifiers
 strata <- read.csv(stratafile)
 strata$district <- simplifynames(strata$district)
@@ -336,9 +336,9 @@ thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect, group=stra
         panel.grid.minor=element_blank(),
         panel.grid.major.y=element_blank())+
   xlab("") + ylab("Relative risk due to\nvector infection growth rate")
+plot(thisplot)
 ```
 ```{r silentsavemosq, include=FALSE, echo=FALSE}
-plot(thisplot)
 ggsave(paste(graphicoutputdir,
              "vector infection rates.png",
              sep=""), thisplot)
@@ -555,6 +555,14 @@ dailyextr <- left_join(dailyextr, districtdoymean,
 
 dailyextr$var1[is.na(dailyextr$var1)] <- dailyextr$meanvar1[is.na(dailyextr$var1)]
 dailyextr$var2[is.na(dailyextr$var2)] <- dailyextr$meanvar2[is.na(dailyextr$var2)]
+
+# View(dailyextr)
+# 
+# # delete this!!!
+# dailyextr$year <- as.numeric(format(dailyextr$date, "%Y"))
+# dailyextr$var1[dailyextr$year == 2019] <- dailyextr$meanvar1[dailyextr$year == 2019]
+# dailyextr$var2[dailyextr$year == 2019] <- dailyextr$meanvar2[dailyextr$year == 2019]
+# dailyextr$year <- NULL
 
 # garbage collection
 rm(districtdoymean)
@@ -873,15 +881,15 @@ predframe2 <- data.frame(anyobs = sum(thisyear$est, na.rm=TRUE))
 predframe2$preds  <- predict(relationship, newdata = predframe2)
 
 ggplot() + geom_line(data=predframe, aes(x=anyobs, y=preds), color="red", linetype=2) +
+  geom_abline(slope=1, intercept=0, color="grey", linetype=2) +
   geom_point(data=predframe2, aes(x=anyobs, y=preds), color="red", size=5) +
   geom_point(data=byyear, aes(x=anyobs, y=totobs)) +
   #geom_abline(slope=1, intercept=0, color="red", linetype=2) +
   xlab("positive county-weeks in a year") + ylab("total cases that year") 
 ```
 
-We expect that there will be `r positivesthisyear` positive district-weeks this year. Since ArboMAP models positive district-weeks rather than total cases, we can only make a rough estimate based on the relationship of cases to district-weeks. If historical patterns hold (dashed red line), we expect there to be `r round(predframe2$preds,1)` cases this year (red dot).
+We expect that there will be `r positivesthisyear` positive district-weeks this year. Since ArboMAP models positive district-weeks rather than total cases, we can only make a rough estimate based on the relationship of cases to district-weeks. If historical patterns hold (dashed red line), we expect there to be `r round(predframe2$preds,1)` cases this year (red dot). The grey line indicates the case count if there were only one case per positive district-week. Especially in the height of the season, some districts that have one case that week will have more than one case.
 
-\newpage
 ## Results for `r weekinquestionSun` to `r format(weekinquestionSat, "%m-%d")`
 
 We visualize the raw estimated risk for `r weekinquestion` below. If a district is darkest blue, then we estimate that there should be no human cases reported for this district, during this week. If a district is brightest red, we are certain that there will be at least one human case reported for this district, during this week.
@@ -1100,6 +1108,8 @@ ggplot(lag1df) + geom_line(aes(x=x, y=fit, group=stratum, color=stratum)) +
 ggplot(lag2df) + geom_line(aes(x=x, y=fit, group=stratum, color=stratum)) +
   ggtitle(paste("distributed lags on ", var2name, sep="")) + xlab("lag")
 ```
+
+\newpage 
 
 The following two graphs show the influences of the two environmental covariates on estimated risk. The current year (red) is compared to all others (black).
 
