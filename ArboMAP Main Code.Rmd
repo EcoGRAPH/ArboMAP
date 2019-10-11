@@ -80,7 +80,7 @@ weathersummaryfile <- "weather data summary file.csv"
 
 # which variables do you want to use?
 var1name <- "tmeanc"
-var2name <- "pr"
+var2name <- "vpd"
 
 # where are the mosquito test files located?
 mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
@@ -1145,4 +1145,20 @@ ggplot() + geom_line(data=termsum, aes(x=doy, y=var2inf, group=year), alpha=0.5)
   ggtitle(paste("Relative influence of ", var2name, sep="")) +
   xlab("day of year") + ylab("relative influence")
 
+```
+
+```{r totalcases2, include=TRUE, echo=FALSE, fig.width=7, fig.height=7}
+fullcasemat <- group_by(fullcasemat, year)
+sumcases    <- dplyr::summarise(fullcasemat,
+                                totcase = sum(anycases, na.rm=TRUE),
+                                sumest  = sum(est, na.rm=TRUE))
+tempdf <- sumcases[sumcases$year < 2019,]
+ggplot(tempdf) + geom_label(aes(x=sumest, y=totcase, label=year)) +
+  geom_abline(slope=1, intercept=0, color="red", linetype=2) +
+  xlim(0,max(c(sumcases$totcase,
+               sumcases$sumest))) +
+  ylim(0,max(c(sumcases$totcase,
+               sumcases$sumest))) +
+  xlab("estimated") + ylab("observed") +
+  theme(text=element_text(size=20))
 ```
