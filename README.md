@@ -40,4 +40,4 @@ v2.0
 
 v1.0 
 
-- We used informal versioning in all instances of ArboMAP before 2.0, at which point we began using github's release system. All previous version should be considered relatively obsolete, since updates to mgcv all us to use better estimators.
+- We used informal versioning in all instances of ArboMAP before 2.0, at which point we began using github's release system. All previous version should be considered relatively obsolete, since updates to mgcv allow us to use better estimators.
