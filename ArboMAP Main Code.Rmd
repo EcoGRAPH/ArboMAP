@@ -51,7 +51,7 @@ for (package in packages) {
 ```{r setoptions, include=FALSE, echo=FALSE}
 
 # model type is either fixed df cubic regression spline or a thin-plate spline
-modeltype <- "fixeddfcr"
+modeltype <- "thinplate"
 if (!(modeltype %in% c("fixeddfcr", "thinplate"))) { modeltype <- "thinplate" }
 
 # where do we want the outputs?
