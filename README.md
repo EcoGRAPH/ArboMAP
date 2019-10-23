@@ -26,3 +26,18 @@ published by the Free Software Foundation, version 3. This program is distribute
 but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details. You should have received a copy of the GNU General Public License along with
 this program. If not, see <http://www.gnu.org/licenses/>.
+
+**Version information:**
+
+v2.0
+
+- The updated mgcv library now allows us to use thin-plate splines in place of cubic regression splines. Wherever possible in ArboMAP, thin-plate splines are used instead of cubic-regression splines. The user has an option to use the old cr splines (fixeddfcr), but this is not advised. The user is required to update the mgcv library, as all but the most recent versions do not handle the formulas correctly.
+- Additional information is now given in ArboMAP, including the estimated distribted lags and the per-variable effects of the weather.
+- An updated calculation for the cases (rather than positive county-weeks) is now included.
+- The js code to download the environmental data from GEE has been streamlined due to occasional memory issues encountered on GEE. Namely, the interface now displays the raw rather than anomalized weather data.
+- An oddity in rendering the interface has been corrected, and the outline of all counties should be correctly displayed. This may take several seconds.
+- An error in the js code was returning FIPS rather than district names. For the sake of clarity we will eventually work with the FIPS rather than string names, but for the moment names (e.g. "Broward County" rather than 12011) are used.
+
+v1.0 
+
+- We used informal versioning in all instances of ArboMAP before 2.0, at which point we began using gihub's release system. All previous version should be considered relatively obsolete, since updates to mgcv all us to use better estimators.
