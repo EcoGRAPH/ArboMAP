@@ -6,6 +6,7 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
+rm(list=ls())
 knitr::opts_chunk$set(echo = TRUE)
 # define some helpful functions
 '%!in%' <- function(x,y)!('%in%'(x,y))
@@ -59,22 +60,21 @@ fullcasematoutputdir <- ".\\case matrix with estimates\\"
 mosqmatoutputdir <- ".\\mosquito matrix with estimates\\"
 
 # where are the human data located?
+# example of a file with directories an drive:
+# humandatafile <- "C:\\work\\arbomap data\\human\\19-01-29 - total human WNV.csv"
 humandatafile <- ".\\human case data\\simulated human case data.csv"
-humandatafile <- "C:\\work\\arbomap data for mike\\human\\19-01-29 - reconciled human WNV.csv"
 
 # what is the date of the last human case we're willing to believe?
 # probably, cut this off at the end of last year
 # DO NOT use any human cases from the year you're modeling
 maxobservedhumandate <- as.Date("2017-12-31", "%Y-%m-%d")
-maxobservedhumandate <- as.Date("2018-12-23", "%Y-%m-%d")
 
 # which week are we producing the graphs for?
 weekinquestion <- as.Date("2018-08-15", "%Y-%m-%d")
-weekinquestion <- as.Date("2019-08-11", "%Y-%m-%d")
 
 # where are the weather csv files stored?
 weatherpathstr <- ".\\weather data\\"
-weatherpathstr <- "C:\\work\\arbomap data for mike\\weather\\"
+
 # what is the name of the summary file to be created?
 weathersummaryfile <- "weather data summary file.csv"
 
@@ -84,19 +84,16 @@ var2name <- "vpd"
 
 # where are the mosquito test files located?
 mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
-mosqfile <- "C:\\work\\arbomap data for mike\\mosquito\\19-01-29 - state testing.csv"
 
 # which district stratification scheme are we using?
 stratafile <- ".\\strata\\17-04-20 - classified strata - classic.csv"
-stratafile <- "C:\\work\\arbomap data for mike\\geographies\\17-04-20 - classified strata - classic.csv"
 
 # where is the districtshapefile
 districtshapefile <- ".\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
-districtshapefile <- "C:\\work\\arbomap data for mike\\geographies\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
 
 # to which two other years do we want to compare the current year's predictions?
 compyear1 <- 2012
-compyear2 <- 2018
+compyear2 <- 2017
 
 # probably don't want to modify what follows, but you have some options if you're comfortable
 # makes sure we round to the previous Sunday, so that this week is included
@@ -279,7 +276,7 @@ perpos <- 100*round(wnvnumerator/wnvdenominator, 3)
 
 There are `r nrow2` samples in the vector testing database. For `r maxmosqyear`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. The regions used for stratification are mapped below; districts are thought to share risk more closely with others in the same strata, although all districts share some level of risk with all other districts.  
 
-```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
+```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
 # import district identifiers
 strata <- read.csv(stratafile)
 strata$district <- simplifynames(strata$district)
@@ -329,6 +326,8 @@ randeffs$mosqinfect <- predict(infectglm, newdata=randeffs, allow.new.levels = T
 randeffs$stratayear <- paste(randeffs$strata, randeffs$year, sep=":")
 randeffs$adjmosqinfect <- randeffs$mosqinfect - mean(randeffs$mosqinfect,na.rm=TRUE)
 randeffs$stratum <- factor(randeffs$strata)
+```
+```{r fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
 thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect, group=stratum, color=stratum)) +
   geom_abline(slope=0, intercept=0, linetype=2) +
   scale_x_continuous(breaks=minmosqyear:maxmosqyear) +
@@ -556,14 +555,6 @@ dailyextr <- left_join(dailyextr, districtdoymean,
 dailyextr$var1[is.na(dailyextr$var1)] <- dailyextr$meanvar1[is.na(dailyextr$var1)]
 dailyextr$var2[is.na(dailyextr$var2)] <- dailyextr$meanvar2[is.na(dailyextr$var2)]
 
-# View(dailyextr)
-# 
-# # delete this!!!
-# dailyextr$year <- as.numeric(format(dailyextr$date, "%Y"))
-# dailyextr$var1[dailyextr$year == 2019] <- dailyextr$meanvar1[dailyextr$year == 2019]
-# dailyextr$var2[dailyextr$year == 2019] <- dailyextr$meanvar2[dailyextr$year == 2019]
-# dailyextr$year <- NULL
-
 # garbage collection
 rm(districtdoymean)
 dailyextr$meanvar1 <- NULL
@@ -677,7 +668,6 @@ fullcasemat$stratayear <- NULL
 ```
 
 ```{r humanreg, echo=FALSE, include=FALSE}
-
 # get rid of districts that never have a positive case in the time period
 fullcasemat$doy <- as.numeric(format(fullcasemat$weekstartdate, "%j"))
 
@@ -708,8 +698,6 @@ if (modeltype == "fixeddfcr") {
   
 }
 
-
-
 cl <- makeCluster(detectCores(logical=FALSE)-1)
 firstreg  <- bam(formula=myform,
                  family=binomial(), data=fullcasemat,
@@ -718,19 +706,9 @@ firstreg  <- bam(formula=myform,
 stopCluster(cl)
 
 # show predictions
-preds <- predict(firstreg, type="link", newdata=fullcasemat, se.fit=TRUE, newlevels=TRUE)
-fullcasemat$est <- 1/(1 + exp(-preds$fit))
-
-preds <- as.matrix(cbind(preds$fit, preds$se.fit))
-preds <- data.frame(preds)
-names(preds) <- c("est", "sd")
-preds$upper <- preds$est + 1.96*preds$sd
-preds$lower <- preds$est - 1.96*preds$sd
-preds$est   <- preds$est
-
-preds$upper <- 1 / (1 + exp(-preds$upper))
-preds$lower <- 1 / (1 + exp(-preds$lower))
-preds$est <- 1 / (1 + exp(-preds$est))
+preds <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
+fullcasemat$est <- preds
+preds <- data.frame(est=preds)
 
 tempfull <- fullcasemat
 tempfull$preds <- preds$est
@@ -814,6 +792,7 @@ tempdf$year <- factor(tempdf$year)
 tempdf2 <- thisyear[thisyear$weekstartdate >= weekinquestionSun,]
 tempdf2 <- tempdf2[1,]
 ```
+\newpage
 Predictions for `r maxmosqyear` are compared to observations in `r compyear1` and `r compyear2`. We expect `r round(66*tempdf2$est,1)` districts to have at least one human case between `r weekinquestionSunstr` `r weekinquestionSun` and `r weekinquestionSatstr` `r weekinquestionSat`.
 
 ```{r plotblah, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
@@ -1068,7 +1047,7 @@ ggsave(paste(graphicoutputdir,
 \newpage
 ## Dependence on environmental data.
 
-Below, we visualize the distributed lags by stratum.
+Below, we visualize the distributed lags by stratum. If a line is above (below) zero at some lag, this means risk today depends positively (negatively) on the environmental data at that date; e.g. precipitation a week ago (lag = 7) might raise risk today.
 
 ```{r distributedlags, include=FALSE, echo=FALSE}
 mygam <- plot(firstreg, select=1)
@@ -1111,7 +1090,7 @@ ggplot(lag2df) + geom_line(aes(x=x, y=fit, group=stratum, color=stratum)) +
 
 \newpage 
 
-The following two graphs show the influences of the two environmental covariates on estimated risk. The current year (red) is compared to all others (black).
+The following two graphs show the influences of the two environmental covariates on estimated risk. The current year (red) is compared to all others (black). If the line is higher, this indicates the variable in the past has a positive influence on risk estimated for that date.
 
 ```{r envinfluences, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 termdf <- data.frame(predict(firstreg, newdata=fullcasemat, type="terms"))
@@ -1145,20 +1124,4 @@ ggplot() + geom_line(data=termsum, aes(x=doy, y=var2inf, group=year), alpha=0.5)
   ggtitle(paste("Relative influence of ", var2name, sep="")) +
   xlab("day of year") + ylab("relative influence")
 
-```
-
-```{r totalcases2, include=TRUE, echo=FALSE, fig.width=7, fig.height=7}
-fullcasemat <- group_by(fullcasemat, year)
-sumcases    <- dplyr::summarise(fullcasemat,
-                                totcase = sum(anycases, na.rm=TRUE),
-                                sumest  = sum(est, na.rm=TRUE))
-tempdf <- sumcases[sumcases$year < 2019,]
-ggplot(tempdf) + geom_label(aes(x=sumest, y=totcase, label=year)) +
-  geom_abline(slope=1, intercept=0, color="red", linetype=2) +
-  xlim(0,max(c(sumcases$totcase,
-               sumcases$sumest))) +
-  ylim(0,max(c(sumcases$totcase,
-               sumcases$sumest))) +
-  xlab("estimated") + ylab("observed") +
-  theme(text=element_text(size=20))
 ```
