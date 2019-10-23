@@ -6,6 +6,7 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
+rm(list=ls())
 knitr::opts_chunk$set(echo = TRUE)
 # define some helpful functions
 '%!in%' <- function(x,y)!('%in%'(x,y))
@@ -37,7 +38,8 @@ packages <- c("reshape2", "ggplot2", "gridExtra",
               "lme4","pracma","dplyr","maptools",
               "raster","spdep","mgcv","sp","rgdal",
               "GISTools","data.table","splines","maps",
-              "broom","mapproj", "Hmisc", "parallel")
+              "broom","mapproj", "Hmisc", "parallel",
+              "rccmisc")
 for (package in packages) {
     if (!require(package, character.only=T, quietly=T)) {
         install.packages(package, repos = "http://cran.us.r-project.org")
@@ -49,7 +51,8 @@ for (package in packages) {
 ```{r setoptions, include=FALSE, echo=FALSE}
 
 # model type is either fixed df cubic regression spline or a thin-plate spline
-modeltype <- "fixeddfcr"
+modeltype <- "thinplate"
+if (!(modeltype %in% c("fixeddfcr", "thinplate"))) { modeltype <- "thinplate" }
 
 # where do we want the outputs?
 graphicoutputdir <- ".\\graphical outputs\\"
@@ -57,6 +60,8 @@ fullcasematoutputdir <- ".\\case matrix with estimates\\"
 mosqmatoutputdir <- ".\\mosquito matrix with estimates\\"
 
 # where are the human data located?
+# example of a file with directories an drive:
+# humandatafile <- "C:\\work\\arbomap data\\human\\19-01-29 - total human WNV.csv"
 humandatafile <- ".\\human case data\\simulated human case data.csv"
 
 # what is the date of the last human case we're willing to believe?
@@ -69,6 +74,7 @@ weekinquestion <- as.Date("2018-08-15", "%Y-%m-%d")
 
 # where are the weather csv files stored?
 weatherpathstr <- ".\\weather data\\"
+
 # what is the name of the summary file to be created?
 weathersummaryfile <- "weather data summary file.csv"
 
@@ -90,8 +96,6 @@ compyear1 <- 2012
 compyear2 <- 2017
 
 # probably don't want to modify what follows, but you have some options if you're comfortable
-if (!(modeltype %in% c("fixeddfcr", "thinplate"))) { modeltype <- "fixeddfcr" }
-
 # makes sure we round to the previous Sunday, so that this week is included
 weekinquestionSun <- weekinquestion - (as.numeric(strftime(weekinquestion, '%u')) %% 7)
 weekinquestionSat <- weekinquestionSun + 6
@@ -322,6 +326,8 @@ randeffs$mosqinfect <- predict(infectglm, newdata=randeffs, allow.new.levels = T
 randeffs$stratayear <- paste(randeffs$strata, randeffs$year, sep=":")
 randeffs$adjmosqinfect <- randeffs$mosqinfect - mean(randeffs$mosqinfect,na.rm=TRUE)
 randeffs$stratum <- factor(randeffs$strata)
+```
+```{r fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
 thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect, group=stratum, color=stratum)) +
   geom_abline(slope=0, intercept=0, linetype=2) +
   scale_x_continuous(breaks=minmosqyear:maxmosqyear) +
@@ -329,9 +335,9 @@ thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect, group=stra
         panel.grid.minor=element_blank(),
         panel.grid.major.y=element_blank())+
   xlab("") + ylab("Relative risk due to\nvector infection growth rate")
+plot(thisplot)
 ```
 ```{r silentsavemosq, include=FALSE, echo=FALSE}
-plot(thisplot)
 ggsave(paste(graphicoutputdir,
              "vector infection rates.png",
              sep=""), thisplot)
@@ -662,7 +668,6 @@ fullcasemat$stratayear <- NULL
 ```
 
 ```{r humanreg, echo=FALSE, include=FALSE}
-
 # get rid of districts that never have a positive case in the time period
 fullcasemat$doy <- as.numeric(format(fullcasemat$weekstartdate, "%j"))
 
@@ -670,7 +675,7 @@ fullcasemat$doy <- as.numeric(format(fullcasemat$weekstartdate, "%j"))
 fullcasemat$district <- factor(fullcasemat$district)
 
 # create formula
-if (modeltype == "thinplace") {
+if (modeltype == "thinplate") {
   
   myformula <- paste("s(lag, by=",
                      names(fullcasemat)[grep(x=names(fullcasemat),
@@ -693,8 +698,6 @@ if (modeltype == "fixeddfcr") {
   
 }
 
-
-
 cl <- makeCluster(detectCores(logical=FALSE)-1)
 firstreg  <- bam(formula=myform,
                  family=binomial(), data=fullcasemat,
@@ -703,19 +706,9 @@ firstreg  <- bam(formula=myform,
 stopCluster(cl)
 
 # show predictions
-preds <- predict(firstreg, type="link", newdata=fullcasemat, se.fit=TRUE, newlevels=TRUE)
-fullcasemat$est <- 1/(1 + exp(-preds$fit))
-
-preds <- as.matrix(cbind(preds$fit, preds$se.fit))
-preds <- data.frame(preds)
-names(preds) <- c("est", "sd")
-preds$upper <- preds$est + 1.96*preds$sd
-preds$lower <- preds$est - 1.96*preds$sd
-preds$est   <- preds$est
-
-preds$upper <- 1 / (1 + exp(-preds$upper))
-preds$lower <- 1 / (1 + exp(-preds$lower))
-preds$est <- 1 / (1 + exp(-preds$est))
+preds <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
+fullcasemat$est <- preds
+preds <- data.frame(est=preds)
 
 tempfull <- fullcasemat
 tempfull$preds <- preds$est
@@ -799,6 +792,7 @@ tempdf$year <- factor(tempdf$year)
 tempdf2 <- thisyear[thisyear$weekstartdate >= weekinquestionSun,]
 tempdf2 <- tempdf2[1,]
 ```
+\newpage
 Predictions for `r maxmosqyear` are compared to observations in `r compyear1` and `r compyear2`. We expect `r round(66*tempdf2$est,1)` districts to have at least one human case between `r weekinquestionSunstr` `r weekinquestionSun` and `r weekinquestionSatstr` `r weekinquestionSat`.
 
 ```{r plotblah, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
@@ -843,14 +837,38 @@ previousyears <- fullcasemat[fullcasemat$year < maxmosqyear,]
 sumtotal <- sum(previousyears$totalcases, na.rm=TRUE)
 sumany   <- sum(previousyears$anycases, na.rm=TRUE)
 
-multiplier <- round(sumtotal / sumany, 2)
+# multiplier <- round(sumtotal / sumany, 2)
 positivesthisyear <- round(sum(thisyear$est, na.rm=TRUE), 1)
-casesthisyear     <- round(positivesthisyear * multiplier, 1)
+# casesthisyear     <- round(positivesthisyear * multiplier, 1)
+
+byyear <- dplyr::summarize(group_by(previousyears, year),
+                           totobs = sum(totalcases, na.rm=TRUE),
+                           anyobs = sum(anycases, na.rm=TRUE),
+                           weight = 1)
+byyear <- bind_rows(byyear, data.frame(totobs=0,
+                                       anyobs=0,
+                                       weight=100))
+
+relationship <- gam(totobs ~ s(anyobs), weights=weight, data=byyear)
+
+predframe <- data.frame(anyobs = seq(from=0,
+                                     to=max(byyear$anyobs, na.rm=TRUE),
+                                     length.out=50))
+predframe$preds <- predict(relationship, newdata = predframe)
+
+predframe2 <- data.frame(anyobs = sum(thisyear$est, na.rm=TRUE))
+predframe2$preds  <- predict(relationship, newdata = predframe2)
+
+ggplot() + geom_line(data=predframe, aes(x=anyobs, y=preds), color="red", linetype=2) +
+  geom_abline(slope=1, intercept=0, color="grey", linetype=2) +
+  geom_point(data=predframe2, aes(x=anyobs, y=preds), color="red", size=5) +
+  geom_point(data=byyear, aes(x=anyobs, y=totobs)) +
+  #geom_abline(slope=1, intercept=0, color="red", linetype=2) +
+  xlab("positive county-weeks in a year") + ylab("total cases that year") 
 ```
 
-We expect that there will be `r positivesthisyear` positive district-weeks this year. If we assume that each positive district-week corresponds to `r multiplier` cases, which is an estimate based on historical data, then this yields a total of `r casesthisyear` cases estimated for `r maxmosqyear`.
+We expect that there will be `r positivesthisyear` positive district-weeks this year. Since ArboMAP models positive district-weeks rather than total cases, we can only make a rough estimate based on the relationship of cases to district-weeks. If historical patterns hold (dashed red line), we expect there to be `r round(predframe2$preds,1)` cases this year (red dot). The grey line indicates the case count if there were only one case per positive district-week. Especially in the height of the season, some districts that have one case that week will have more than one case.
 
-\newpage
 ## Results for `r weekinquestionSun` to `r format(weekinquestionSat, "%m-%d")`
 
 We visualize the raw estimated risk for `r weekinquestion` below. If a district is darkest blue, then we estimate that there should be no human cases reported for this district, during this week. If a district is brightest red, we are certain that there will be at least one human case reported for this district, during this week.
@@ -1026,7 +1044,10 @@ ggsave(paste(graphicoutputdir,
 
 ```
 
-We can visualize the distributed lags by stratum.
+\newpage
+## Dependence on environmental data.
+
+Below, we visualize the distributed lags by stratum. If a line is above (below) zero at some lag, this means risk today depends positively (negatively) on the environmental data at that date; e.g. precipitation a week ago (lag = 7) might raise risk today.
 
 ```{r distributedlags, include=FALSE, echo=FALSE}
 mygam <- plot(firstreg, select=1)
@@ -1060,10 +1081,47 @@ for (i in 1:length(mygam)) {
   
 }
 ```
-```{r finalplots, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
+```{r dlplots, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 ggplot(lag1df) + geom_line(aes(x=x, y=fit, group=stratum, color=stratum)) +
-  ggtitle(paste("distributed lags on ", var1name))
+  ggtitle(paste("distributed lags on ", var1name, sep="")) + xlab("lag")
 ggplot(lag2df) + geom_line(aes(x=x, y=fit, group=stratum, color=stratum)) +
-  ggtitle(paste("distributed lags on ", var2name))
+  ggtitle(paste("distributed lags on ", var2name, sep="")) + xlab("lag")
 ```
 
+\newpage 
+
+The following two graphs show the influences of the two environmental covariates on estimated risk. The current year (red) is compared to all others (black). If the line is higher, this indicates the variable in the past has a positive influence on risk estimated for that date.
+
+```{r envinfluences, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
+termdf <- data.frame(predict(firstreg, newdata=fullcasemat, type="terms"))
+termdf$date <- fullcasemat$weekstartdate
+termdf$doy  <- fullcasemat$doy
+termdf$year <- fullcasemat$year
+
+termdf$var1inf <- psum(termdf[,grep(x=colnames(termdf),
+                                    pattern="var1",
+                                    fixed=TRUE)], na.rm=TRUE)
+termdf$var2inf <- psum(termdf[,grep(x=colnames(termdf),
+                                    pattern="var2",
+                                    fixed=TRUE)], na.rm=TRUE)
+
+termdf <- group_by(termdf,
+                   year,
+                   doy)
+termsum <- dplyr::summarise(termdf,
+                            var1inf=mean(var1inf, na.rm=TRUE),
+                            var2inf=mean(var2inf, na.rm=TRUE))
+
+maxyear <- termsum[termsum$year == max(termsum$year, na.rm=TRUE),]
+termdf$year <- factor(termdf$year)
+
+ggplot() + geom_line(data=termsum, aes(x=doy, y=var1inf, group=year), alpha=0.5) +
+  geom_line(data=maxyear, aes(x=doy, y=var1inf), color="red", size=2) +
+  ggtitle(paste("Relative influence of ", var1name, sep="")) +
+  xlab("day of year") + ylab("relative influence")
+ggplot() + geom_line(data=termsum, aes(x=doy, y=var2inf, group=year), alpha=0.5) +
+  geom_line(data=maxyear, aes(x=doy, y=var2inf), color="red", size=2) +
+  ggtitle(paste("Relative influence of ", var2name, sep="")) +
+  xlab("day of year") + ylab("relative influence")
+
+```
