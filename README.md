@@ -31,7 +31,7 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 
 v2.0
 
-- The updated mgcv library now allows us to use thin-plate splines in place of cubic regression splines. Wherever possible in ArboMAP, thin-plate splines are used instead of cubic-regression splines. The user has an option to use the old cr splines (fixeddfcr), but this is not advised. The user is required to update the mgcv library, as all but the most recent versions do not handle the formulas correctly.
+- The updated mgcv library now allows us to use thin-plate splines in place of cubic regression splines. Wherever possible in ArboMAP, thin-plate splines are used instead of cubic-regression splines. The user has an option to use the old cr splines (fixeddfcr), but this is not advised. The user is required to update the mgcv library, as all but the most recent versions do not handle the formulas correctly. Namely, the bam(..., discrete=TRUE) method required an update to handle linear functionals correctly.
 - Additional information is now given in ArboMAP, including the estimated distribted lags and the per-variable effects of the weather.
 - An updated calculation for the cases (rather than positive county-weeks) is now included.
 - The js code to download the environmental data from GEE has been streamlined due to occasional memory issues encountered on GEE. Namely, the interface now displays the raw rather than anomalized weather data.
