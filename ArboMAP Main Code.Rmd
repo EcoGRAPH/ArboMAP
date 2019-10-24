@@ -698,12 +698,14 @@ if (modeltype == "fixeddfcr") {
   
 }
 
-cl <- makeCluster(detectCores(logical=FALSE)-1)
+# can be changed to use different estimation algorithm (i.e. discrete=FALSE)
+#cl <- makeCluster(detectCores(logical=FALSE)-1)
 firstreg  <- bam(formula=myform,
                  family=binomial(), data=fullcasemat,
                  subset=observed==1,
-                 cluster=cl)
-stopCluster(cl)
+                 discrete=TRUE) #,
+                 #cluster=cl)
+#stopCluster(cl)
 
 # show predictions
 preds <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
