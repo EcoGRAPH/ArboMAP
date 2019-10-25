@@ -698,14 +698,13 @@ if (modeltype == "fixeddfcr") {
   
 }
 
-# can be changed to use different estimation algorithm (i.e. discrete=FALSE)
-#cl <- makeCluster(detectCores(logical=FALSE)-1)
+# main human risk model
+cl <- makeCluster(detectCores(logical=FALSE)-1)
 firstreg  <- bam(formula=myform,
                  family=binomial(), data=fullcasemat,
                  subset=observed==1,
-                 discrete=TRUE) #,
-                 #cluster=cl)
-#stopCluster(cl)
+                 cluster=cl)
+stopCluster(cl)
 
 # show predictions
 preds <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
