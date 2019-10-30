@@ -1148,8 +1148,6 @@ The following two graphs show the influences of the two environmental covariates
 
 The model object is summarized below:
 
-`r firstreg`
-
 ## District names
 
 It is possible that district names in the human, mosquito, or weather data might disagree with the names found in the district shapefile. We have chosen the shapefile to unify all of the various data sources, so the human, mosquito, and weather data files should be updated to match these. Typically, check the TIGER shapefiles or census for standardized names.
