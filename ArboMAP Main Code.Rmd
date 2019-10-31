@@ -126,6 +126,8 @@ dlagdeg  <- 8
 ## Weather data
 
 ```{r weatherdataload, include=FALSE, echo=TRUE}
+weathernames <- c("district", "doy", "year", var1name, var2name)
+
 # load and concat files
 weatherlist <- list.files(path=weatherpathstr, pattern="(.csv)", recursive=FALSE)
 weather <- data.frame()
@@ -134,6 +136,8 @@ for (i in 1:length(weatherlist)) {
   if (weatherlist[[i]] != weathersummaryfile) {
   
     tempdf <- read.csv(paste(weatherpathstr, weatherlist[[i]], sep="")) 
+    # get rid of the variables we aren't using
+    tempdf <- tempdf[,weathernames]
     weather <- bind_rows(weather, tempdf)  
     
   }
@@ -147,10 +151,6 @@ weather$date <- as.Date(paste(weather$year,
 # get rid of duplicated rows
 weather$districtdate <- paste(weather$district, weather$date)
 weather <- subset(weather, !duplicated(weather$districtdate))
-
-# get rid of the variables we aren't using
-weathernames <- c("district", "doy", "year", "date", "districtdate", var1name, var2name)
-weather <- weather[,weathernames]
 
 # anomalize weather data if requested
 if (anomalization == "anomalized") {
