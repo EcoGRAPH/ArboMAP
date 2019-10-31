@@ -126,6 +126,12 @@ dlagdeg  <- 8
 ## Weather data
 
 ```{r weatherdataload, include=FALSE, echo=TRUE}
+# load the shapefile immediately so that we can get rid of any districts which are not found here
+district_shapes <- readShapePoly(districtshapefile)
+# simplify name
+district_shapes$district <- simplifynames(district_shapes$NAME)
+diagnostic_shapefiledistricts <- unique(district_shapes$district)
+
 weathernames <- c("district", "doy", "year", var1name, var2name)
 
 # load and concat files
@@ -221,6 +227,8 @@ grid.arrange(plot1, plot2, nrow=2)
 # simplify the district names
 weather$district <- simplifynames(weather$district)
 diagnostic_weatherdistricts <- unique(weather$district)
+# remove any districts which do not belong
+weather <- weather[weather$district %in% unique(district_shapes$district),]
 ```
 ```{r silentsaveweather, include=FALSE, echo=FALSE}
 # put aside this set for use in the regression
@@ -252,6 +260,8 @@ wnv$year <- as.numeric(format(wnv$col_date, "%Y"))
 # convert district to factor
 wnv$district <- simplifynames(wnv$district)
 diagnostic_mosquitodistricts <- unique(wnv$district)
+# remove any which do not belong
+wnv <- wnv[wnv$district %in% unique(district_shapes$district),]
 wnv$district <- factor(wnv$district)
 
 # convert date to a date object
@@ -374,6 +384,8 @@ human$creationmonth <- as.numeric(format(human$date, "%m"))
 # simplify district names
 human$district <- simplifynames(human$district)
 diagnostic_humandistricts <- unique(human$district)
+# remove any which do not belong
+human <- human[human$district %in% unique(district_shapes$district),]
 human$district <- factor(human$district)
 human$doy <- as.numeric(format(human$date, "%j"))
 
@@ -429,11 +441,6 @@ weekinquestionreformat <- format(weekinquestionSun, "%m-%d")
 observedfraction <- 100*round(observedbefore / observedtotal, 2)
 ```
 ```{r stratamap, include=FALSE, echo=FALSE}
-
-district_shapes <- readShapePoly(districtshapefile)
-# simplify name
-district_shapes$district <- simplifynames(district_shapes$NAME)
-diagnostic_shapefiledistricts <- unique(district_shapes$district)
 crs(district_shapes) <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80     +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
 projected_districts <- spTransform(district_shapes, crs("+proj=longlat +datum=WGS84 +no_defs"))
 projected_districts@data$id = rownames(projected_districts@data)
