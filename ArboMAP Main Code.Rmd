@@ -39,7 +39,7 @@ packages <- c("reshape2", "ggplot2", "gridExtra",
               "raster","spdep","mgcv","sp","rgdal",
               "GISTools","data.table","splines","maps",
               "broom","mapproj", "Hmisc", "parallel",
-              "rccmisc")
+              "rccmisc", "pROC", "ResourceSelection")
 for (package in packages) {
     if (!require(package, character.only=T, quietly=T)) {
         install.packages(package, repos = "http://cran.us.r-project.org")
@@ -1108,37 +1108,36 @@ ggplot(lag2df) + geom_line(aes(x=x, y=fit)) +
 The following two graphs show the influences of the two environmental covariates on estimated risk. The current year (red) is compared to all others (black). If the line is higher, this indicates the variable in the past has a positive influence on risk estimated for that date.
 
 ```{r envinfluences, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-# termdf <- data.frame(predict(firstreg, newdata=fullcasemat, type="terms"))
-# termdf$date <- fullcasemat$weekstartdate
-# termdf$doy  <- fullcasemat$doy
-# termdf$year <- fullcasemat$year
-# 
-# termdf$var1inf <- psum(termdf[,grep(x=colnames(termdf),
-#                                     pattern="var1",
-#                                     fixed=TRUE)], na.rm=TRUE)
-# termdf$var2inf <- psum(termdf[,grep(x=colnames(termdf),
-#                                     pattern="var2",
-#                                     fixed=TRUE)], na.rm=TRUE)
-# 
-# termdf <- group_by(termdf,
-#                    year,
-#                    doy)
-# termsum <- dplyr::summarise(termdf,
-#                             var1inf=mean(var1inf, na.rm=TRUE),
-#                             var2inf=mean(var2inf, na.rm=TRUE))
-# 
-# maxyear <- termsum[termsum$year == max(termsum$year, na.rm=TRUE),]
-# termdf$year <- factor(termdf$year)
-# 
-# ggplot() + geom_line(data=termsum, aes(x=doy, y=var1inf, group=year), alpha=0.5) +
-#   geom_line(data=maxyear, aes(x=doy, y=var1inf), color="red", size=2) +
-#   ggtitle(paste("Relative influence of ", var1name, sep="")) +
-#   xlab("day of year") + ylab("relative influence")
-# ggplot() + geom_line(data=termsum, aes(x=doy, y=var2inf, group=year), alpha=0.5) +
-#   geom_line(data=maxyear, aes(x=doy, y=var2inf), color="red", size=2) +
-#   ggtitle(paste("Relative influence of ", var2name, sep="")) +
-#   xlab("day of year") + ylab("relative influence")
+termdf <- data.frame(predict(firstreg, newdata=fullcasemat, type="terms"))
+termdf$date <- fullcasemat$weekstartdate
+termdf$doy  <- fullcasemat$doy
+termdf$year <- fullcasemat$year
 
+termdf$var1inf <- psum(termdf[,grep(x=colnames(termdf),
+                                    pattern="var1",
+                                    fixed=TRUE)], na.rm=TRUE)
+termdf$var2inf <- psum(termdf[,grep(x=colnames(termdf),
+                                    pattern="var2",
+                                    fixed=TRUE)], na.rm=TRUE)
+
+termdf <- group_by(termdf,
+                   year,
+                   doy)
+termsum <- dplyr::summarise(termdf,
+                            var1inf=mean(var1inf, na.rm=TRUE),
+                            var2inf=mean(var2inf, na.rm=TRUE))
+
+maxyear <- termsum[termsum$year == max(termsum$year, na.rm=TRUE),]
+termdf$year <- factor(termdf$year)
+
+ggplot() + geom_line(data=termsum, aes(x=doy, y=var1inf, group=year), alpha=0.5) +
+  geom_line(data=maxyear, aes(x=doy, y=var1inf), color="red", size=2) +
+  ggtitle(paste("Relative influence of ", var1name, sep="")) +
+  xlab("day of year") + ylab("relative influence")
+ggplot() + geom_line(data=termsum, aes(x=doy, y=var2inf, group=year), alpha=0.5) +
+  geom_line(data=maxyear, aes(x=doy, y=var2inf), color="red", size=2) +
+  ggtitle(paste("Relative influence of ", var2name, sep="")) +
+  xlab("day of year") + ylab("relative influence")
 ```
 
 \newpage 
@@ -1146,7 +1145,42 @@ The following two graphs show the influences of the two environmental covariates
 
 ## Model summary
 
-The model object is summarized below:
+```{r modelfit, include=FALSE, echo=FALSE}
+myroc <- roc(response = fullcasemat$anycases,
+             predictor = fullcasemat$est,
+             na.rm=TRUE,
+             auc=TRUE)
+# calculate AUC on full set
+myauctotal <- myroc$auc
+# calculate hoslem on full set
+tempdf <- fullcasemat[c("anycases", "est")]
+tempdf <- tempdf[!is.na(tempdf$anycases),]
+tempdf <- tempdf[!is.na(tempdf$est),]
+myhoslemtotal <- hoslem.test(x=tempdf$anycases,
+                             y=tempdf$est)$p.value
+
+# do the same on restricted set
+fullcasemat$month <- as.numeric(format(fullcasemat$weekstartdate, "%m"))
+fullcasemat <- group_by(fullcasemat, month)
+monthsum <- dplyr::summarise(fullcasemat,
+                             numpos = sum(anycases, na.rm=TRUE))
+monthsum <- monthsum[monthsum$numpos > 0,]
+tempdf   <- fullcasemat[fullcasemat$month %in% monthsum$month,]
+
+tempdf2 <- tempdf[c("anycases", "est")]
+tempdf2 <- tempdf2[!is.na(tempdf2$anycases),]
+tempdf2 <- tempdf2[!is.na(tempdf2$est),]
+
+myroc <- roc(response = tempdf$anycases,
+             predictor = tempdf$est,
+             na.rm=TRUE,
+             auc=TRUE)
+myaucrestricted <- myroc$auc
+myhoslemrestricted <- hoslem.test(x=tempdf2$anycases,
+                                  y=tempdf2$est)$p.value
+```
+
+The model achieved an AUC (or c-stat) of `r round_any(myauctotal, 0.01)` when tested on all available human case data. When restricted to the months with at least one human case, the model achieved an AUC of `r round_any(myaucrestricted, 0.01)`. The p-value in a Hosmer-Lemeshow goodness of fit test was `r round_any(myhoslemtotal, 0.0001)` on the full set and `r round_any(myhoslemrestricted, 0.0001)` on the restricted set. The model achieved an AIC of `r round_any(AIC(firstreg)[1], 0.01)` when calculated on the full set.
 
 ## District names
 
@@ -1154,13 +1188,13 @@ It is possible that district names in the human, mosquito, or weather data might
 
 ```{r diagnostics, include=FALSE, echo=FALSE}
 humannotinshapefile <- diagnostic_humandistricts[!(diagnostic_humandistricts %in% diagnostic_shapefiledistricts)]
-if (length(humannotinshapefile) == 0) { humannotinshapefile <- "none"}
+if (length(humannotinshapefile) == 0) { humannotinshapefile <- "none" }
 
 mosquitonotinshapefile <- diagnostic_mosquitodistricts[!(diagnostic_mosquitodistricts %in% diagnostic_shapefiledistricts)]
-if (length(mosquitonotinshapefile) == 0) { mosquitonotinshapefile <- "none"}
+if (length(mosquitonotinshapefile) == 0) { mosquitonotinshapefile <- "none" }
 
 weathernotinshapefile <- diagnostic_weatherdistricts[!(diagnostic_weatherdistricts %in% diagnostic_shapefiledistricts)]
-if (length(weathernotinshapefile) == 0) { weathernotinshapefile <- "none"}
+if (length(weathernotinshapefile) == 0) { weathernotinshapefile <- "none" }
 ```
 
 There are `r length(diagnostic_shapefiledistricts)` districts in the shapefile. This is the maximum number of districts ArboMAP will recognize in the human, mosquito, or weather data.
