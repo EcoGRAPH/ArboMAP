@@ -51,17 +51,22 @@ for (package in packages) {
 ```{r setoptions, include=FALSE, echo=FALSE}
 
 # spline type is either fixed df cubic regression spline or a thin-plate spline
-splinetype <- "thinplate"
+splinetype <- "fixeddfcr"
 if (!(splinetype %in% c("fixeddfcr", "thinplate"))) { splinetype <- "thinplate" }
 
+# determine whether relationships evolve over the course of the year
+splineevolution <- "notevolving"
+if (!(splineevolution %in% c("seasonallyvarying", "notevolving"))) { splineevolution <- "notevolving" }
+
 # model either uses anomalized environmental and human data or uses raw data
-anomalization <- "anomalized"
+anomalization <- "notanomalized"
 if (!(anomalization %in% c("notanomalized", "anomalized"))) { anomalization <- "notanomalized" }
 
 # where do we want the outputs?
 graphicoutputdir <- ".\\graphical outputs\\"
 fullcasematoutputdir <- ".\\case matrix with estimates\\"
 mosqmatoutputdir <- ".\\mosquito matrix with estimates\\"
+modeloutputdir <- ".\\model output\\"
 
 # where are the human data located?
 # example of a file with directories an drive:
@@ -157,6 +162,9 @@ weather$date <- as.Date(paste(weather$year,
 # get rid of duplicated rows
 weather$districtdate <- paste(weather$district, weather$date)
 weather <- subset(weather, !duplicated(weather$districtdate))
+
+# be certain district is a factor before modeling
+weather$district <- factor(weather$district)
 
 # anomalize weather data if requested
 if (anomalization == "anomalized") {
@@ -644,20 +652,23 @@ fullcasemat <- merge(x=fullcasemat, y=strata,
                      by.x="district", by.y="district",
                      all.x=TRUE)
 
-# # stratify covariates
-# for (curstrata in unique(fullcasemat$strata)) {
-#   
-#   fullcasemat[c(paste("dl_var1_", curstrata, sep=""))] <- fullcasemat$var1 * (fullcasemat$strata == curstrata)
-#   fullcasemat[c(paste("dl_var2_", curstrata, sep=""))] <- fullcasemat$var2 * (fullcasemat$strata == curstrata)
-#   
-# }
-
 # create lag matrix
 fullcasemat$lag <- fullcasemat$var1
 for (curcol in 1:dim(fullcasemat$lag)[2]) {
   
   fullcasemat$lag[,curcol] <- (curcol-1)
 
+}
+
+# if necessary, create sindoy cosdoy for the wheel of the year
+if (splineevolution == "seasonallyvarying") {
+  
+  fullcasemat$doymat <- fullcasemat$lag
+  fullcasemat$doymat[,] <- fullcasemat$doy
+
+  #fullcasemat$sindoy <- sin(2*3.1415927*(fullcasemat$doymat - 1) / 365)
+  #fullcasemat$cosdoy <- cos(2*3.1415927*(fullcasemat$doymat - 1) / 365)
+  
 }
 
 # garbage collection
@@ -701,7 +712,7 @@ fullcasemat <- ungroup(fullcasemat)
 # get rid of districts that never have a positive case in the time period
 fullcasemat$doy <- as.numeric(format(fullcasemat$weekstartdate, "%j"))
 
-# make sure district is a factor
+# make sure district is a factor before modeling
 fullcasemat$district <- factor(fullcasemat$district)
 
 # create formula
@@ -712,7 +723,7 @@ if (splinetype == "thinplate") {
 }
 if (splinetype == "fixeddfcr") {
   
-  myformula <- "s(lag, by=var2, bs='cr', fx=TRUE, k=6) + s(lag, by=var2, bs='cr', fx=TRUE, k=6)"
+  myformula <- "s(lag, by=var1, bs='cr', fx=TRUE, k=6) + s(lag, by=var2, bs='cr', fx=TRUE, k=6)"
 }
 
 if (anomalization == "anomalized") {
@@ -720,6 +731,16 @@ if (anomalization == "anomalized") {
   myformula <- paste(myformula, " + s(doy, bs='cc')", sep="")
   
 }
+
+if (splineevolution == "seasonallyvarying") {
+  
+  myformula <- gsub(x=myformula,
+                    pattern="s(lag, ",
+                    fixed=TRUE,
+                    replacement = "te(lag, doymat, ")
+  
+}
+
 myformula <- paste("anycases ~ 0 + MIRsummarystat + district", myformula, sep=" + ")
 myform <- as.formula(myformula)
 
@@ -730,6 +751,13 @@ firstreg  <- bam(formula=myform,
                  subset=observed==1,
                  cluster=cl)
 stopCluster(cl)
+
+# save the model
+save(firstreg, file=paste(modeloutputdir,
+                          splinetype, "-",
+                          splineevolution, "-",
+                          anomalization,
+                          ".RData", sep=""))
 
 # show predictions
 preds <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
@@ -1075,40 +1103,98 @@ Below, we visualize the distributed lags on environmental data. If a line is abo
 
 ```{r distributedlags, include=FALSE, echo=FALSE}
 mygam <- plot(firstreg, select=1)
-lag1df <- data.frame()
-lag2df <- data.frame()
-for (i in 1:length(mygam)) {
+if (splineevolution == "notevolving") {
 
-  thisplot <- mygam[[i]]
-
-  if (grepl(x=thisplot$ylab,
-            pattern="var1",
-            fixed=TRUE)) {
-
-      newdf <- data.frame(fit=thisplot$fit,
-                          x  =thisplot$`x`)
-      lag1df <- bind_rows(lag1df, newdf)
-
-  }
-
-  if (grepl(x=thisplot$ylab,
-            pattern="var2",
-            fixed=TRUE)) {
-
-      newdf <- data.frame(fit=thisplot$fit,
-                          x  =thisplot$`x`)
-      lag2df <- bind_rows(lag2df, newdf)
-
+  for (i in 1:length(mygam)) {
+  
+    thisplot <- mygam[[i]]
+  
+    if (grepl(x=thisplot$ylab,
+              pattern="var1",
+              fixed=TRUE)) {
+  
+        lag1df <- data.frame(fit=thisplot$fit,
+                             x  =thisplot$`x`)
+  
     }
-
+  
+    if (grepl(x=thisplot$ylab,
+              pattern="var2",
+              fixed=TRUE)) {
+  
+        lag2df <- data.frame(fit=thisplot$fit,
+                             x  =thisplot$`x`)
+        
+      }
+  
+    }
+  
+}
+if (splineevolution == "seasonallyvarying") {
+  
+  for (i in 1:length(mygam)) {
+    
+    thisplot <- mygam[[i]]
+    
+    if (grepl(x=thisplot$main,
+              pattern=":var1",
+              fixed=TRUE)) {
+      
+        lag1df <- expand.grid(x=thisplot$x,
+                              y=thisplot$y)
+        lag1df$fit <- thisplot$fit
+        
+    }
+    if (grepl(x=thisplot$main,
+              pattern=":var2",
+              fixed=TRUE)) {
+      
+        lag2df <- expand.grid(x=thisplot$x,
+                              y=thisplot$y)
+        lag2df$fit <- thisplot$fit
+        
+    }
+    
+  }
+  
 }
 ```
 ```{r dlplots, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-ggplot(lag1df) + geom_line(aes(x=x, y=fit)) +
-  ggtitle(paste("distributed lags on ", var1name, sep="")) + xlab("lag")
-ggplot(lag2df) + geom_line(aes(x=x, y=fit)) +
-  ggtitle(paste("distributed lags on ", var2name, sep="")) + xlab("lag")
+if (splineevolution == "notevolving") {
+
+  thisplot1 <- ggplot(lag1df) + geom_line(aes(x=x, y=fit)) +
+    ggtitle(paste("distributed lags on ", var1name, sep="")) + xlab("lag")
+  thisplot2 <- ggplot(lag2df) + geom_line(aes(x=x, y=fit)) +
+    ggtitle(paste("distributed lags on ", var2name, sep="")) + xlab("lag")
+
+  plot(thisplot1)
+  plot(thisplot2)
+  
+}
+if (splineevolution == "seasonallyvarying") {
+  
+  select_1_y <- quantile(lag1df$y, probs=c(0.45, 0.50, 0.65), type=1)
+  lag1df <- lag1df[lag1df$y %in% select_1_y,]
+  lag1df$dayofyear <- factor(round_any(lag1df$y,1))
+  
+  select_2_y <- quantile(lag2df$y, probs=c(0.45, 0.50, 0.65), type=1)
+  lag2df <- lag2df[lag2df$y %in% select_2_y,]
+  lag2df$dayofyear <- factor(round_any(lag2df$y,1))
+  
+  thisplot1 <- ggplot(lag1df) + geom_line(aes(x=x, y=fit, group=dayofyear, color=dayofyear)) +
+    ggtitle(paste("distributed lags on ", var1name, sep="")) + xlab("lag")
+  thisplot2 <- ggplot(lag2df) + geom_line(aes(x=x, y=fit, group=dayofyear, color=dayofyear)) +
+    ggtitle(paste("distributed lags on ", var2name, sep="")) + xlab("lag")
+  
+  
+  plot(thisplot1)
+  plot(thisplot2)
+  
+}
+
 ```
+
+
 
 \newpage 
 
@@ -1120,31 +1206,69 @@ termdf$date <- fullcasemat$weekstartdate
 termdf$doy  <- fullcasemat$doy
 termdf$year <- fullcasemat$year
 
-termdf$var1inf <- psum(termdf[,grep(x=colnames(termdf),
-                                    pattern="var1",
-                                    fixed=TRUE)], na.rm=TRUE)
-termdf$var2inf <- psum(termdf[,grep(x=colnames(termdf),
-                                    pattern="var2",
-                                    fixed=TRUE)], na.rm=TRUE)
+if (splineevolution == "notevolving") {
 
-termdf <- group_by(termdf,
-                   year,
-                   doy)
-termsum <- dplyr::summarise(termdf,
-                            var1inf=mean(var1inf, na.rm=TRUE),
-                            var2inf=mean(var2inf, na.rm=TRUE))
+  termdf$var1inf <- psum(termdf[,grep(x=colnames(termdf),
+                                      pattern="var1",
+                                      fixed=TRUE)], na.rm=TRUE)
+  termdf$var2inf <- psum(termdf[,grep(x=colnames(termdf),
+                                      pattern="var2",
+                                      fixed=TRUE)], na.rm=TRUE)
+  
+  termdf <- group_by(termdf,
+                     year,
+                     doy)
+  termsum <- dplyr::summarise(termdf,
+                              var1inf=mean(var1inf, na.rm=TRUE),
+                              var2inf=mean(var2inf, na.rm=TRUE))
+  
+  maxyear <- termsum[termsum$year == max(termsum$year, na.rm=TRUE),]
+  termdf$year <- factor(termdf$year)
+  
+  thisplot1 <- ggplot() + geom_line(data=termsum, aes(x=doy, y=var1inf, group=year), alpha=0.5) +
+    geom_line(data=maxyear, aes(x=doy, y=var1inf), color="red", size=2) +
+    ggtitle(paste("Relative influence of ", var1name, sep="")) +
+    xlab("day of year") + ylab("relative influence")
+  thisplot2 <- ggplot() + geom_line(data=termsum, aes(x=doy, y=var2inf, group=year), alpha=0.5) +
+    geom_line(data=maxyear, aes(x=doy, y=var2inf), color="red", size=2) +
+    ggtitle(paste("Relative influence of ", var2name, sep="")) +
+    xlab("day of year") + ylab("relative influence")
+  
+  plot(thisplot1)
+  plot(thisplot2)
+  
+}
+if (splineevolution == "seasonallyvarying") {
+  
+  termdf$var1inf <- termdf[,grep(x=colnames(termdf),
+                                      pattern="var1",
+                                      fixed=TRUE)]
+  termdf$var2inf <- termdf[,grep(x=colnames(termdf),
+                                      pattern="var2",
+                                      fixed=TRUE)]
+  termdf <- group_by(termdf,
+                     year,
+                     doy)
+  termsum <- dplyr::summarise(termdf,
+                              var1inf=mean(var1inf, na.rm=TRUE),
+                              var2inf=mean(var2inf, na.rm=TRUE))
+  
+  maxyear <- termsum[termsum$year == max(termsum$year, na.rm=TRUE),]
+  termdf$year <- factor(termdf$year)
+  
+  thisplot1 <- ggplot() + geom_line(data=termsum, aes(x=doy, y=var1inf, group=year), alpha=0.5) +
+    geom_line(data=maxyear, aes(x=doy, y=var1inf), color="red", size=2) +
+    ggtitle(paste("Relative influence of ", var1name, sep="")) +
+    xlab("day of year") + ylab("relative influence")
+  thisplot2 <- ggplot() + geom_line(data=termsum, aes(x=doy, y=var2inf, group=year), alpha=0.5) +
+    geom_line(data=maxyear, aes(x=doy, y=var2inf), color="red", size=2) +
+    ggtitle(paste("Relative influence of ", var2name, sep="")) +
+    xlab("day of year") + ylab("relative influence")
+  
+  plot(thisplot1)
+  plot(thisplot2)
+}
 
-maxyear <- termsum[termsum$year == max(termsum$year, na.rm=TRUE),]
-termdf$year <- factor(termdf$year)
-
-ggplot() + geom_line(data=termsum, aes(x=doy, y=var1inf, group=year), alpha=0.5) +
-  geom_line(data=maxyear, aes(x=doy, y=var1inf), color="red", size=2) +
-  ggtitle(paste("Relative influence of ", var1name, sep="")) +
-  xlab("day of year") + ylab("relative influence")
-ggplot() + geom_line(data=termsum, aes(x=doy, y=var2inf, group=year), alpha=0.5) +
-  geom_line(data=maxyear, aes(x=doy, y=var2inf), color="red", size=2) +
-  ggtitle(paste("Relative influence of ", var2name, sep="")) +
-  xlab("day of year") + ylab("relative influence")
 ```
 
 \newpage 
