@@ -1,0 +1,1 @@
+This file holds place for model output RData files which are created in the course of running ArboMAP. These are too large to git, but the directory needs to already exist - hence, this file.
