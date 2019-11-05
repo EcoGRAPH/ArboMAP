@@ -29,6 +29,15 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 
 **Version information:**
 
+v2.1
+
+- ArboMAP now allows the comparison of fixed-degree cubic vs. thin-plate splines, seasonally-varying distributed lags vs. fixed lags, and anomalized environmental/human data vs. raw data.
+- These different combinations can be compared directly with AIC, AUC, and the Hosmer-Lemeshow goodness-of-fit test, which are included automatically in a new set of outputs in the main PDF.
+- Model objects are saved automatically in a new directory, so that post hoc analyses not yet available in ArboMAP can be performed.
+- Fixed a problem with a sometimes-missing directory.
+- We have addressed some concerns over numerical stability when combining anomalization and seasonally-varying distributed lags, which in parametrix models would be unidentifiable/overdetermined.
+- We have redone some of the simulated data, so that the outcomes with default settings are more reasonable.
+
 v2.0
 
 - The updated mgcv library now allows us to use thin-plate splines in place of cubic regression splines. Wherever possible in ArboMAP, thin-plate splines are used instead of cubic-regression splines. The user has an option to use the old cr splines (fixeddfcr), but this is not advised. The user is required to update the mgcv library, as all but the most recent versions do not handle the formulas correctly. Namely, the bam(..., discrete=TRUE) method required an update to handle linear functionals correctly.
