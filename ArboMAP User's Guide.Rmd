@@ -113,7 +113,7 @@ The ArboMAP User's Guide.Rmd file, which you will open in RStudio, contains a pr
 * `stratafile` tells us where to find the file containing the data to split up the state into four regions to model the mosquito infection rate (see below)
 * `districtshapefile` points to the SHP file for mapping districts
 * `compyear1` and `compyear2` indicate which two years in the past we'd like to compare the current year to in one of the graphics.
-* `var1name` and `var2name` indicate which two weather variables you'd like to use as predictors in the model. By default, these are set to mean daily temperature from the gridMET set (tmeanc) and the vapor pressure deficit (vpd). If you are not certain which variables you would like to use, read the selection below on selection of covariates.
+* `var1name` and `var2name` indicate which two weather variables you'd like to use as predictors in the model. By default, these are set to mean daily temperature from the gridMET set (tmeanc) and the vapor pressure deficit (vpd).
 
 `Maxobservedhumandate` should be updated at the beginning of every season to point to the end of last year, so that only human cases in previous years are used to condition the model's predictions. `Weekinquestion` should be updated weekly.
 
@@ -303,13 +303,7 @@ Combining the two maps above, we conclude that it's still early in the season an
 
 # Selecting covariates to use
 
-ArboMAP also includes an `ArboMAP Variable Selection.Rmd` file, with settings that are almost exactly the same as the `ArboMAP User's Guide.Rmd` file. However, this file will run through all available pairs of covariates and rank models by the Akaike information criterion, which measures model fit and parsimony. If all of the settings are correct, then opening this file and pressing ctrl+shift+K will run through all models and report a table like the following. The model with the lowest AIC is usually considered best, and the two variables for that model (in this case tmeanc and vpd) should be used as var1name and var2name in the `ArboMAP Main Code.Rmd' file.
-
-The area under the curve (AUC) or c-statistic is presented as well. This number, which ranges from 0 (all attempts at discriminating among positive and negative district-weeks failed) to 1 (perfect discrimination), should not be used for variable selection, but is presented so that model discriminatory power can be estimated. Especially in areas where there are several months of no human cases (e.g. during the winter), this number should be high (> 0.90). The AIC only allows us to measure relative differences among models, but the AUC measures whether the models are worthwhile at all.
-
-```{r echo=FALSE, out.width='60%'}
-knitr::include_graphics('pictures for setup document/example of variable selection.PNG')
-```
+Previously, ArboMAP included another Rmd file to facilitate selection of covariates. Unfortunately, as the number of options increases, it is no longer feasible to run all combinations of model structure and environmental covariates. We suggest you run with thin-plate splines, and then test different combinations of anomalized/non-anomalized and seasonally-varying/fixed splines. Typically, you will want to begin with one temperature and one moisture index - mean daily temperature (tmeanc) and the vapor pressure deficit (vpd) have served us well, and are not a bad place to start.
 
 # Troubleshooting
 
