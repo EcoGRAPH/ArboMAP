@@ -137,29 +137,29 @@ dlagdeg  <- 8
 if (ostype == "mac") {
 
   # where do we want the outputs?
-  graphicoutputdir <- ".\\graphical outputs\\"
-  fullcasematoutputdir <- ".\\case matrix with estimates\\"
-  mosqmatoutputdir <- ".\\mosquito matrix with estimates\\"
-  modeloutputdir <- ".\\model output\\"
+  graphicoutputdir <- "./graphical outputs/"
+  fullcasematoutputdir <- "./case matrix with estimates/"
+  mosqmatoutputdir <- "./mosquito matrix with estimates/"
+  modeloutputdir <- "./model output/"
   
   # where are the human data located?
   # example of a file with directories an drive:
-  humandatafile <- ".\\human case data\\simulated human case data.csv"
+  humandatafile <- "./human case data/simulated human case data.csv"
   
   # where are the weather csv files stored?
-  weatherpathstr <- ".\\weather data\\"
+  weatherpathstr <- "./weather data/"
   
   # what is the name of the summary file to be created?
   weathersummaryfile <- "weather data summary file.csv"
   
   # where are the mosquito test files located?
-  mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
+  mosqfile <- "./mosquito data/simulated mosquito tests.csv"
   
   # which district stratification scheme are we using?
-  stratafile <- ".\\strata\\17-04-20 - classified strata - classic.csv"
+  stratafile <- "./strata/17-04-20 - classified strata - classic.csv"
   
   # where is the districtshapefile
-  districtshapefile <- ".\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
+  districtshapefile <- "./shapefile/cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
   
 }
 ```
@@ -281,13 +281,18 @@ dailyextr <- weather
 rm(weather)
 gc()
 
-ggsave(paste(graphicoutputdir,
-             "var1.png",
-             sep=""), plot1)
-ggsave(paste(graphicoutputdir,
-             "var2.png",
-             sep=""), plot2)
+if (ostype == "windows") { 
+  
+  ggsave(paste(graphicoutputdir,
+               "var1.png",
+               sep=""), plot1)
+  ggsave(paste(graphicoutputdir,
+               "var2.png",
+               sep=""), plot2)
+  
+}
 ```
+
 
 \newpage
 ## Vector infection data
@@ -385,9 +390,14 @@ infectglm <- glmer(wnv_result ~ 1+dminus+
                   data=wnv)
 
 wnv$est <- predict(infectglm, newdata=wnv, type="response")
-write.csv(x=wnv, file=paste(mosqmatoutputdir,
-                            "mosqmatrix.csv",
-                            sep=""))
+
+if (ostype == "windows") { 
+  
+  write.csv(x=wnv, file=paste(mosqmatoutputdir,
+                              "mosqmatrix.csv",
+                              sep=""))
+  
+}
 
 # predict random effects for all years
 # dminus cannot be set to simply 0 - we have to make sure this isn't read in as a factor
@@ -412,9 +422,13 @@ thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect, group=stra
 plot(thisplot)
 ```
 ```{r silentsavemosq, include=FALSE, echo=FALSE}
-ggsave(paste(graphicoutputdir,
-             "vector infection rates.png",
-             sep=""), thisplot)
+if (ostype == "windows") {
+  
+  ggsave(paste(graphicoutputdir,
+               "vector infection rates.png",
+               sep=""), thisplot)
+  
+}
 ```
 
 ```{r humandata, include=FALSE, echo=TRUE}
@@ -518,10 +532,13 @@ thisplot <- ggplot(projected_districts.df) +
 plot(thisplot)
 ```
 ```{r silentsave88791122823, include=FALSE, echo=FALSE}
-ggsave(paste(graphicoutputdir,
-             "strata.png",
-             sep=""), thisplot)
-
+if (ostype == "windows") {
+  
+  ggsave(paste(graphicoutputdir,
+               "strata.png",
+               sep=""), thisplot)
+  
+}
 ```
 
 The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqyear` is shown here by grouping observations nearby in time.
@@ -582,9 +599,13 @@ if (sum(!is.na(thisyeardot$doy)) > 20) {
 plot(thisplot)
 ```
 ```{r include=FALSE, echo=FALSE}
-ggsave(paste(graphicoutputdir,
-             "mosqinfectgrowthrates.png",
-             sep=""), thisplot)
+if (ostype == "windows") { 
+  
+  ggsave(paste(graphicoutputdir,
+               "mosqinfectgrowthrates.png",
+               sep=""), thisplot)
+  
+}
 ```
 
 
@@ -847,10 +868,13 @@ thisplot <- ggplot(tempdf2) + geom_line(aes(x=newdate,
 plot(thisplot)
 ```
 ```{r silentsave8879823, include=FALSE, echo=FALSE}
-ggsave(paste(graphicoutputdir,
-             "predictions.png",
-             sep=""), thisplot)
+if (ostype == "windows") {
+ 
+  ggsave(paste(graphicoutputdir,
+               "predictions.png",
+               sep=""), thisplot)
 
+}
 ```
 ```{r curyearplot, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 
@@ -910,18 +934,26 @@ plot(thisplot1)
 ```{r silentsave12899234, include=FALSE, echo=FALSE}
 thisplot2 <- thisplot + theme(legend.position="bottom") +
   theme(axis.text.x = element_text(hjust=-0.50))
-ggsave(paste(graphicoutputdir,
-             "estimates.png",
-             sep=""), thisplot2,
-       width=4,
-       height=4)
 
+if (ostype == "windows") { 
+
+  ggsave(paste(graphicoutputdir,
+               "estimates.png",
+               sep=""), thisplot2,
+         width=4,
+         height=4)
+
+}
 ```
 
 ```{r echo=FALSE}
-write.csv(x=fullcasemat[c("district","weekstartdate",
-                          "anycases","totalcases", "est")],
-          file=paste(fullcasematoutputdir, "case matrix.csv", sep=""))
+if (ostype == "windows") {
+  
+  write.csv(x=fullcasemat[c("district","weekstartdate",
+                            "anycases","totalcases", "est")],
+            file=paste(fullcasematoutputdir, "case matrix.csv", sep=""))
+  
+}
 fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
 thisyear <- fullcasemat[fullcasemat$year == maxmosqyear,]
 previousyears <- fullcasemat[fullcasemat$year < maxmosqyear,]
@@ -1005,9 +1037,13 @@ thisplot <- ggplot(projected_districts.df) +
 plot(thisplot)
 ```
 ```{r silentsave89712, include=FALSE, echo=FALSE}
-ggsave(paste(graphicoutputdir,
-             "map absolute.png",
-             sep=""), thisplot)
+if (ostype == "windows") {
+  
+  ggsave(paste(graphicoutputdir,
+               "map absolute.png",
+               sep=""), thisplot)
+  
+}
 ```
 
 This map indicates whether probabilities reported in the previous map are higher (red) than average, lower (blue) than average, or right about normal (yellow) compared to the same week in previous years.
@@ -1093,12 +1129,14 @@ thisplotrisk <- ggplot(projected_districts.df) +
 plot(thisplotrisk)
 ```
 ```{r silentsave1245, include=FALSE, echo=FALSE}
-ggsave(paste(graphicoutputdir,
-             "map relative.png",
-             sep=""), thisplotrisk,
-       width=4,
-       height=4)
-
+if (ostype == "windows") { 
+  
+  ggsave(paste(graphicoutputdir,
+               "map relative.png",
+               sep=""), thisplotrisk,
+         width=4,
+         height=4)
+}
 sitegraphic <- grid.arrange(thisplotrisk +
                             theme(legend.position="right",
                                   legend.direction="vertical") +
@@ -1125,12 +1163,14 @@ sitegraphic <- grid.arrange(thisplotrisk +
                             theme(axis.text.x = element_text(hjust=-0.35)) +
                             theme(plot.margin = unit(c(0.1,0.2,0.1,-0.1), "cm")), nrow=2) 
 
-ggsave(paste(graphicoutputdir,
-             "site graphic.png",
-             sep=""), sitegraphic,
-       width=4,
-       height=4)
-
+if (ostype == "windows") {
+  
+  ggsave(paste(graphicoutputdir,
+               "site graphic.png",
+               sep=""), sitegraphic,
+         width=4,
+         height=4)
+}
 ```
 
 \newpage
