@@ -76,7 +76,7 @@ modeloutputdir <- ".\\model output\\"
 # where are the human data located?
 # example of a file with directories an drive:
 humandatafile <- ".\\human case data\\simulated human case data.csv"
-humandatafile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\human\\19-01-29 - reconciled human WNV.csv"
+#humandatafile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\human\\19-01-29 - reconciled human WNV.csv"
 
 # what is the date of the last human case we're willing to believe?
 # probably, cut this off at the end of last year
@@ -88,7 +88,7 @@ weekinquestion <- as.Date("2018-09-15", "%Y-%m-%d")
 
 # where are the weather csv files stored?
 weatherpathstr <- ".\\weather data\\"
-weatherpathstr <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\weather\\"
+#weatherpathstr <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\weather\\"
 
 # what is the name of the summary file to be created?
 weathersummaryfile <- "weather data summary file.csv"
@@ -99,7 +99,7 @@ var2name <- "vpd"
 
 # where are the mosquito test files located?
 mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
-mosqfile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\mosquito\\19-01-29 - state testing.csv"
+#mosqfile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\mosquito\\19-01-29 - state testing.csv"
 
 # which district stratification scheme are we using?
 stratafile <- ".\\strata\\17-04-20 - classified strata - classic.csv"
@@ -828,13 +828,6 @@ preds <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
 fullcasemat$est <- preds
 preds <- data.frame(est=preds)
 
-#tempfull <- fullcasemat
-#tempfull$preds <- preds$est
-
-#tempfull$month <- as.numeric(format(tempfull$weekstartdate, "%m"))
-#tempfull <- tempfull[which(tempfull$month >= 6),]
-#tempfull <- tempfull[which(tempfull$month <= 10),]
-
 ```
 
 ```{r humanregplot, echo=FALSE}
@@ -842,34 +835,32 @@ tempdf <- data.frame(weekstartdate=fullcasemat$weekstartdate,
                      obs=fullcasemat$anycases,
                      est=preds$est,
                      observed=fullcasemat$observed)
+tempdf$week <- as.numeric(format(tempdf$weekstartdate, "%U"))
+
+# figure out in which weeks we actually have cases, for the purpose of graphin
+tempdf <- group_by(tempdf, obs)
+tempsum <- dplyr::summarise(tempdf,
+                            minweek=min(week, na.rm=TRUE),
+                            maxweek=max(week, na.rm=TRUE))
+minweek <- tempsum$minweek[tempsum$obs==1]
+maxweek <- tempsum$maxweek[tempsum$obs==1]
+
+tempdf <- tempdf[tempdf$week >= minweek,]
+tempdf <- tempdf[tempdf$week <= maxweek,]
+
 tempdf <- group_by(tempdf, weekstartdate)
 tempdf <- dplyr::summarize(tempdf,
                     obs=mean(obs, na.rm=TRUE),
-                    est=mean(est, na.rm=TRUE))
-tempdf <- ungroup(tempdf)
-tempdf2 <- tempdf
-tempdf2$week <- as.numeric(format(tempdf2$weekstartdate, "%U"))
+                    est=mean(est, na.rm=TRUE),
+                    week=mean(week, na.rm=TRUE))
 
-
-
-
-lowe <- 12
-hiwe <- 52-12
-
-
-
-
-
-tempdf2 <- tempdf2[tempdf2$week >= lowe,]
-tempdf2 <- tempdf2[tempdf2$week <= hiwe,]
-
-tempdf2$newwe <- (tempdf2$week - lowe) / (hiwe - lowe + 1)
-tempdf2$year <- as.numeric(format(tempdf2$weekstartdate, "%Y"))
-tempdf2$newdate <- tempdf2$year + tempdf2$newwe
+tempdf$newwe <- (tempdf$week - minweek) / (maxweek - minweek + 1)
+tempdf$year <- as.numeric(format(tempdf$weekstartdate, "%Y"))
+tempdf$newdate <- tempdf$year + tempdf$newwe
 ```
 
 ```{r fig.width=7, fig.height=3.5, echo=FALSE, warnings=FALSE}
-thisplot <- ggplot(tempdf2) + geom_line(aes(x=newdate,
+thisplot <- ggplot(tempdf) + geom_line(aes(x=newdate,
                                y=obs)) +
   geom_line(aes(x=newdate, y=est), color="red") +
   ggtitle("Statewide model predictions") +
