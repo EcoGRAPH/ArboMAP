@@ -60,7 +60,7 @@ splinetype <- "thinplate"
 if (!(splinetype %in% c("fixeddfcr", "thinplate"))) { splinetype <- "thinplate" }
 
 # determine whether relationships evolve over the course of the year
-splineevolution <- "notevolving"
+splineevolution <- "seasonallyvarying"
 if (!(splineevolution %in% c("seasonallyvarying", "notevolving"))) { splineevolution <- "notevolving" }
 
 # model either uses anomalized environmental and human data or uses raw data
@@ -163,6 +163,8 @@ if (ostype == "mac") {
   
 }
 ```
+
+This instance of ArboMAP is running on a `r ostype` machine, with spline type `r splinetype`, splines that are `r splineevolution` and `r anomalization`.
 
 # Data used for predictions
 ## Weather data
@@ -1280,8 +1282,6 @@ if (splineevolution == "seasonallyvarying") {
 
 ```
 
-
-
 \newpage 
 
 The following two graphs show the influences of the two environmental covariates on estimated risk. The current year (red) is compared to all others (black). If the line is higher, this indicates the variable in the past has a positive influence on risk estimated for that date.
@@ -1306,8 +1306,8 @@ termsum <- dplyr::summarise(termdf,
                             var1inf=mean(var1inf, na.rm=TRUE),
                             var2inf=mean(var2inf, na.rm=TRUE))
 
-termsum <- termsum[termsum$doy >= 150,]
-termsum <- termsum[termsum$doy <= 250,]
+#termsum <- termsum[termsum$doy >= 150,]
+#termsum <- termsum[termsum$doy <= 250,]
 
 maxyear <- termsum[termsum$year == max(termsum$year, na.rm=TRUE),]
 termdf$year <- factor(termdf$year)
