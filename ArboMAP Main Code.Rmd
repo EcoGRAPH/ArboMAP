@@ -628,7 +628,8 @@ dailyextr <- dailyextr[c("district","date","var1","var2")]
 dailyextr$district <- simplifynames(dailyextr$district)
 # fill in missing and future climatological data
 totaldailyextr <- expand.grid(district=unique(dailyextr$district),
-                              date=seq(from=as.Date("2003-01-01", "%Y-%m-%d"),
+                              date=seq(from=as.Date(paste((minmosqyear-1), "-01-01", sep=""),
+                                                    "%Y-%m-%d"),
                                        to=maxdesiredhumandate,
                                        by=1))
 dailyextr <- merge(x=totaldailyextr, y=dailyextr,
