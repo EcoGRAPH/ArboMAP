@@ -56,15 +56,15 @@ ostype <- "windows"
 if (!(ostype %in% c("windows", "mac"))) { ostype <- "windows" }
 
 # spline type is either fixed df cubic regression spline or a thin-plate spline
-splinetype <- "fixeddfcr"
+splinetype <- "thinplate"
 if (!(splinetype %in% c("fixeddfcr", "thinplate"))) { splinetype <- "thinplate" }
 
 # determine whether relationships evolve over the course of the year
-splineevolution <- "notevolving"
+splineevolution <- "seasonallyvarying"
 if (!(splineevolution %in% c("seasonallyvarying", "notevolving"))) { splineevolution <- "notevolving" }
 
 # model either uses anomalized environmental and human data or uses raw data
-anomalization <- "notanomalized"
+anomalization <- "anomalized"
 if (!(anomalization %in% c("notanomalized", "anomalized"))) { anomalization <- "notanomalized" }
 
 # where do we want the outputs?
@@ -455,8 +455,11 @@ hWNVminyear <- minmosqyear
 hWNVmaxyear <- maxmosqyear-1
 human <- human[which((human$creationyear >= hWNVminyear) & (human$creationyear <= hWNVmaxyear)),]
 
-# figure out in which months we have at least one case
-observedcreationmonths <- count(human, vars=creationmonth)
+# # figure out which chunk of data we should be analyzing
+human$weeknum <- as.numeric(format(human$date, "%U"))
+minmaxweekquants <- quantile(human$weeknum, probs=c(0, 1), na.rm=TRUE)
+absminobsweek <- minmaxweekquants[1]
+absmaxobsweek <- minmaxweekquants[2]
 
 # create the full list of weeks
 minobservedhumandate <- min(human$date)
@@ -471,10 +474,6 @@ fullcasemat$anycases   <- rep(0, nrow(fullcasemat))
 fullcasemat$totalcases <- rep(0, nrow(fullcasemat))
 fullcasemat$observed   <- 1*((fullcasemat$weekstartdate >= minobservedhumandate)&
                              (fullcasemat$weekstartdate <= maxobservedhumandate))
-# only model cases during months in which some cases have been observed
-fullcasemat$month    <- as.numeric(format(fullcasemat$weekstartdate, "%m"))
-fullcasemat$observed <- fullcasemat$observed * (fullcasemat$month %in% observedcreationmonths$vars)
-fullcasemat$month    <- NULL
 
 for (i in 1:nrow(fullcasemat)) {
   
@@ -493,6 +492,7 @@ for (i in 1:nrow(fullcasemat)) {
   }
   
 }
+
 totcase <- sum(fullcasemat$totalcases, na.rm=TRUE)
 anypos  <- sum(fullcasemat$anycases, na.rm=TRUE)
 
@@ -615,8 +615,23 @@ if (ostype == "windows") {
 }
 ```
 
-
 ## Human data
+
+In the graph below, positive districts by week are shown over all years.
+
+```{r humandatasummary, echo=FALSE, include=TRUE, fig.width=7, fig.height=3.5}
+fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
+fullcasemat <- group_by(fullcasemat, weeknum)
+sumanyhumancases <- dplyr::summarise(fullcasemat, totany = sum(anycases, na.rm=TRUE))
+fullcasemat <- ungroup(fullcasemat)
+
+ggplot(sumanyhumancases) + geom_line(aes(x=weeknum, y=totany)) +
+  ggtitle("positive districts by week, any year") +
+  xlab("week number") + ylab("total districts positive") +
+  scale_x_continuous(breaks=seq(from=min(sumanyhumancases$weeknum),
+                                to=max(sumanyhumancases$weeknum),
+                                by=2))
+```
 
 The predictive model of human cases was calibrated using `r totcase` historical cases, not including any cases from `r maxmosqyear`. No cases from `r maxmosqyear` are used to make predictions; the estimates for this year are based solely on weather and vector data. Typically, `r observedfraction`% of a year's cases occur before the end of this week in any given year.
 
@@ -726,11 +741,14 @@ for (curcol in 1:dim(fullcasemat$lag)[2]) {
 
 }
 
-# if necessary, create sindoy cosdoy for the wheel of the year
+# if we need a seasonally-varying distributed lag, create those terms here
 if (splineevolution == "seasonallyvarying") {
   
   fullcasemat$doymat <- fullcasemat$lag
   fullcasemat$doymat[,] <- fullcasemat$doy
+
+  #fullcasemat$cendoymat <- fullcasemat$lag
+  #fullcasemat$cendoymat[,] <- fullcasemat$cendoy
 
 }
 
@@ -807,7 +825,7 @@ if (splineevolution == "seasonallyvarying") {
     myformula <- gsub(x=myformula,
                       pattern="bs='tp'",
                       fixed=TRUE,
-                      replacement = "bs=c('tp','cc')")
+                      replacement = "bs=c('tp','tp')")
     
   }
   
@@ -816,7 +834,7 @@ if (splineevolution == "seasonallyvarying") {
     myformula <- gsub(x=myformula,
                       pattern="bs='cr'",
                       fixed=TRUE,
-                      replacement = "bs=c('cr','cc')")
+                      replacement = "bs=c('cr','cr')")
     
     
   }
@@ -858,16 +876,9 @@ tempdf <- data.frame(weekstartdate=fullcasemat$weekstartdate,
                      observed=fullcasemat$observed)
 tempdf$week <- as.numeric(format(tempdf$weekstartdate, "%U"))
 
-# figure out in which weeks we actually have cases, for the purpose of graphin
-tempdf <- group_by(tempdf, obs)
-tempsum <- dplyr::summarise(tempdf,
-                            minweek=min(week, na.rm=TRUE),
-                            maxweek=max(week, na.rm=TRUE))
-minweek <- tempsum$minweek[tempsum$obs==1]
-maxweek <- tempsum$maxweek[tempsum$obs==1]
-
-tempdf <- tempdf[tempdf$week >= minweek,]
-tempdf <- tempdf[tempdf$week <= maxweek,]
+# figure out in which weeks we actually have cases, for the purpose of graphing
+tempdf <- tempdf[tempdf$week >= absminobsweek,]
+tempdf <- tempdf[tempdf$week <= absmaxobsweek,]
 
 tempdf <- group_by(tempdf, weekstartdate)
 tempdf <- dplyr::summarize(tempdf,
@@ -875,7 +886,7 @@ tempdf <- dplyr::summarize(tempdf,
                     est=mean(est, na.rm=TRUE),
                     week=mean(week, na.rm=TRUE))
 
-tempdf$newwe <- (tempdf$week - minweek) / (maxweek - minweek + 1)
+tempdf$newwe <- (tempdf$week - absminobsweek) / (absmaxobsweek - absminobsweek + 1)
 tempdf$year <- as.numeric(format(tempdf$weekstartdate, "%Y"))
 tempdf$newdate <- tempdf$year + tempdf$newwe
 ```
@@ -912,9 +923,10 @@ tempdf <- dplyr::summarize(tempdf,
                     est=mean(est, na.rm=TRUE))
 tempdf$year <- as.numeric(format(tempdf$weekstartdate, "%Y"))
 tempdf$month <- as.numeric(format(tempdf$weekstartdate, "%m"))
+tempdf$weeknum <- as.numeric(format(tempdf$weekstartdate, "%U"))
 
-tempdf <- tempdf[tempdf$month >= min(observedcreationmonths$vars),]
-tempdf <- tempdf[tempdf$month <= max(observedcreationmonths$vars),]
+tempdf <- tempdf[tempdf$weeknum >= absminobsweek,]
+tempdf <- tempdf[tempdf$weeknum <= absmaxobsweek,]
 
 thisyear <- tempdf[tempdf$year == maxmosqyear,]
 comparison1 <- tempdf[tempdf$year == compyear1,]
@@ -934,7 +946,6 @@ tempdf$year <- factor(tempdf$year)
 tempdf2 <- thisyear[thisyear$weekstartdate >= weekinquestionSun,]
 tempdf2 <- tempdf2[1,]
 ```
-\newpage
 Predictions for `r maxmosqyear` are compared to observations in `r compyear1` and `r compyear2`. We expect `r round(66*tempdf2$est,1)` districts to have at least one human case between `r weekinquestionSunstr` `r weekinquestionSun` and `r weekinquestionSatstr` `r weekinquestionSat`.
 
 ```{r plotblah, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
@@ -1327,20 +1338,23 @@ termsum <- dplyr::summarise(termdf,
 
 # restrict display to only those months for which there are at least one positive observation
 termsum$date <- as.Date(paste(termsum$year, "-01-01", sep=""), "%Y-%m-%d") + (termsum$doy - 1)
-termsum$month <- as.numeric(format(termsum$date, "%m"))
-termsum <- termsum[termsum$month %in% observedcreationmonths$vars,]
+#termsum$month <- as.numeric(format(termsum$date, "%m"))
+termsum$weeknum <- as.numeric(format(termsum$date, "%U"))
+
+termsum <- termsum[termsum$weeknum >= absminobsweek,]
+termsum <- termsum[termsum$weeknum <= absmaxobsweek,]
 
 maxyear <- termsum[termsum$year == max(termsum$year, na.rm=TRUE),]
 termdf$year <- factor(termdf$year)
 
-thisplot1 <- ggplot() + geom_line(data=termsum, aes(x=doy, y=var1inf, group=year), alpha=0.5) +
-  geom_line(data=maxyear, aes(x=doy, y=var1inf), color="red", size=2) +
+thisplot1 <- ggplot() + geom_line(data=termsum, aes(x=weeknum, y=var1inf, group=year), alpha=0.5) +
+  geom_line(data=maxyear, aes(x=weeknum, y=var1inf), color="red", size=2) +
   ggtitle(paste("Relative influence of ", var1name, sep="")) +
-  xlab("day of year") + ylab("relative influence")
-thisplot2 <- ggplot() + geom_line(data=termsum, aes(x=doy, y=var2inf, group=year), alpha=0.5) +
-  geom_line(data=maxyear, aes(x=doy, y=var2inf), color="red", size=2) +
+  xlab("week number") + ylab("relative influence")
+thisplot2 <- ggplot() + geom_line(data=termsum, aes(x=weeknum, y=var2inf, group=year), alpha=0.5) +
+  geom_line(data=maxyear, aes(x=weeknum, y=var2inf), color="red", size=2) +
   ggtitle(paste("Relative influence of ", var2name, sep="")) +
-  xlab("day of year") + ylab("relative influence")
+  xlab("week number") + ylab("relative influence")
 
 plot(thisplot1)
 plot(thisplot2)
@@ -1360,34 +1374,31 @@ myroc <- roc(response = fullcasemat$anycases,
 # calculate AUC on full set
 myauctotal <- myroc$auc
 # calculate hoslem on full set
-tempdf <- fullcasemat[c("anycases", "est")]
+tempdf <- fullcasemat
 tempdf <- tempdf[!is.na(tempdf$anycases),]
 tempdf <- tempdf[!is.na(tempdf$est),]
+tempdf <- tempdf[tempdf$year < max(tempdf$year, na.rm=TRUE),]
 myhoslemtotal <- hoslem.test(x=tempdf$anycases,
                              y=tempdf$est)$p.value
 
 # do the same on restricted set
-fullcasemat$month <- as.numeric(format(fullcasemat$weekstartdate, "%m"))
-fullcasemat <- group_by(fullcasemat, month)
-monthsum <- dplyr::summarise(fullcasemat,
-                             numpos = sum(anycases, na.rm=TRUE))
-monthsum <- monthsum[monthsum$numpos > 0,]
-tempdf   <- fullcasemat[fullcasemat$month %in% monthsum$month,]
-
-tempdf2 <- tempdf[c("anycases", "est")]
-tempdf2 <- tempdf2[!is.na(tempdf2$anycases),]
-tempdf2 <- tempdf2[!is.na(tempdf2$est),]
+fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
+tempdf   <- fullcasemat[fullcasemat$weeknum >= absminobsweek,]
+tempdf   <- tempdf[tempdf$weeknum <= absmaxobsweek,]
+tempdf   <- tempdf[tempdf$year < max(tempdf$year),]
+tempdf   <- tempdf[!is.na(tempdf$anycases),]
+tempdf   <- tempdf[!is.na(tempdf$est),]
 
 myroc <- roc(response = tempdf$anycases,
              predictor = tempdf$est,
              na.rm=TRUE,
              auc=TRUE)
 myaucrestricted <- myroc$auc
-myhoslemrestricted <- hoslem.test(x=tempdf2$anycases,
-                                  y=tempdf2$est)$p.value
+myhoslemrestricted <- hoslem.test(x=tempdf$anycases,
+                                  y=tempdf$est)$p.value
 ```
 
-The model achieved an AUC (or c-stat) of `r round_any(myauctotal, 0.01)` when tested on all available human case data. When restricted to the months with at least one human case, the model achieved an AUC of `r round_any(myaucrestricted, 0.01)`. The p-value in a Hosmer-Lemeshow goodness of fit test was `r round_any(myhoslemtotal, 0.0001)` on the full set and `r round_any(myhoslemrestricted, 0.0001)` on the restricted set. The model achieved an AIC of `r round_any(AIC(firstreg)[1], 0.01)` when calculated on the full set.
+The model achieved an AUC (or c-stat) of `r round_any(myauctotal, 0.01)` when tested on all available human case data. When restricted to weeks with at least one human case, the model achieved an AUC of `r round_any(myaucrestricted, 0.01)`. The p-value in a Hosmer-Lemeshow goodness of fit test was `r round_any(myhoslemtotal, 0.0001)` on the full set and `r round_any(myhoslemrestricted, 0.0001)` on the restricted set. The model achieved an AIC of `r round_any(AIC(firstreg)[1], 0.01)` when calculated on the full set.
 
 ## District names
 
