@@ -56,15 +56,15 @@ ostype <- "windows"
 if (!(ostype %in% c("windows", "mac"))) { ostype <- "windows" }
 
 # spline type is either fixed df cubic regression spline or a thin-plate spline
-splinetype <- "thinplate"
+splinetype <- "fixeddfcr"
 if (!(splinetype %in% c("fixeddfcr", "thinplate"))) { splinetype <- "thinplate" }
 
 # determine whether relationships evolve over the course of the year
-splineevolution <- "seasonallyvarying"
+splineevolution <- "notevolving"
 if (!(splineevolution %in% c("seasonallyvarying", "notevolving"))) { splineevolution <- "notevolving" }
 
 # model either uses anomalized environmental and human data or uses raw data
-anomalization <- "anomalized"
+anomalization <- "notanomalized"
 if (!(anomalization %in% c("notanomalized", "anomalized"))) { anomalization <- "notanomalized" }
 
 # where do we want the outputs?
