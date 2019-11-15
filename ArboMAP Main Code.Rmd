@@ -57,13 +57,13 @@ ostype <- "windows"
 if (!(ostype %in% c("windows", "mac"))) { ostype <- "windows" }
 
 # model names
-modelnames <- c("tp-sv-anom", "cub-fx-nonanom")
+modelnames <- c("tp-sv-anom", "cub-fx-nonanom", "cub-sv-nonanom")
 
 # model formulas
 modelformulas <- c("cub-fx-nonanom"   = "anycases ~ 0 + district + MIRsummarystat + s(lag, by=var1, bs='cr') + s(lag, by=var2, bs='cr')",
-                   "cub-sv-nonanom"   = "anycases ~ 0 + district + MIRsummarystat + s(lag, doymat, by=var1, bs='cr') + s(lag, doymat, by=var2, bs='cr')",
+                   "cub-sv-nonanom"   = "anycases ~ 0 + district + MIRsummarystat + te(lag, doymat, by=var1, bs='cr') + te(lag, doymat, by=var2, bs='cr')",
                    "tp-fx-nonanom"    = "anycases ~ 0 + district + MIRsummarystat + s(lag, by=var1, bs='tp') + s(lag, by=var2, bs='tp')",
-                   "tp-sv-anom"       = "anycases ~ 0 + district + MIRsummarystat + s(lag, doymat, by=anom_var1, bs='tp') + s(lag, doymat, by=anom_var2, bs='tp') + s(doy, bs='tp')")
+                   "tp-sv-anom"       = "anycases ~ 0 + district + MIRsummarystat + te(lag, doymat, by=anom_var1, bs='tp') + te(lag, doymat, by=anom_var2, bs='tp') + s(doy, bs='tp')")
 
 # adjust smoothness
 modelgamma <- 1.0
@@ -651,7 +651,7 @@ if (ostype == "windows") {
 
 ## Human data
 
-In the graph below, positive districts by week are shown over all years. Only weeks within the two dashed lines (excluding `r 100*humancasealpha%` total of the earliest and latest cases) are used in modeling for numerical stability.
+In the graph below, positive districts by week are shown over all years. Only weeks within the two dashed lines (excluding `r 100*humancasealpha`% total of the earliest and latest cases) are used in modeling for numerical stability.
 
 ```{r humandatasummary, echo=FALSE, include=TRUE, fig.width=7, fig.height=3.5}
 fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
@@ -1057,20 +1057,21 @@ thisweek <- preds[preds$weekstartdate >= weekinquestion,]
 thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
 thisweek <- thisweek[c("model", "district", "pred")]
 
-tempdf <- data.frame()
+tempdf2 <- data.frame()
 for (curmodel in unique(thisweek$model)) {
 
-  projected_districts.df <- left_join(projected_districts.df, thisweek,
-                                     by="district")
-  projected_districts.df$pred[is.na(projected_districts.df$pred)] <- min(projected_districts.df$pred, na.rm=TRUE)
-  projected_districts.df$model <- curmodel
+  tempdf <- projected_districts.df
+  tempdf <- left_join(tempdf, thisweek, by="district")
+  tempdf$pred[is.na(tempdf$pred)] <- min(tempdf$pred, na.rm=TRUE)
+  tempdf$model <- curmodel
   
-  tempdf <- bind_rows(tempdf, projected_districts.df)
+  tempdf2 <- bind_rows(tempdf2, tempdf)
 
 }
+projected_districts.df <- tempdf2
 ```
 ```{r shapefile2, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-thisplot <- ggplot(tempdf) +
+thisplot <- ggplot(projected_districts.df) +
       aes(long,lat,fill=pred,group=group,id=id,guides=FALSE) +
       geom_polygon() + xlab("") + ylab("") +
       geom_path(color="black") +
@@ -1097,84 +1098,84 @@ plot(thisplot)
 This map indicates whether probabilities reported in the previous map are higher (red) than average, lower (blue) than average, or right about normal (yellow) compared to the same week in previous years.
 
 ```{r riskcalcs, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
-thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
-thisweek <- thisweek[c("district", "pred", "doy")]
-
-approxdoy <- thisweek$doy[1]
-
-fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
-
-doypreds <- data.frame()
-for (curyear in unique(fullcasemat$year)) {
-  
-  for (curdistrict in unique(fullcasemat$district)) {
-    
-    thisdf <- fullcasemat[fullcasemat$year == curyear,]
-    thisdf <- thisdf[thisdf$district == curdistrict,]
-    
-    if(sum(!is.na(thisdf$pred)) > 1) {
-    
-      tempdf <- data.frame(district = curdistrict,
-                           year = curyear,
-                           pred = approx(x=thisdf$doy,
-                                        y=thisdf$pred,
-                                        xout=approxdoy)$y)
-      
-      doypreds <- bind_rows(doypreds, tempdf)
-      
-    }
-    
-  }
-  
-}
-
-doypreds2 <- data.frame()
-for (curdistrict in unique(doypreds$district)) {
-
-  tempdf <- doypreds[doypreds$district == curdistrict,]
-  tempdf$percentile <- rank(tempdf$pred, ties.method="random") / length(tempdf$pred)
-  
-  doypreds2 <- bind_rows(doypreds2, tempdf)
-  
-}
-doypreds <- doypreds2
-rm(doypreds2)
-
-riskalpha <- 0.25
-doypreds$riskcategory <- " About average    "
-doypreds$riskcategory[doypreds$percentile <= riskalpha/2] <- " Lower than usual    "
-doypreds$riskcategory[doypreds$percentile >= 1-(riskalpha/2)] <- " Higher than usual    "
-doypredscurrent <- doypreds[doypreds$year == as.numeric(format(weekinquestion, "%Y")),]
-projected_districts.df <- left_join(projected_districts.df, doypredscurrent,
-                                   by="district")
-projected_districts.df$riskcategory[is.na(projected_districts.df$riskcategory)] <- " Not able to model    "
-thisplotrisk <- ggplot(projected_districts.df) +
-      aes(long,lat,fill=riskcategory,group=group,guides=FALSE) +
-      geom_polygon() + 
-      geom_path(color="black") +
-      coord_map() + 
-      ggtitle("") +
-      theme(text=element_text(size=15)) +
-      theme(plot.title=element_text(size=15),
-            legend.key=element_rect(fill="white")) +
-      theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
-            axis.ticks = element_blank(), axis.text.x = element_blank(),
-            axis.text.y = element_blank(), axis.title.x=element_blank(),
-            axis.title.y = element_blank(),
-            legend.position="bottom",
-            legend.key.width=unit(1, "cm"),
-            legend.key.height=unit(0.5,"cm")) +
-      theme(legend.direction="vertical") +
-      scale_fill_manual(name=paste("Risk for ", weekinquestionSun, " to ",
-                                   format(weekinquestionSat, "%m-%d"), sep=""),
-                        values=c(" Lower than usual    "="lightblue",
-                                 " About average    "="yellow",
-                                 " Higher than usual    "="red",
-                                 " Not able to model    "="grey"))
-
-
-plot(thisplotrisk)
+# thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
+# thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
+# thisweek <- thisweek[c("district", "pred", "doy")]
+# 
+# approxdoy <- thisweek$doy[1]
+# 
+# fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
+# 
+# doypreds <- data.frame()
+# for (curyear in unique(fullcasemat$year)) {
+#   
+#   for (curdistrict in unique(fullcasemat$district)) {
+#     
+#     thisdf <- fullcasemat[fullcasemat$year == curyear,]
+#     thisdf <- thisdf[thisdf$district == curdistrict,]
+#     
+#     if(sum(!is.na(thisdf$pred)) > 1) {
+#     
+#       tempdf <- data.frame(district = curdistrict,
+#                            year = curyear,
+#                            pred = approx(x=thisdf$doy,
+#                                         y=thisdf$pred,
+#                                         xout=approxdoy)$y)
+#       
+#       doypreds <- bind_rows(doypreds, tempdf)
+#       
+#     }
+#     
+#   }
+#   
+# }
+# 
+# doypreds2 <- data.frame()
+# for (curdistrict in unique(doypreds$district)) {
+# 
+#   tempdf <- doypreds[doypreds$district == curdistrict,]
+#   tempdf$percentile <- rank(tempdf$pred, ties.method="random") / length(tempdf$pred)
+#   
+#   doypreds2 <- bind_rows(doypreds2, tempdf)
+#   
+# }
+# doypreds <- doypreds2
+# rm(doypreds2)
+# 
+# riskalpha <- 0.25
+# doypreds$riskcategory <- " About average    "
+# doypreds$riskcategory[doypreds$percentile <= riskalpha/2] <- " Lower than usual    "
+# doypreds$riskcategory[doypreds$percentile >= 1-(riskalpha/2)] <- " Higher than usual    "
+# doypredscurrent <- doypreds[doypreds$year == as.numeric(format(weekinquestion, "%Y")),]
+# projected_districts.df <- left_join(projected_districts.df, doypredscurrent,
+#                                    by="district")
+# projected_districts.df$riskcategory[is.na(projected_districts.df$riskcategory)] <- " Not able to model    "
+# thisplotrisk <- ggplot(projected_districts.df) +
+#       aes(long,lat,fill=riskcategory,group=group,guides=FALSE) +
+#       geom_polygon() + 
+#       geom_path(color="black") +
+#       coord_map() + 
+#       ggtitle("") +
+#       theme(text=element_text(size=15)) +
+#       theme(plot.title=element_text(size=15),
+#             legend.key=element_rect(fill="white")) +
+#       theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
+#             axis.ticks = element_blank(), axis.text.x = element_blank(),
+#             axis.text.y = element_blank(), axis.title.x=element_blank(),
+#             axis.title.y = element_blank(),
+#             legend.position="bottom",
+#             legend.key.width=unit(1, "cm"),
+#             legend.key.height=unit(0.5,"cm")) +
+#       theme(legend.direction="vertical") +
+#       scale_fill_manual(name=paste("Risk for ", weekinquestionSun, " to ",
+#                                    format(weekinquestionSat, "%m-%d"), sep=""),
+#                         values=c(" Lower than usual    "="lightblue",
+#                                  " About average    "="yellow",
+#                                  " Higher than usual    "="red",
+#                                  " Not able to model    "="grey"))
+# 
+# 
+# plot(thisplotrisk)
 ```
 \newpage
 
