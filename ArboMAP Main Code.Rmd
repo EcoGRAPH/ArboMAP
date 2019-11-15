@@ -1053,16 +1053,24 @@ projected_districts.df <- left_join(projected_districts.df, projected_districts@
 projected_districts.df$district <- simplifynames(projected_districts.df$NAME)
 
 # get this week's predictions
-thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
+thisweek <- preds[preds$weekstartdate >= weekinquestion,]
 thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
-thisweek <- thisweek[c("district", "pred")]
+thisweek <- thisweek[c("model", "district", "pred")]
 
-projected_districts.df <- left_join(projected_districts.df, thisweek,
-                                   by="district")
-projected_districts.df$pred[is.na(projected_districts.df$pred)] <- min(projected_districts.df$pred, na.rm=TRUE)
+tempdf <- data.frame()
+for (curmodel in unique(thisweek$model)) {
+
+  projected_districts.df <- left_join(projected_districts.df, thisweek,
+                                     by="district")
+  projected_districts.df$pred[is.na(projected_districts.df$pred)] <- min(projected_districts.df$pred, na.rm=TRUE)
+  projected_districts.df$model <- curmodel
+  
+  tempdf <- bind_rows(tempdf, projected_districts.df)
+
+}
 ```
 ```{r shapefile2, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-thisplot <- ggplot(projected_districts.df) +
+thisplot <- ggplot(tempdf) +
       aes(long,lat,fill=pred,group=group,id=id,guides=FALSE) +
       geom_polygon() + xlab("") + ylab("") +
       geom_path(color="black") +
@@ -1081,7 +1089,8 @@ thisplot <- ggplot(projected_districts.df) +
             axis.title.y = element_blank(),
             legend.position="bottom",
             legend.key.width=unit(1, "cm"),
-            legend.key.height=unit(0.25,"cm"))
+            legend.key.height=unit(0.25,"cm")) +
+  facet_wrap(~model)
 plot(thisplot)
 ```
 
