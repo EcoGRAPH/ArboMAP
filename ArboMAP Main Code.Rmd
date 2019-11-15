@@ -168,8 +168,6 @@ if (ostype == "mac") {
 }
 ```
 
-This instance of ArboMAP is running on a `r ostype` machine, with spline type `r splinetype`, splines that are `r splineevolution` and `r anomalization`.
-
 # Data used for predictions
 ## Weather data
 
@@ -849,9 +847,7 @@ fullcasemat$MIRsummarystat2 <- NULL
 fullcasemat <- ungroup(fullcasemat)
 ```
 
-Model fit statistics are shown below.
-
-```{r humanreg, echo=FALSE}
+```{r humanreg, echo=FALSE, include=FALSE}
 # make sure district is a factor before modeling
 fullcasemat$district <- factor(fullcasemat$district)
 
@@ -886,17 +882,15 @@ for (curmodel in modelnames) {
   
   # evaluate this model fit
   tempdf <- fullcasemat[fullcasemat$modeled == 1,]
-  tempdf <- data.frame(auc = roc(response = tempdf$anycases,
+  tempdf <- data.frame(auc = round_any(roc(response = tempdf$anycases,
                                  predictor = tempdf$pred,
                                  na.rm=TRUE,
-                                 auc=TRUE)$auc,
+                                 auc=TRUE)$auc, 0.01),
                        aic = round_any(AIC(firstreg)[1], 0.01),
                        model = curmodel)
   modelevals <- bind_rows(modelevals, tempdf)
 
 }
-
-kable(modelevals)
 ```
 
 ```{r humanregplot, echo=FALSE}
@@ -916,7 +910,7 @@ tempdf$newwe <- (tempdf$week - humanminobsweek) / (humanmaxobsweek - humanminobs
 tempdf$year <- as.numeric(format(tempdf$weekstartdate, "%Y"))
 tempdf$newdate <- tempdf$year + tempdf$newwe
 ```
-```{r fig.width=7, fig.height=3.5, echo=FALSE, warnings=FALSE}
+```{r fig.width=7, fig.height=4, echo=FALSE, warnings=FALSE}
 thisplot <- ggplot(tempdf) + geom_line(aes(x=newdate,
                                y=obs, group=model)) +
   geom_line(aes(x=newdate, y=est, group=model, color=model, linetype=model)) +
@@ -927,9 +921,18 @@ thisplot <- ggplot(tempdf) + geom_line(aes(x=newdate,
                      limits=c((minmosqyear+0.125),(maxmosqyear+1))) +
   ylab("Proportion of districts positive") +
   theme(panel.grid.minor.x=element_blank()) +
-  theme(axis.text.x = element_text(hjust=-0.225))
+  theme(axis.text.x = element_text(hjust=-0.225)) +
+  theme(legend.position="bottom")
 plot(thisplot)
 ```
+
+Model fit statistics are shown below.
+
+```{r, echo=FALSE, include=TRUE}
+kable(modelevals[c("model", "aic", "auc")])
+```
+
+Estimates for the week in question are shown below.
 
 ```{r curyearplot, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 
@@ -961,7 +964,8 @@ tempdf2 <- tempdf2[1:length(modelnames),]
 tempdf2$totalestimated <- round_any(tempdf2$est * length(district_shapes), 0.1)
 tempdf2$est <- round_any(tempdf2$est, 0.01)
 
-kable(tempdf2)
+kable(tempdf2[c("model", "est", "totalestimated")],
+      col.names=c("model", "prop. positive", "districts positive"))
 ```
 
 ```{r plotblah, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
@@ -1048,7 +1052,7 @@ projected_districts.df$pred[is.na(projected_districts.df$pred)] <- min(projected
 ```
 ```{r shapefile2, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 thisplot <- ggplot(projected_districts.df) +
-      aes(long,lat,fill=est,group=group,id=id,guides=FALSE) +
+      aes(long,lat,fill=pred,group=group,id=id,guides=FALSE) +
       geom_polygon() + xlab("") + ylab("") +
       geom_path(color="black") +
       theme(legend.position="bottom") +
@@ -1069,22 +1073,13 @@ thisplot <- ggplot(projected_districts.df) +
             legend.key.height=unit(0.25,"cm"))
 plot(thisplot)
 ```
-```{r silentsave89712, include=FALSE, echo=FALSE}
-if (ostype == "windows") {
-  
-  ggsave(paste(graphicoutputdir,
-               "map absolute.png",
-               sep=""), thisplot)
-  
-}
-```
 
 This map indicates whether probabilities reported in the previous map are higher (red) than average, lower (blue) than average, or right about normal (yellow) compared to the same week in previous years.
 
 ```{r riskcalcs, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
 thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
-thisweek <- thisweek[c("district", "est", "doy")]
+thisweek <- thisweek[c("district", "pred", "doy")]
 
 approxdoy <- thisweek$doy[1]
 
@@ -1098,12 +1093,12 @@ for (curyear in unique(fullcasemat$year)) {
     thisdf <- fullcasemat[fullcasemat$year == curyear,]
     thisdf <- thisdf[thisdf$district == curdistrict,]
     
-    if(sum(!is.na(thisdf$est)) > 1) {
+    if(sum(!is.na(thisdf$pred)) > 1) {
     
       tempdf <- data.frame(district = curdistrict,
                            year = curyear,
-                           est = approx(x=thisdf$doy,
-                                        y=thisdf$est,
+                           pred = approx(x=thisdf$doy,
+                                        y=thisdf$pred,
                                         xout=approxdoy)$y)
       
       doypreds <- bind_rows(doypreds, tempdf)
@@ -1118,7 +1113,7 @@ doypreds2 <- data.frame()
 for (curdistrict in unique(doypreds$district)) {
 
   tempdf <- doypreds[doypreds$district == curdistrict,]
-  tempdf$percentile <- rank(tempdf$est, ties.method="random") / length(tempdf$est)
+  tempdf$percentile <- rank(tempdf$pred, ties.method="random") / length(tempdf$pred)
   
   doypreds2 <- bind_rows(doypreds2, tempdf)
   
@@ -1161,239 +1156,7 @@ thisplotrisk <- ggplot(projected_districts.df) +
 
 plot(thisplotrisk)
 ```
-```{r silentsave1245, include=FALSE, echo=FALSE}
-if (ostype == "windows") { 
-  
-  ggsave(paste(graphicoutputdir,
-               "map relative.png",
-               sep=""), thisplotrisk,
-         width=4,
-         height=4)
-}
-sitegraphic <- grid.arrange(thisplotrisk +
-                            theme(legend.position="right",
-                                  legend.direction="vertical") +
-                            scale_fill_manual(name="Risk this week",
-                            values=c(" Lower than usual    "="lightblue",
-                                     " About average    "="yellow",
-                                     " Higher than usual    "="red",
-                                     " Not able to model    "="grey")) +
-                            #ylab("hidden axis") +
-                            #theme(axis.title.y = element_text(colour = "white")) +
-                            theme(legend.key.width=unit(0.25, "cm"),
-                            legend.key.height=unit(0.50,"cm"),
-                            text=element_text(size=10)) + 
-                            theme(plot.margin = unit(c(0,0,0,0.4), "cm")),
-  
-                            # t r b l
-                            
-                            thisplot2 +
-                            theme(legend.position="right") + ylab("") +
-                            theme(axis.text.x=element_text(family="mono"))+
-                            theme(panel.grid.minor=element_blank(),
-                                  axis.text.y=element_blank(),
-                                  axis.ticks=element_blank())+
-                            theme(axis.text.x = element_text(hjust=-0.35)) +
-                            theme(plot.margin = unit(c(0.1,0.2,0.1,-0.1), "cm")), nrow=2) 
-
-if (ostype == "windows") {
-  
-  ggsave(paste(graphicoutputdir,
-               "site graphic.png",
-               sep=""), sitegraphic,
-         width=4,
-         height=4)
-}
-```
-
 \newpage
-## Dependence on environmental data.
-
-Below, we visualize the distributed lags on environmental data. If a line is above (below) zero at some lag, this means risk today depends positively (negatively) on the environmental data at that date in the past.
-
-```{r distributedlags, include=FALSE, echo=FALSE}
-mygam <- plot(firstreg, select=1)
-if (splineevolution == "notevolving") {
-
-  for (i in 1:length(mygam)) {
-  
-    thisplot <- mygam[[i]]
-    
-    if (grepl(x=thisplot$ylab,
-              pattern="var1",
-              fixed=TRUE)) {
-  
-        lag1df <- data.frame(fit=thisplot$fit,
-                             x  =thisplot$`x`)
-  
-    }
-  
-    if (grepl(x=thisplot$ylab,
-              pattern="var2",
-              fixed=TRUE)) {
-  
-        lag2df <- data.frame(fit=thisplot$fit,
-                             x  =thisplot$`x`)
-        
-      }
-  
-    }
-  
-}
-if (splineevolution == "seasonallyvarying") {
-  
-  for (i in 1:length(mygam)) {
-    
-    thisplot <- mygam[[i]]
-    if (length(thisplot$main) > 0) {
-    
-      if (grepl(x=thisplot$main,
-                pattern=":var1",
-                fixed=TRUE)) {
-        
-          lag1df <- expand.grid(x=thisplot$x,
-                                y=thisplot$y)
-          lag1df$fit <- thisplot$fit
-          
-      }
-      if (grepl(x=thisplot$main,
-                pattern=":var2",
-                fixed=TRUE)) {
-        
-          lag2df <- expand.grid(x=thisplot$x,
-                                y=thisplot$y)
-          lag2df$fit <- thisplot$fit
-          
-      }
-      
-    }
-    
-  }
-  
-}
-```
-```{r dlplots, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-if (splineevolution == "notevolving") {
-
-  thisplot1 <- ggplot(lag1df) + geom_line(aes(x=x, y=fit)) +
-    ggtitle(paste("distributed lags on ", var1name, sep="")) + xlab("lag")
-  thisplot2 <- ggplot(lag2df) + geom_line(aes(x=x, y=fit)) +
-    ggtitle(paste("distributed lags on ", var2name, sep="")) + xlab("lag")
-
-  plot(thisplot1)
-  plot(thisplot2)
-  
-}
-if (splineevolution == "seasonallyvarying") {
-  
-  select_1_y <- quantile(lag1df$y, probs=c(0.45, 0.50, 0.65), type=1)
-  lag1df <- lag1df[lag1df$y %in% select_1_y,]
-  lag1df$dayofyear <- factor(round_any(lag1df$y,1))
-  
-  select_2_y <- quantile(lag2df$y, probs=c(0.45, 0.50, 0.65), type=1)
-  lag2df <- lag2df[lag2df$y %in% select_2_y,]
-  lag2df$dayofyear <- factor(round_any(lag2df$y,1))
-  
-  thisplot1 <- ggplot(lag1df) + geom_line(aes(x=x, y=fit, group=dayofyear, color=dayofyear)) +
-    ggtitle(paste("distributed lags on ", var1name, sep="")) + xlab("lag")
-  thisplot2 <- ggplot(lag2df) + geom_line(aes(x=x, y=fit, group=dayofyear, color=dayofyear)) +
-    ggtitle(paste("distributed lags on ", var2name, sep="")) + xlab("lag")
-  
-  
-  plot(thisplot1)
-  plot(thisplot2)
-  
-}
-
-```
-
-\newpage 
-
-The following two graphs show the influences of the two environmental covariates on estimated risk. The current year (red) is compared to all others (black). If the line is higher, this indicates the variable in the past has a positive influence on risk estimated for that date.
-
-```{r envinfluences, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-termdf <- data.frame(predict(firstreg, newdata=fullcasemat, type="terms"))
-termdf$date <- fullcasemat$weekstartdate
-termdf$doy  <- fullcasemat$doy
-termdf$year <- fullcasemat$year
-
-termdf$var1inf <- psum(termdf[,grep(x=colnames(termdf),
-                                    pattern="var1",
-                                    fixed=TRUE)], na.rm=TRUE)
-termdf$var2inf <- psum(termdf[,grep(x=colnames(termdf),
-                                    pattern="var2",
-                                    fixed=TRUE)], na.rm=TRUE)
-
-termdf <- group_by(termdf,
-                   year,
-                   doy)
-termsum <- dplyr::summarise(termdf,
-                            var1inf=mean(var1inf, na.rm=TRUE),
-                            var2inf=mean(var2inf, na.rm=TRUE))
-
-# restrict display to only those months for which there are at least one positive observation
-termsum$date <- as.Date(paste(termsum$year, "-01-01", sep=""), "%Y-%m-%d") + (termsum$doy - 1)
-#termsum$month <- as.numeric(format(termsum$date, "%m"))
-termsum$weeknum <- as.numeric(format(termsum$date, "%U"))
-
-termsum <- termsum[termsum$weeknum >= humanminobsweek,]
-termsum <- termsum[termsum$weeknum <= humanmaxobsweek,]
-
-maxyear <- termsum[termsum$year == max(termsum$year, na.rm=TRUE),]
-termdf$year <- factor(termdf$year)
-
-thisplot1 <- ggplot() + geom_line(data=termsum, aes(x=weeknum, y=var1inf, group=year), alpha=0.5) +
-  geom_line(data=maxyear, aes(x=weeknum, y=var1inf), color="red", size=2) +
-  ggtitle(paste("Relative influence of ", var1name, sep="")) +
-  xlab("week number") + ylab("relative influence")
-thisplot2 <- ggplot() + geom_line(data=termsum, aes(x=weeknum, y=var2inf, group=year), alpha=0.5) +
-  geom_line(data=maxyear, aes(x=weeknum, y=var2inf), color="red", size=2) +
-  ggtitle(paste("Relative influence of ", var2name, sep="")) +
-  xlab("week number") + ylab("relative influence")
-
-plot(thisplot1)
-plot(thisplot2)
-
-```
-
-\newpage 
-### Diagnostics
-
-## Model summary
-
-```{r modelfit, include=FALSE, echo=FALSE}
-myroc <- roc(response = fullcasemat$anycases,
-             predictor = fullcasemat$est,
-             na.rm=TRUE,
-             auc=TRUE)
-# calculate AUC on full set
-myauctotal <- myroc$auc
-# calculate hoslem on full set
-tempdf <- fullcasemat
-tempdf <- tempdf[!is.na(tempdf$anycases),]
-tempdf <- tempdf[!is.na(tempdf$est),]
-tempdf <- tempdf[tempdf$year < max(tempdf$year, na.rm=TRUE),]
-myhoslemtotal <- hoslem.test(x=tempdf$anycases,
-                             y=tempdf$est)$p.value
-
-# do the same on restricted set
-fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
-tempdf   <- fullcasemat[fullcasemat$weeknum >= humanminobsweek,]
-tempdf   <- tempdf[tempdf$weeknum <= humanmaxobsweek,]
-tempdf   <- tempdf[tempdf$year < max(tempdf$year),]
-tempdf   <- tempdf[!is.na(tempdf$anycases),]
-tempdf   <- tempdf[!is.na(tempdf$est),]
-
-myroc <- roc(response = tempdf$anycases,
-             predictor = tempdf$est,
-             na.rm=TRUE,
-             auc=TRUE)
-myaucrestricted <- myroc$auc
-myhoslemrestricted <- hoslem.test(x=tempdf$anycases,
-                                  y=tempdf$est)$p.value
-```
-
-The model achieved an AUC (or c-stat) of `r round_any(myauctotal, 0.01)` when tested on all available human case data. When restricted to weeks with at least one human case, the model achieved an AUC of `r round_any(myaucrestricted, 0.01)`. The p-value in a Hosmer-Lemeshow goodness of fit test was `r round_any(myhoslemtotal, 0.0001)` on the full set and `r round_any(myhoslemrestricted, 0.0001)` on the restricted set. The model achieved an AIC of `r round_any(AIC(firstreg)[1], 0.01)` when calculated on the full set.
 
 ## District names
 
