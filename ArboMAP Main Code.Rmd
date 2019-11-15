@@ -651,7 +651,7 @@ if (ostype == "windows") {
 
 ## Human data
 
-In the graph below, positive districts by week are shown over all years. Only weeks within the two dashed lines are used in modeling, so that the consistently negative weeks outside of this range do not have an effect on the stability of the model.
+In the graph below, positive districts by week are shown over all years. Only weeks within the two dashed lines (excluding `r 100*humancasealpha%` total of the earliest and latest cases) are used in modeling for numerical stability.
 
 ```{r humandatasummary, echo=FALSE, include=TRUE, fig.width=7, fig.height=3.5}
 fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
@@ -874,6 +874,7 @@ for (curmodel in modelnames) {
   tempdf <- data.frame(weekstartdate = fullcasemat$weekstartdate,
                        district = fullcasemat$district,
                        anycases = fullcasemat$anycases,
+                       totalcases = fullcasemat$totalcases,
                        observed = fullcasemat$observed,
                        modeled = fullcasemat$modeled,
                        pred = fullcasemat$pred,
@@ -991,38 +992,44 @@ kable(tempdf2[c("model", "est", "totalestimated")],
 ```
 
 ```{r echo=FALSE}
-fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
-thisyear <- fullcasemat[fullcasemat$year == maxmosqyear,]
-previousyears <- fullcasemat[fullcasemat$year < maxmosqyear,]
-sumtotal <- sum(previousyears$totalcases, na.rm=TRUE)
-sumany   <- sum(previousyears$anycases, na.rm=TRUE)
+preds$year <- as.numeric(format(preds$weekstartdate, "%Y"))
 
-positivesthisyear <- round(sum(thisyear$est, na.rm=TRUE), 1)
+preds <- group_by(preds, year, model)
+yearlies <- dplyr::summarise(preds,
+                             totpos = sum(anycases, na.rm=TRUE),
+                             totest = sum(pred,     na.rm=TRUE),
+                             totcases = sum(totalcases, na.rm=TRUE))
 
-byyear <- dplyr::summarize(group_by(previousyears, year),
-                           totobs = sum(totalcases, na.rm=TRUE),
-                           anyobs = sum(anycases, na.rm=TRUE),
-                           weight = 1)
-byyear <- bind_rows(byyear, data.frame(totobs=0,
-                                       anyobs=0,
-                                       weight=100))
+yearlies$weight <- 1
 
-relationship <- gam(totobs ~ s(anyobs), weights=weight, data=byyear)
+thisyear <- yearlies[yearlies$year == maxmosqyear,]
+prevyears <- yearlies[yearlies$year < maxmosqyear,]
 
-predframe <- data.frame(anyobs = seq(from=0,
-                                     to=max(byyear$anyobs, na.rm=TRUE),
-                                     length.out=50))
-predframe$preds <- predict(relationship, newdata = predframe)
+thisyear$totpos <- thisyear$totest
+prevyears <- bind_rows(prevyears, expand.grid(totpos=0,
+                                              totcases=0,
+                                              weight=100,
+                                              model=unique(prevyears$model)))
+# make sure model is a factor 
+prevyears$model <- factor(prevyears$model)
 
-predframe2 <- data.frame(anyobs = sum(thisyear$est, na.rm=TRUE))
-predframe2$preds  <- predict(relationship, newdata = predframe2)
+# figure out relationship between positivity and total cases
+relationship <- gam(totcases ~ s(totpos, by=model), weights=weight, data=prevyears)
 
-ggplot() + geom_line(data=predframe, aes(x=anyobs, y=preds), color="red", linetype=2) +
+predframe <- expand.grid(totpos = seq(from=0,
+                                     to=max(prevyears$totpos, na.rm=TRUE),
+                                     length.out=50),
+                         model=unique(prevyears$model))
+predframe$totcases <- predict(relationship, newdata = predframe)
+
+thisyear$totcases <- predict(relationship, newdata = thisyear)
+
+ggplot() + geom_line(data=predframe, aes(x=totpos, y=totcases), color="red", linetype=2) +
   geom_abline(slope=1, intercept=0, color="grey", linetype=2) +
-  geom_point(data=predframe2, aes(x=anyobs, y=preds), color="red", size=5) +
-  geom_point(data=byyear, aes(x=anyobs, y=totobs)) +
-  #geom_abline(slope=1, intercept=0, color="red", linetype=2) +
-  xlab("positive county-weeks in a year") + ylab("total cases that year") 
+  geom_point(data=thisyear, aes(x=totpos, y=totcases), color="red", size=5) +
+  geom_point(data=yearlies, aes(x=totpos, y=totcases)) +
+  xlab("positive county-weeks in a year") + ylab("total cases that year") +
+  facet_wrap(~model, ncol=2)
 ```
 
 We expect that there will be `r positivesthisyear` positive district-weeks this year. Since ArboMAP models positive district-weeks rather than total cases, we can only make a rough estimate based on the relationship of cases to district-weeks. If historical patterns hold (dashed red line), we expect there to be `r round(predframe2$preds,1)` cases this year (red dot). The grey line indicates the case count if there were only one case per positive district-week. Especially in the height of the season, some districts that have one case that week will have more than one case.
