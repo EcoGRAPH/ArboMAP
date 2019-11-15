@@ -1021,7 +1021,6 @@ predframe <- expand.grid(totpos = seq(from=0,
                                      length.out=50),
                          model=unique(prevyears$model))
 predframe$totcases <- predict(relationship, newdata = predframe)
-
 thisyear$totcases <- predict(relationship, newdata = thisyear)
 
 ggplot() + geom_line(data=predframe, aes(x=totpos, y=totcases), color="red", linetype=2) +
@@ -1030,9 +1029,14 @@ ggplot() + geom_line(data=predframe, aes(x=totpos, y=totcases), color="red", lin
   geom_point(data=yearlies, aes(x=totpos, y=totcases)) +
   xlab("positive county-weeks in a year") + ylab("total cases that year") +
   facet_wrap(~model, ncol=2)
+
+thisyear$totest <- round_any(thisyear$totest, 0.1)
+thisyear$totcases <- round_any(thisyear$totcases, 0.1)
+kable(thisyear[c("model", "totest", "totcases")],
+      col.names=c("model", "est. positives", "total est. cases"))
 ```
 
-We expect that there will be `r positivesthisyear` positive district-weeks this year. Since ArboMAP models positive district-weeks rather than total cases, we can only make a rough estimate based on the relationship of cases to district-weeks. If historical patterns hold (dashed red line), we expect there to be `r round(predframe2$preds,1)` cases this year (red dot). The grey line indicates the case count if there were only one case per positive district-week. Especially in the height of the season, some districts that have one case that week will have more than one case.
+
 
 ## Results for `r weekinquestionSun` to `r format(weekinquestionSat, "%m-%d")`
 
