@@ -39,7 +39,8 @@ packages <- c("reshape2", "ggplot2", "gridExtra",
               "raster","spdep","mgcv","sp","rgdal",
               "GISTools","data.table","splines","maps",
               "broom","mapproj", "Hmisc", "parallel",
-              "rccmisc", "pROC", "ResourceSelection")
+              "rccmisc", "pROC", "ResourceSelection",
+              "knitr")
 for (package in packages) {
     if (!require(package, character.only=T, quietly=T)) {
         install.packages(package, repos = "http://cran.us.r-project.org")
@@ -55,19 +56,19 @@ for (package in packages) {
 ostype <- "windows"
 if (!(ostype %in% c("windows", "mac"))) { ostype <- "windows" }
 
-# spline type is either fixed df cubic regression spline or a thin-plate spline
-splinetype <- "fixeddfcr"
-if (!(splinetype %in% c("fixeddfcr", "thinplate"))) { splinetype <- "thinplate" }
+# model names
+modelnames <- c("tp-sv-anom", "cub-fx-nonanom")
 
-# determine whether relationships evolve over the course of the year
-splineevolution <- "notevolving"
-if (!(splineevolution %in% c("seasonallyvarying", "notevolving"))) { splineevolution <- "notevolving" }
+# model formulas
+modelformulas <- c("cub-fx-nonanom"   = "anycases ~ 0 + district + MIRsummarystat + s(lag, by=var1, bs='cr') + s(lag, by=var2, bs='cr')",
+                   "cub-sv-nonanom"   = "anycases ~ 0 + district + MIRsummarystat + s(lag, doymat, by=var1, bs='cr') + s(lag, doymat, by=var2, bs='cr')",
+                   "tp-fx-nonanom"    = "anycases ~ 0 + district + MIRsummarystat + s(lag, by=var1, bs='tp') + s(lag, by=var2, bs='tp')",
+                   "tp-sv-anom"       = "anycases ~ 0 + district + MIRsummarystat + s(lag, doymat, by=anom_var1, bs='tp') + s(lag, doymat, by=anom_var2, bs='tp') + s(doy, bs='tp')")
 
-# model either uses anomalized environmental and human data or uses raw data
-anomalization <- "notanomalized"
-if (!(anomalization %in% c("notanomalized", "anomalized"))) { anomalization <- "notanomalized" }
+# adjust smoothness
+modelgamma <- 1.0
 
-# where do we want the outputs?
+# where do we want the outputs? 
 graphicoutputdir <- ".\\graphical outputs\\"
 fullcasematoutputdir <- ".\\case matrix with estimates\\"
 mosqmatoutputdir <- ".\\mosquito matrix with estimates\\"
@@ -82,6 +83,9 @@ humandatafile <- ".\\human case data\\simulated human case data.csv"
 # probably, cut this off at the end of last year
 # DO NOT use any human cases from the year you're modeling
 maxobservedhumandate <- as.Date("2017-12-31", "%Y-%m-%d")
+
+# cull some proportion of the outlying human cases
+humancasealpha <- 0.02
 
 # which week are we producing the graphs for?
 weekinquestion <- as.Date("2018-09-15", "%Y-%m-%d")
@@ -205,24 +209,21 @@ weather <- subset(weather, !duplicated(weather$districtdate))
 # be certain district is a factor before modeling
 weather$district <- factor(weather$district)
 
-# anomalize weather data if requested
-if (anomalization == "anomalized") {
-  
-  for (curcol in c(var1name, var2name)) {
+# create the anomalized weather
+for (curcol in c(var1name, var2name)) {
       
     weather$tempvar <- weather[,curcol]
     tempmod <- bam(tempvar ~ district + s(doy, bs="cc", by=district), data=weather, discrete=TRUE)
-    weather[,curcol] <- resid(tempmod)
-      
-  }
- 
-  weather$tempvar <- NULL
-     
+    weather[,paste("anom_", curcol, sep="")] <- resid(tempmod)
+    
 }
-
+weather$tempvar <- NULL
+ 
 # plot normals and this year
 weather$var1 <- weather[,which(colnames(weather) == var1name)]
 weather$var2 <- weather[,which(colnames(weather) == var2name)]
+weather$anom_var1 <- weather[,which(colnames(weather) == paste("anom_", var1name, sep=""))]
+weather$anom_var2 <- weather[,which(colnames(weather) == paste("anom_", var2name, sep=""))]
 
 weather <- group_by(weather,
                     doy)
@@ -232,7 +233,13 @@ doymet <- dplyr::summarise(weather,
                            max_var1 = max(var1, na.rm=TRUE),
                            max_var2 = max(var2, na.rm=TRUE),
                            min_var1 = min(var1, na.rm=TRUE),
-                           min_var2 = min(var2, na.rm=TRUE))
+                           min_var2 = min(var2, na.rm=TRUE),
+                           anom_med_var1 = quantile(anom_var1, probs=0.50, na.rm=TRUE),
+                           anom_med_var2 = quantile(anom_var2, probs=0.50, na.rm=TRUE),
+                           anom_max_var1 = max(anom_var1, na.rm=TRUE),
+                           anom_max_var2 = max(anom_var2, na.rm=TRUE),
+                           anom_min_var1 = min(anom_var1, na.rm=TRUE),
+                           anom_min_var2 = min(anom_var2, na.rm=TRUE))
 weather <- ungroup(weather)
 
 thisyear <- max(weather$year, na.rm=TRUE)
@@ -244,15 +251,23 @@ thisyear <- dplyr::summarize(thisyear,
                              max_var1 = max(var1, na.rm=TRUE),
                              max_var2 = max(var2, na.rm=TRUE),
                              min_var1 = min(var1, na.rm=TRUE),
-                             min_var2 = min(var2, na.rm=TRUE))
+                             min_var2 = min(var2, na.rm=TRUE),
+                             anom_med_var1 = quantile(anom_var1, probs=0.50, na.rm=TRUE),
+                             anom_med_var2 = quantile(anom_var2, probs=0.50, na.rm=TRUE),
+                             anom_max_var1 = max(anom_var1, na.rm=TRUE),
+                             anom_max_var2 = max(anom_var2, na.rm=TRUE),
+                             anom_min_var1 = min(anom_var1, na.rm=TRUE),
+                             anom_min_var2 = min(anom_var2, na.rm=TRUE))
 
 weather$var1 <- NULL
 weather$var2 <- NULL
+weather$anom_var1 <- NULL
+weather$anom_var2 <- NULL
 
 tempdf <- left_join(doymet, thisyear, by="doy")
 ```
 
-Weather data from the gridMET data set range from `r min(weather$date, na.rm=TRUE)` to `r max(weather$date, na.rm=TRUE)`. Below are graphs of statewide daily averages of `r var1name` and `r var2name`. Observations for the current year are in red. Black is the medium from all other years, and the grey band indicates the max/min ever observed. If these data were anomalized, then above (below) zero means higher (lower) than average for that day of the year. Otherwise, data are on their original scales.
+Weather data from the gridMET data set range from `r min(weather$date, na.rm=TRUE)` to `r max(weather$date, na.rm=TRUE)`. Below are graphs of statewide daily averages of `r var1name` and `r var2name`. Observations for the current year are in red. Black is the medium from all other years, and the grey band indicates the max/min ever observed. Below this are the anomalized weather indices, from which the weekly averages have been subtracted to show deviations above/below the mean.
 
 ```{r weatherplots, fig.width=7, fig.height=5, echo=FALSE}
 plot1 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=med_var1)) +
@@ -270,6 +285,24 @@ plot2 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=med_var2)) +
                 sep=" ")) +
   xlab("Day of the year") + ylab(var2name)
 grid.arrange(plot1, plot2, nrow=2)
+
+plot3 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=anom_med_var1)) +
+  geom_ribbon(data=doymet, aes(x=doy, ymin=anom_min_var1, ymax=anom_max_var1), alpha=0.3) +
+  geom_line(data=thisyear, aes(x=doy, y=anom_med_var1), color="red", size=1) +
+  xlab("Day of the year") + ylab(var1name) +
+  ggtitle(paste("anomalized",
+                var1name, 
+                max(weather$year, na.rm=TRUE),
+                sep=" "))
+plot4 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=anom_med_var2)) +
+  geom_ribbon(data=doymet, aes(x=doy, ymin=anom_min_var2, ymax=anom_max_var2), alpha=0.3) +
+  geom_line(data=thisyear, aes(x=doy, y=anom_med_var2), color="red", size=1) +
+  ggtitle(paste("anomalized",
+                var2name,
+                max(weather$year, na.rm=TRUE),
+                sep=" ")) +
+  xlab("Day of the year") + ylab(var2name)
+grid.arrange(plot3, plot4, nrow=2)
 
 # simplify the district names
 weather$district <- simplifynames(weather$district)
@@ -295,8 +328,6 @@ if (ostype == "windows") {
 }
 ```
 
-
-\newpage
 ## Vector infection data
 
 ```{r mosquitodataread, echo=FALSE} 
@@ -455,11 +486,11 @@ hWNVminyear <- minmosqyear
 hWNVmaxyear <- maxmosqyear-1
 human <- human[which((human$creationyear >= hWNVminyear) & (human$creationyear <= hWNVmaxyear)),]
 
-# # figure out which chunk of data we should be analyzing
+# figure out which chunk of data we should be analyzing
 human$weeknum <- as.numeric(format(human$date, "%U"))
-minmaxweekquants <- quantile(human$weeknum, probs=c(0, 1), na.rm=TRUE)
-absminobsweek <- minmaxweekquants[1]
-absmaxobsweek <- minmaxweekquants[2]
+minmaxweekquants <- quantile(human$weeknum, probs=c(humancasealpha/2, 1-humancasealpha/2), na.rm=TRUE)
+humanminobsweek <- minmaxweekquants[1]
+humanmaxobsweek <- minmaxweekquants[2]
 
 # create the full list of weeks
 minobservedhumandate <- min(human$date)
@@ -475,10 +506,15 @@ fullcasemat$totalcases <- rep(0, nrow(fullcasemat))
 fullcasemat$observed   <- 1*((fullcasemat$weekstartdate >= minobservedhumandate)&
                              (fullcasemat$weekstartdate <= maxobservedhumandate))
 
+# mark those district-weeks which are in the modeled set
+fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
+fullcasemat$modeled <- fullcasemat$observed * (fullcasemat$weeknum >= humanminobsweek) * (fullcasemat$weeknum <= humanmaxobsweek)
+
+# count cases
 for (i in 1:nrow(fullcasemat)) {
   
   thisweekstartdate <- fullcasemat$weekstartdate[i]
-  thisdistrict        <- fullcasemat$district[i]
+  thisdistrict      <- fullcasemat$district[i]
   
   tempcases <- human[which(human$district == thisdistrict),]
   tempcases <- tempcases[which(tempcases$date >= thisweekstartdate),]
@@ -617,7 +653,7 @@ if (ostype == "windows") {
 
 ## Human data
 
-In the graph below, positive districts by week are shown over all years.
+In the graph below, positive districts by week are shown over all years. Only weeks within the two dashed lines are used in modeling, so that the consistently negative weeks outside of this range do not have an effect on the stability of the model.
 
 ```{r humandatasummary, echo=FALSE, include=TRUE, fig.width=7, fig.height=3.5}
 fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
@@ -628,6 +664,8 @@ fullcasemat <- ungroup(fullcasemat)
 ggplot(sumanyhumancases) + geom_line(aes(x=weeknum, y=totany)) +
   ggtitle("positive districts by week, any year") +
   xlab("week number") + ylab("total districts positive") +
+  geom_vline(xintercept=humanminobsweek, linetype=2) +
+  geom_vline(xintercept=humanmaxobsweek, linetype=2) +
   scale_x_continuous(breaks=seq(from=min(sumanyhumancases$weeknum),
                                 to=max(sumanyhumancases$weeknum),
                                 by=2))
@@ -642,11 +680,15 @@ The predictive model of human cases was calibrated using `r totcase` historical 
 The graphs below show observed statewide risk (black) and estimated risk (red) up to `r maxdesiredhumandatestr` `r maxdesiredhumandate`. Observed risk should be completely zero during the last year - these data are not used in the model, and will only be updated once final human case data are received at the end of the year.
 
 ```{r humandata2, echo=TRUE, warnings=FALSE, include=FALSE}
-# select which variables we're going to use!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# select which variables we're going to use
 dailyextr <- data.frame(dailyextr)
 dailyextr$var1 <- dailyextr[,which(colnames(dailyextr) == var1name)]
 dailyextr$var2 <- dailyextr[,which(colnames(dailyextr) == var2name)]
-dailyextr <- dailyextr[c("district","date","var1","var2")]
+
+dailyextr$anom_var1 <- dailyextr[,which(colnames(dailyextr) == paste("anom_", var1name, sep=""))]
+dailyextr$anom_var2 <- dailyextr[,which(colnames(dailyextr) == paste("anom_", var2name, sep=""))]
+
+dailyextr <- dailyextr[c("district", "date", "var1", "var2", "anom_var1", "anom_var2")]
 dailyextr$district <- simplifynames(dailyextr$district)
 # fill in missing and future climatological data
 totaldailyextr <- expand.grid(district=unique(dailyextr$district),
@@ -669,8 +711,11 @@ dailyextr <- ungroup(dailyextr)
 dailyextr <- left_join(dailyextr, districtdoymean,
                    by=c("district","doy"))
 
+# replace missing with reasonable values
 dailyextr$var1[is.na(dailyextr$var1)] <- dailyextr$meanvar1[is.na(dailyextr$var1)]
 dailyextr$var2[is.na(dailyextr$var2)] <- dailyextr$meanvar2[is.na(dailyextr$var2)]
+dailyextr$anom_var1[is.na(dailyextr$anom_var1)] <- 0
+dailyextr$anom_var2[is.na(dailyextr$anom_var2)] <- 0
 
 # garbage collection
 rm(districtdoymean)
@@ -698,11 +743,13 @@ gc()
 # pivot
 mean1data <- dcast(datalagger, district + date ~ lag, value.var="var1")
 names(mean1data) <- paste("var1_",names(mean1data),sep="")
-head(mean1data)
-
 mean2data <- dcast(datalagger, district + date ~ lag, value.var="var2")
 names(mean2data) <- paste("var2_",names(mean2data),sep="")
-head(mean2data)
+
+anom_mean1data <- dcast(datalagger, district + date ~ lag, value.var="anom_var1")
+names(anom_mean1data) <- paste("anom_var1_",names(anom_mean1data),sep="")
+anom_mean2data <- dcast(datalagger, district + date ~ lag, value.var="anom_var2")
+names(anom_mean2data) <- paste("anom_var2_",names(anom_mean2data),sep="")
 
 # garbage collection
 rm(datalagger)
@@ -725,8 +772,27 @@ fullcasemat$var1 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
 fullcasemat$var2 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
                                                 pattern="var2_",
                                                 fixed=TRUE)])
+fullcasemat <- merge(x=fullcasemat, y=anom_mean1data,
+                     by.x=c("district", "weekstartdate"),
+                     by.y=c("anom_var1_district","anom_var1_date"),
+                     all.x=TRUE)
+fullcasemat <- merge(x=fullcasemat, y=anom_mean2data,
+                     by.x=c("district", "weekstartdate"),
+                     by.y=c("anom_var2_district","anom_var2_date"),
+                     all.x=TRUE)
+
+# turn these into matrices too
+fullcasemat$anom_var1 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
+                                                pattern="anom_var1_",
+                                                fixed=TRUE)])
+fullcasemat$anom_var2 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
+                                                pattern="anom_var2_",
+                                                fixed=TRUE)])
+
 fullcasemat[,grep(x=colnames(fullcasemat), pattern="var1_", fixed=TRUE)] <- NULL
 fullcasemat[,grep(x=colnames(fullcasemat), pattern="var2_", fixed=TRUE)] <- NULL
+fullcasemat[,grep(x=colnames(fullcasemat), pattern="anom_var1_", fixed=TRUE)] <- NULL
+fullcasemat[,grep(x=colnames(fullcasemat), pattern="anom_var2_", fixed=TRUE)] <- NULL
 
 # import strata
 fullcasemat <- merge(x=fullcasemat, y=strata,
@@ -741,16 +807,9 @@ for (curcol in 1:dim(fullcasemat$lag)[2]) {
 
 }
 
-# if we need a seasonally-varying distributed lag, create those terms here
-if (splineevolution == "seasonallyvarying") {
-  
-  fullcasemat$doymat <- fullcasemat$lag
-  fullcasemat$doymat[,] <- fullcasemat$doy
-
-  #fullcasemat$cendoymat <- fullcasemat$lag
-  #fullcasemat$cendoymat[,] <- fullcasemat$cendoy
-
-}
+# create terms for seasonally-varying distributed lag
+fullcasemat$doymat <- fullcasemat$lag
+fullcasemat$doymat[,] <- fullcasemat$doy
 
 # garbage collection
 rm(mean1data)
@@ -785,116 +844,82 @@ fullcasemat$MIRsummarystat[is.na(fullcasemat$MIRsummarystat)] <- fullcasemat$MIR
 
 fullcasemat$strata <- NULL
 fullcasemat$stratayear <- NULL
+fullcasemat$MIRsummarystat2 <- NULL
 
 fullcasemat <- ungroup(fullcasemat)
 ```
 
-```{r humanreg, echo=FALSE, include=FALSE}
-# get rid of districts that never have a positive case in the time period
-fullcasemat$doy <- as.numeric(format(fullcasemat$weekstartdate, "%j"))
+Model fit statistics are shown below.
 
+```{r humanreg, echo=FALSE}
 # make sure district is a factor before modeling
 fullcasemat$district <- factor(fullcasemat$district)
 
-# create formula
-if (splinetype == "thinplate") {
+# get list of models and run them
+preds <- data.frame()
+modelevals <- data.frame()
+for (curmodel in modelnames) {
   
-  myformula <- "s(lag, by=var1, bs='tp') + s(lag, by=var2, bs='tp')"
+  thisformula <- modelformulas[c(curmodel)]
+  myform <- as.formula(thisformula)
+  
+  # main human risk model
+  cl <- makeCluster(detectCores(logical=FALSE)-1)
+  firstreg  <- bam(formula=myform,
+                   family=binomial(), data=fullcasemat,
+                   subset=modeled==1,
+                   cluster=cl)
+  stopCluster(cl)
+  
+  # predict on this model
+  fullcasemat$pred <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
+
+  # get data frame of predictions from this model
+  tempdf <- data.frame(weekstartdate = fullcasemat$weekstartdate,
+                       district = fullcasemat$district,
+                       anycases = fullcasemat$anycases,
+                       observed = fullcasemat$observed,
+                       modeled = fullcasemat$modeled,
+                       pred = fullcasemat$pred,
+                       model = curmodel)
+  preds <- bind_rows(preds, tempdf)
+  
+  # evaluate this model fit
+  tempdf <- fullcasemat[fullcasemat$modeled == 1,]
+  tempdf <- data.frame(auc = roc(response = tempdf$anycases,
+                                 predictor = tempdf$pred,
+                                 na.rm=TRUE,
+                                 auc=TRUE)$auc,
+                       aic = round_any(AIC(firstreg)[1], 0.01),
+                       model = curmodel)
+  modelevals <- bind_rows(modelevals, tempdf)
 
 }
-if (splinetype == "fixeddfcr") {
-  
-  myformula <- "s(lag, by=var1, bs='cr', fx=TRUE, k=6) + s(lag, by=var2, bs='cr', fx=TRUE, k=6)"
-}
 
-if (anomalization == "anomalized") {
-  
-  myformula <- paste(myformula, " + s(doy, bs='cc')", sep="")
-  
-}
-
-if (splineevolution == "seasonallyvarying") {
-  
-  myformula <- gsub(x=myformula,
-                    pattern="s(lag, ",
-                    fixed=TRUE,
-                    replacement = "te(lag, doymat, ")
-  
-  if (splinetype == "thinplate") {
-    
-    myformula <- gsub(x=myformula,
-                      pattern="bs='tp'",
-                      fixed=TRUE,
-                      replacement = "bs=c('tp','tp')")
-    
-  }
-  
-  if (splinetype == "fixeddfcr") {
-    
-    myformula <- gsub(x=myformula,
-                      pattern="bs='cr'",
-                      fixed=TRUE,
-                      replacement = "bs=c('cr','cr')")
-    
-    
-  }
-  
-}
-
-myformula <- paste("anycases ~ 0 + MIRsummarystat + district", myformula, sep=" + ")
-myform <- as.formula(myformula)
-
-
-
-
-# main human risk model
-cl <- makeCluster(detectCores(logical=FALSE)-1)
-firstreg  <- bam(formula=myform,
-                 family=binomial(), data=fullcasemat,
-                 subset=observed==1,
-                 cluster=cl)
-stopCluster(cl)
-
-# save the model
-save(firstreg, file=paste(modeloutputdir,
-                          splinetype, "-",
-                          splineevolution, "-",
-                          anomalization,
-                          ".RData", sep=""))
-
-# show predictions
-preds <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
-fullcasemat$est <- preds
-preds <- data.frame(est=preds)
-
+kable(modelevals)
 ```
 
 ```{r humanregplot, echo=FALSE}
-tempdf <- data.frame(weekstartdate=fullcasemat$weekstartdate,
-                     obs=fullcasemat$anycases,
-                     est=preds$est,
-                     observed=fullcasemat$observed)
-tempdf$week <- as.numeric(format(tempdf$weekstartdate, "%U"))
+preds$weeknum <- as.numeric(format(preds$weekstartdate, "%U"))
 
 # figure out in which weeks we actually have cases, for the purpose of graphing
-tempdf <- tempdf[tempdf$week >= absminobsweek,]
-tempdf <- tempdf[tempdf$week <= absmaxobsweek,]
+tempdf <- preds[preds$weeknum >= (humanminobsweek-1),]
+tempdf <- tempdf[tempdf$weeknum <= (humanmaxobsweek+1),]
 
-tempdf <- group_by(tempdf, weekstartdate)
+tempdf <- group_by(tempdf, weekstartdate, model)
 tempdf <- dplyr::summarize(tempdf,
-                    obs=mean(obs, na.rm=TRUE),
-                    est=mean(est, na.rm=TRUE),
-                    week=mean(week, na.rm=TRUE))
+                    obs=mean(anycases, na.rm=TRUE),
+                    est=mean(pred, na.rm=TRUE),
+                    week=mean(weeknum, na.rm=TRUE))
 
-tempdf$newwe <- (tempdf$week - absminobsweek) / (absmaxobsweek - absminobsweek + 1)
+tempdf$newwe <- (tempdf$week - humanminobsweek) / (humanmaxobsweek - humanminobsweek + 1)
 tempdf$year <- as.numeric(format(tempdf$weekstartdate, "%Y"))
 tempdf$newdate <- tempdf$year + tempdf$newwe
 ```
-
 ```{r fig.width=7, fig.height=3.5, echo=FALSE, warnings=FALSE}
 thisplot <- ggplot(tempdf) + geom_line(aes(x=newdate,
-                               y=obs)) +
-  geom_line(aes(x=newdate, y=est), color="red") +
+                               y=obs, group=model)) +
+  geom_line(aes(x=newdate, y=est, group=model, color=model, linetype=model)) +
   ggtitle("Statewide model predictions") +
   xlab("") + ylab("") +
   scale_x_continuous(breaks=seq(from=minmosqyear,to=(maxmosqyear+1),by=1),
@@ -905,35 +930,22 @@ thisplot <- ggplot(tempdf) + geom_line(aes(x=newdate,
   theme(axis.text.x = element_text(hjust=-0.225))
 plot(thisplot)
 ```
-```{r silentsave8879823, include=FALSE, echo=FALSE}
-if (ostype == "windows") {
- 
-  ggsave(paste(graphicoutputdir,
-               "predictions.png",
-               sep=""), thisplot)
 
-}
-```
 ```{r curyearplot, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 
-tempdf <- fullcasemat
-tempdf <- group_by(tempdf, weekstartdate)
+tempdf <- preds
+tempdf <- group_by(tempdf, weekstartdate, model)
 tempdf <- dplyr::summarize(tempdf,
                     obs=mean(anycases, na.rm=TRUE),
-                    est=mean(est, na.rm=TRUE))
+                    est=mean(pred, na.rm=TRUE))
 tempdf$year <- as.numeric(format(tempdf$weekstartdate, "%Y"))
 tempdf$month <- as.numeric(format(tempdf$weekstartdate, "%m"))
 tempdf$weeknum <- as.numeric(format(tempdf$weekstartdate, "%U"))
 
-tempdf <- tempdf[tempdf$weeknum >= absminobsweek,]
-tempdf <- tempdf[tempdf$weeknum <= absmaxobsweek,]
+tempdf <- tempdf[tempdf$weeknum >= humanminobsweek,]
+tempdf <- tempdf[tempdf$weeknum <= humanmaxobsweek,]
 
 thisyear <- tempdf[tempdf$year == maxmosqyear,]
-comparison1 <- tempdf[tempdf$year == compyear1,]
-comparison2 <- tempdf[tempdf$year == compyear2,]
-
-comparison1$weekstartdate <- comparison1$weekstartdate + (maxmosqyear - compyear1)*365
-comparison2$weekstartdate <- comparison2$weekstartdate + (maxmosqyear - compyear2)*365
 
 tempdf <- bind_rows(thisyear,
                     comparison1,
@@ -944,54 +956,37 @@ tempdf$est[tempdf$year == compyear2] <- tempdf$obs[tempdf$year == compyear2]
 tempdf$year <- factor(tempdf$year)
 
 tempdf2 <- thisyear[thisyear$weekstartdate >= weekinquestionSun,]
-tempdf2 <- tempdf2[1,]
+tempdf2 <- tempdf2[1:length(modelnames),]
+
+tempdf2$totalestimated <- round_any(tempdf2$est * length(district_shapes), 0.1)
+tempdf2$est <- round_any(tempdf2$est, 0.01)
+
+kable(tempdf2)
 ```
-Predictions for `r maxmosqyear` are compared to observations in `r compyear1` and `r compyear2`. We expect `r round(66*tempdf2$est,1)` districts to have at least one human case between `r weekinquestionSunstr` `r weekinquestionSun` and `r weekinquestionSatstr` `r weekinquestionSat`.
 
 ```{r plotblah, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-thisplot <- ggplot(tempdf) + geom_line(data=tempdf, aes(x=weekstartdate,
-                           y=est,
-                           color=year,
-                           linetype=year)) +
-  geom_point(data=tempdf2, aes(x=weekstartdate, y=est), color="red", size=4)+
-  xlab("") + ylab("") +
-  scale_x_date(date_labels="%b", date_breaks="1 month",
-               limits=c(as.Date(paste(maxmosqyear, "-05-01", sep=""), "%Y-%m-%d"),
-                        as.Date(paste(maxmosqyear, "-11-15", sep=""), "%Y-%m-%d")),
-               labels=c("May","Jun","Jul","Aug","Sep","Oct","Nov","")) +
-  ylab("Proportion of districts positive") +
-  theme(panel.grid.minor.x=element_blank()) +
-  scale_linetype_manual(values=c(3,2,1)) +
-  scale_color_manual(values=c("black","black","red"))
-thisplot1 <- thisplot + ggtitle(paste("Estimates for ",
-                maxmosqyear, " compared to observations in ", compyear1, " and ", compyear2,
-                "\nwith week beginning ", weekinquestionSun, " highlighted", sep="")) +
-  theme(axis.text.x = element_text(hjust=-1.25))
-plot(thisplot1)
-```
-```{r silentsave12899234, include=FALSE, echo=FALSE}
-thisplot2 <- thisplot + theme(legend.position="bottom") +
-  theme(axis.text.x = element_text(hjust=-0.50))
-
-if (ostype == "windows") { 
-
-  ggsave(paste(graphicoutputdir,
-               "estimates.png",
-               sep=""), thisplot2,
-         width=4,
-         height=4)
-
-}
+# thisplot <- ggplot(tempdf) + geom_line(data=tempdf, aes(x=weekstartdate,
+#                            y=est,
+#                            color=year,
+#                            linetype=year)) +
+#   geom_point(data=tempdf2, aes(x=weekstartdate, y=est, color=model, linetype=model), color="red", size=4)+
+#   xlab("") + ylab("") +
+#   scale_x_date(date_labels="%b", date_breaks="1 month",
+#                limits=c(as.Date(paste(maxmosqyear, "-05-01", sep=""), "%Y-%m-%d"),
+#                         as.Date(paste(maxmosqyear, "-11-15", sep=""), "%Y-%m-%d")),
+#                labels=c("May","Jun","Jul","Aug","Sep","Oct","Nov","")) +
+#   ylab("Proportion of districts positive") +
+#   theme(panel.grid.minor.x=element_blank())
+#   #scale_linetype_manual(values=c(3,2,1)) +
+#   #scale_color_manual(values=c("black","black","red"))
+# thisplot1 <- thisplot + ggtitle(paste("Estimates for ",
+#                 maxmosqyear, " compared to observations in ", compyear1, " and ", compyear2,
+#                 "\nwith week beginning ", weekinquestionSun, " highlighted", sep="")) +
+#   theme(axis.text.x = element_text(hjust=-1.25))
+# plot(thisplot1)
 ```
 
 ```{r echo=FALSE}
-if (ostype == "windows") {
-  
-  write.csv(x=fullcasemat[c("district","weekstartdate",
-                            "anycases","totalcases", "est")],
-            file=paste(fullcasematoutputdir, "case matrix.csv", sep=""))
-  
-}
 fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
 thisyear <- fullcasemat[fullcasemat$year == maxmosqyear,]
 previousyears <- fullcasemat[fullcasemat$year < maxmosqyear,]
@@ -1045,11 +1040,11 @@ projected_districts.df$district <- simplifynames(projected_districts.df$NAME)
 # get this week's predictions
 thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
 thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
-thisweek <- thisweek[c("district", "est")]
+thisweek <- thisweek[c("district", "pred")]
 
 projected_districts.df <- left_join(projected_districts.df, thisweek,
                                    by="district")
-projected_districts.df$est[is.na(projected_districts.df$est)] <- min(projected_districts.df$est, na.rm=TRUE)
+projected_districts.df$pred[is.na(projected_districts.df$pred)] <- min(projected_districts.df$pred, na.rm=TRUE)
 ```
 ```{r shapefile2, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 thisplot <- ggplot(projected_districts.df) +
@@ -1341,8 +1336,8 @@ termsum$date <- as.Date(paste(termsum$year, "-01-01", sep=""), "%Y-%m-%d") + (te
 #termsum$month <- as.numeric(format(termsum$date, "%m"))
 termsum$weeknum <- as.numeric(format(termsum$date, "%U"))
 
-termsum <- termsum[termsum$weeknum >= absminobsweek,]
-termsum <- termsum[termsum$weeknum <= absmaxobsweek,]
+termsum <- termsum[termsum$weeknum >= humanminobsweek,]
+termsum <- termsum[termsum$weeknum <= humanmaxobsweek,]
 
 maxyear <- termsum[termsum$year == max(termsum$year, na.rm=TRUE),]
 termdf$year <- factor(termdf$year)
@@ -1383,8 +1378,8 @@ myhoslemtotal <- hoslem.test(x=tempdf$anycases,
 
 # do the same on restricted set
 fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
-tempdf   <- fullcasemat[fullcasemat$weeknum >= absminobsweek,]
-tempdf   <- tempdf[tempdf$weeknum <= absmaxobsweek,]
+tempdf   <- fullcasemat[fullcasemat$weeknum >= humanminobsweek,]
+tempdf   <- tempdf[tempdf$weeknum <= humanmaxobsweek,]
 tempdf   <- tempdf[tempdf$year < max(tempdf$year),]
 tempdf   <- tempdf[!is.na(tempdf$anycases),]
 tempdf   <- tempdf[!is.na(tempdf$est),]
