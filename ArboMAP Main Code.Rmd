@@ -873,14 +873,14 @@ for (curmodel in modelnames) {
   stopCluster(cl)
   
   # add model plots to the list
-  modelplots <- c(modelplots, plot(firstreg, select=1))
+  modelplots[[curmodel]] <- plot(firstreg, select=1)
   
   # predict on this model
   fullcasemat$pred <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
   
   # censor predictions outside of the observed range
-  fullcasemat$pred[fullcasemat$weeknum < humanminobsweek,] <- 0
-  fullcasemat$pred[fullcasemat$weeknum > humanmaxobsweek,] <- 0
+  fullcasemat$pred[fullcasemat$weeknum < humanminobsweek] <- 0
+  fullcasemat$pred[fullcasemat$weeknum > humanmaxobsweek] <- 0
 
   # get data frame of predictions from this model
   tempdf <- data.frame(weekstartdate = fullcasemat$weekstartdate,
@@ -1199,7 +1199,50 @@ plot(thisplotrisk)
 ```
 ## Estimated dependence functions
 
+```{r modelplots, include=TRUE, echo=FALSE}
+curmodel <- modelnames[1]
+for (curmodel in modelnames) {
+  
+  thisplot <- modelplots[[curmodel]]
+  plotholder <- list()
+  for (curplot in 1:length(thisplot)) {
+  
+    thissubplot <- thisplot[[curplot]]
 
+    # is this a 1d plot?
+    if (is.null(thissubplot$main)) {
+      
+      tempdf <- data.frame(x=thissubplot$x,
+                           y=thissubplot$fit)
+      
+      mygg <- ggplot(tempdf) + geom_line(aes(x=x, y=y)) +
+        xlab(thissubplot$xlab) + ylab(thissubplot$ylab) +
+        ggtitle(paste("model: ", curmodel, ", term: ", thissubplot$ylab, sep=""))
+      
+      plotholder[[thissubplot$ylab]] <- mygg
+      
+    }
+    
+    # is this a 2d plot?
+    if (!is.null(thissubplot$main)) {
+      
+      tempdf <- expand.grid(x=thissubplot$x,
+                            y=thissubplot$y)
+      tempdf$fit <- thissubplot$fit
+      mygg <- ggplot(tempdf) + geom_raster(aes(x=x, y=y, fill=fit)) +
+        xlab(thissubplot$xlab) + ylab(thissubplot$ylab) +
+        ggtitle(paste("model: ", curmodel, ", term: ", thissubplot$main, sep=""))
+
+      plotholder[[thissubplot$main]] <- mygg
+      
+    }
+   
+    plot(mygg)
+     
+  }
+  
+}
+```
 
 \newpage
 
