@@ -1109,7 +1109,7 @@ This map indicates whether probabilities reported in the previous map are higher
 ```{r riskcalcs, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 preds <- group_by(preds, district, weekstartdate)
 tempdf <- dplyr::summarize(preds, pred = mean(pred, na.rm=TRUE))
-fullcasemat$pred <- NULL
+#fullcasemat$pred <- NULL
 fullcasemat$var1 <- NULL
 fullcasemat$var2 <- NULL
 fullcasemat$anom_var1 <- NULL
