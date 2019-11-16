@@ -57,11 +57,13 @@ ostype <- "windows"
 if (!(ostype %in% c("windows", "mac"))) { ostype <- "windows" }
 
 # model names
-modelnames <- c("tp-sv-anom", "cub-fx-nonanom", "cub-sv-nonanom")
+modelnames <- c("tp-sv-anom", "cub-sv-nonanom")
+#modelnames <- c("cub-fx-nonanom")
 
 # model formulas
 modelformulas <- c("cub-fx-nonanom"   = "anycases ~ 0 + district + MIRsummarystat + s(lag, by=var1, bs='cr') + s(lag, by=var2, bs='cr')",
                    "cub-sv-nonanom"   = "anycases ~ 0 + district + MIRsummarystat + te(lag, doymat, by=var1, bs='cr') + te(lag, doymat, by=var2, bs='cr')",
+                   "cubfx-fx-nonanom" = "anycases ~ 0 + district + MIRsummarystat + s(lag, by=var1, bs='cr', fx=TRUE, k=6) + s(lag, by=var2, bs='cr', fx=TRUE, k=6)",
                    "tp-fx-nonanom"    = "anycases ~ 0 + district + MIRsummarystat + s(lag, by=var1, bs='tp') + s(lag, by=var2, bs='tp')",
                    "tp-sv-anom"       = "anycases ~ 0 + district + MIRsummarystat + te(lag, doymat, by=anom_var1, bs='tp') + te(lag, doymat, by=anom_var2, bs='tp') + s(doy, bs='tp')")
 
@@ -848,6 +850,9 @@ fullcasemat <- ungroup(fullcasemat)
 ```
 
 ```{r humanreg, echo=FALSE, include=FALSE}
+# set up list to contain models
+modelplots <- list()
+
 # make sure district is a factor before modeling
 fullcasemat$district <- factor(fullcasemat$district)
 
@@ -866,6 +871,9 @@ for (curmodel in modelnames) {
                    subset=modeled==1,
                    cluster=cl)
   stopCluster(cl)
+  
+  # add model plots to the list
+  modelplots <- c(modelplots, plot(firstreg, select=1))
   
   # predict on this model
   fullcasemat$pred <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
@@ -1090,10 +1098,15 @@ This map indicates whether probabilities reported in the previous map are higher
 
 ```{r riskcalcs, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 preds <- group_by(preds, district, weekstartdate)
-tempdf <- summarize(preds,
-                    pred = mean(pred, na.rm=TRUE))
+tempdf <- dplyr::summarize(preds, pred = mean(pred, na.rm=TRUE))
 fullcasemat$pred <- NULL
-fullcasemat <- left_join(fullcasemat, pred, by=c("district", "weekstartdate"))
+fullcasemat$var1 <- NULL
+fullcasemat$var2 <- NULL
+fullcasemat$anom_var1 <- NULL
+fullcasemat$anom_var2 <- NULL
+fullcasemat$doymat <- NULL
+fullcasemat$lag <- NULL
+fullcasemat <- left_join(fullcasemat, tempdf, by=c("district", "weekstartdate"))
 
 thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
 thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
@@ -1174,6 +1187,10 @@ thisplotrisk <- ggplot(projected_districts.df) +
 
 plot(thisplotrisk)
 ```
+## Estimated dependence functions
+
+
+
 \newpage
 
 ## District names
