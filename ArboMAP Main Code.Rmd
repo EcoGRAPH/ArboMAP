@@ -930,8 +930,8 @@ thisplot <- ggplot(tempdf) + geom_line(aes(x=newdate,
   theme(legend.position="bottom")
 plot(thisplot)
 thisplot2 <- ggplot(tempdf2) +
-  geom_line(aes(x=newdate, y=est, group=model, color=model, linetype=model)) +
-  ggtitle("Statewide model predictions") +
+  geom_line(aes(x=weekstartdate, y=pred, group=model, color=model, linetype=model)) +
+  ggtitle(paste("Statewide model predictions in ", maxmosqyear, sep="")) +
   xlab("") + ylab("") +
   ylab("Proportion of districts positive") +
   theme(panel.grid.minor.x=element_blank()) +
