@@ -910,6 +910,10 @@ tempdf <- dplyr::summarize(tempdf,
 tempdf$newwe <- (tempdf$week - humanminobsweek) / (humanmaxobsweek - humanminobsweek + 1)
 tempdf$year <- as.numeric(format(tempdf$weekstartdate, "%Y"))
 tempdf$newdate <- tempdf$year + tempdf$newwe
+
+# plot just this year
+preds$year <- as.numeric(format(preds$weekstartdate, "%Y"))
+tempdf2 <- preds[preds$year == maxmosqyear,]
 ```
 ```{r fig.width=7, fig.height=4, echo=FALSE, warnings=FALSE}
 thisplot <- ggplot(tempdf) + geom_line(aes(x=newdate,
@@ -920,6 +924,15 @@ thisplot <- ggplot(tempdf) + geom_line(aes(x=newdate,
   scale_x_continuous(breaks=seq(from=minmosqyear,to=(maxmosqyear+1),by=1),
                      labels=c(seq(from=minmosqyear, to=maxmosqyear, by=1), ""),
                      limits=c((minmosqyear+0.125),(maxmosqyear+1))) +
+  ylab("Proportion of districts positive") +
+  theme(panel.grid.minor.x=element_blank()) +
+  theme(axis.text.x = element_text(hjust=-0.225)) +
+  theme(legend.position="bottom")
+plot(thisplot)
+thisplot2 <- ggplot(tempdf2) +
+  geom_line(aes(x=newdate, y=est, group=model, color=model, linetype=model)) +
+  ggtitle("Statewide model predictions") +
+  xlab("") + ylab("") +
   ylab("Proportion of districts positive") +
   theme(panel.grid.minor.x=element_blank()) +
   theme(axis.text.x = element_text(hjust=-0.225)) +
