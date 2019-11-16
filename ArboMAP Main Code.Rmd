@@ -937,7 +937,7 @@ thisplot2 <- ggplot(tempdf2) +
   theme(panel.grid.minor.x=element_blank()) +
   theme(axis.text.x = element_text(hjust=-0.225)) +
   theme(legend.position="bottom")
-plot(thisplot)
+plot(thisplot2)
 ```
 
 Model fit statistics are shown below.
