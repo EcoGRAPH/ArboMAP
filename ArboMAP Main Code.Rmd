@@ -1104,7 +1104,7 @@ thisplot <- ggplot(projected_districts.df) +
             legend.position="bottom",
             legend.key.width=unit(1, "cm"),
             legend.key.height=unit(0.25,"cm")) +
-  facet_wrap(~model)
+  facet_wrap(~model. ncol=2)
 plot(thisplot)
 ```
 
