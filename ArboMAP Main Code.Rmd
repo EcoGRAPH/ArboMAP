@@ -69,8 +69,8 @@ modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat +
 # run all listed models
 modelnames <- names(modelformulas)
 
-## or choose just one
-#modelnames <- c("cub-sv-nonanom")
+## or choose just two
+#modelnames <- c("cub-sv-nonanom", "tp-sv-anom")
 
 # adjust smoothness
 modelgamma <- 1.0
@@ -869,6 +869,9 @@ for (curmodel in modelnames) {
   thisformula <- modelformulas[c(curmodel)]
   myform <- as.formula(thisformula)
   
+  ## probably delete this
+  #fullcasemat <- fullcasemat[fullcasemat$modeled == 1,]
+  
   # main human risk model
   cl <- makeCluster(detectCores(logical=FALSE)-1)
   firstreg  <- bam(formula=myform,
@@ -909,6 +912,7 @@ for (curmodel in modelnames) {
   modelevals <- bind_rows(modelevals, tempdf)
 
 }
+
 ```
 
 ```{r humanregplot, echo=FALSE}
@@ -966,7 +970,9 @@ plot(thisplot2)
 Model fit statistics are shown below.
 
 ```{r, echo=FALSE, include=TRUE}
-kable(modelevals[c("model", "aic", "auc")])
+modelevals <- modelevals[c("model", "aic", "auc")]
+modelevals <- modelevals[order(modelevals$aic),]
+kable(modelevals)
 ```
 
 Estimates for the week in question are shown below.
@@ -1005,7 +1011,7 @@ kable(tempdf2[c("model", "est", "totalestimated")],
       col.names=c("model", "prop. positive", "districts positive"))
 ```
 
-```{r echo=FALSE}
+```{r echo=FALSE, width=7, height=8}
 preds$year <- as.numeric(format(preds$weekstartdate, "%Y"))
 
 preds <- group_by(preds, year, model)
@@ -1083,8 +1089,10 @@ for (curmodel in unique(thisweek$model)) {
 
 }
 projected_districts.df <- tempdf2
+#View(projected_districts.df)
+
 ```
-```{r shapefile2, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
+```{r shapefile2, include=TRUE, echo=FALSE, fig.width=7, fig.height=8}
 thisplot <- ggplot(projected_districts.df) +
       aes(long,lat,fill=pred,group=group,id=id,guides=FALSE) +
       geom_polygon() + xlab("") + ylab("") +
