@@ -982,28 +982,6 @@ kable(tempdf2[c("model", "est", "totalestimated")],
       col.names=c("model", "prop. positive", "districts positive"))
 ```
 
-```{r plotblah, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-# thisplot <- ggplot(tempdf) + geom_line(data=tempdf, aes(x=weekstartdate,
-#                            y=est,
-#                            color=year,
-#                            linetype=year)) +
-#   geom_point(data=tempdf2, aes(x=weekstartdate, y=est, color=model, linetype=model), color="red", size=4)+
-#   xlab("") + ylab("") +
-#   scale_x_date(date_labels="%b", date_breaks="1 month",
-#                limits=c(as.Date(paste(maxmosqyear, "-05-01", sep=""), "%Y-%m-%d"),
-#                         as.Date(paste(maxmosqyear, "-11-15", sep=""), "%Y-%m-%d")),
-#                labels=c("May","Jun","Jul","Aug","Sep","Oct","Nov","")) +
-#   ylab("Proportion of districts positive") +
-#   theme(panel.grid.minor.x=element_blank())
-#   #scale_linetype_manual(values=c(3,2,1)) +
-#   #scale_color_manual(values=c("black","black","red"))
-# thisplot1 <- thisplot + ggtitle(paste("Estimates for ",
-#                 maxmosqyear, " compared to observations in ", compyear1, " and ", compyear2,
-#                 "\nwith week beginning ", weekinquestionSun, " highlighted", sep="")) +
-#   theme(axis.text.x = element_text(hjust=-1.25))
-# plot(thisplot1)
-```
-
 ```{r echo=FALSE}
 preds$year <- as.numeric(format(preds$weekstartdate, "%Y"))
 
@@ -1111,84 +1089,90 @@ plot(thisplot)
 This map indicates whether probabilities reported in the previous map are higher (red) than average, lower (blue) than average, or right about normal (yellow) compared to the same week in previous years.
 
 ```{r riskcalcs, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-# thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
-# thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
-# thisweek <- thisweek[c("district", "pred", "doy")]
-# 
-# approxdoy <- thisweek$doy[1]
-# 
-# fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
-# 
-# doypreds <- data.frame()
-# for (curyear in unique(fullcasemat$year)) {
-#   
-#   for (curdistrict in unique(fullcasemat$district)) {
-#     
-#     thisdf <- fullcasemat[fullcasemat$year == curyear,]
-#     thisdf <- thisdf[thisdf$district == curdistrict,]
-#     
-#     if(sum(!is.na(thisdf$pred)) > 1) {
-#     
-#       tempdf <- data.frame(district = curdistrict,
-#                            year = curyear,
-#                            pred = approx(x=thisdf$doy,
-#                                         y=thisdf$pred,
-#                                         xout=approxdoy)$y)
-#       
-#       doypreds <- bind_rows(doypreds, tempdf)
-#       
-#     }
-#     
-#   }
-#   
-# }
-# 
-# doypreds2 <- data.frame()
-# for (curdistrict in unique(doypreds$district)) {
-# 
-#   tempdf <- doypreds[doypreds$district == curdistrict,]
-#   tempdf$percentile <- rank(tempdf$pred, ties.method="random") / length(tempdf$pred)
-#   
-#   doypreds2 <- bind_rows(doypreds2, tempdf)
-#   
-# }
-# doypreds <- doypreds2
-# rm(doypreds2)
-# 
-# riskalpha <- 0.25
-# doypreds$riskcategory <- " About average    "
-# doypreds$riskcategory[doypreds$percentile <= riskalpha/2] <- " Lower than usual    "
-# doypreds$riskcategory[doypreds$percentile >= 1-(riskalpha/2)] <- " Higher than usual    "
-# doypredscurrent <- doypreds[doypreds$year == as.numeric(format(weekinquestion, "%Y")),]
-# projected_districts.df <- left_join(projected_districts.df, doypredscurrent,
-#                                    by="district")
-# projected_districts.df$riskcategory[is.na(projected_districts.df$riskcategory)] <- " Not able to model    "
-# thisplotrisk <- ggplot(projected_districts.df) +
-#       aes(long,lat,fill=riskcategory,group=group,guides=FALSE) +
-#       geom_polygon() + 
-#       geom_path(color="black") +
-#       coord_map() + 
-#       ggtitle("") +
-#       theme(text=element_text(size=15)) +
-#       theme(plot.title=element_text(size=15),
-#             legend.key=element_rect(fill="white")) +
-#       theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
-#             axis.ticks = element_blank(), axis.text.x = element_blank(),
-#             axis.text.y = element_blank(), axis.title.x=element_blank(),
-#             axis.title.y = element_blank(),
-#             legend.position="bottom",
-#             legend.key.width=unit(1, "cm"),
-#             legend.key.height=unit(0.5,"cm")) +
-#       theme(legend.direction="vertical") +
-#       scale_fill_manual(name=paste("Risk for ", weekinquestionSun, " to ",
-#                                    format(weekinquestionSat, "%m-%d"), sep=""),
-#                         values=c(" Lower than usual    "="lightblue",
-#                                  " About average    "="yellow",
-#                                  " Higher than usual    "="red",
-#                                  " Not able to model    "="grey"))
-# 
-# 
-# plot(thisplotrisk)
+preds <- group_by(preds, district, weekstartdate)
+tempdf <- summarize(preds,
+                    pred = mean(pred, na.rm=TRUE))
+fullcasemat$pred <- NULL
+fullcasemat <- left_join(fullcasemat, pred, by=c("district", "weekstartdate"))
+
+thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
+thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
+thisweek <- thisweek[c("district", "pred", "doy")]
+
+approxdoy <- thisweek$doy[1]
+
+fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
+
+doypreds <- data.frame()
+for (curyear in unique(fullcasemat$year)) {
+
+  for (curdistrict in unique(fullcasemat$district)) {
+
+    thisdf <- fullcasemat[fullcasemat$year == curyear,]
+    thisdf <- thisdf[thisdf$district == curdistrict,]
+
+    if(sum(!is.na(thisdf$pred)) > 1) {
+
+      tempdf <- data.frame(district = curdistrict,
+                           year = curyear,
+                           pred = approx(x=thisdf$doy,
+                                        y=thisdf$pred,
+                                        xout=approxdoy)$y)
+
+      doypreds <- bind_rows(doypreds, tempdf)
+
+    }
+
+  }
+
+}
+
+doypreds2 <- data.frame()
+for (curdistrict in unique(doypreds$district)) {
+
+  tempdf <- doypreds[doypreds$district == curdistrict,]
+  tempdf$percentile <- rank(tempdf$pred, ties.method="random") / length(tempdf$pred)
+
+  doypreds2 <- bind_rows(doypreds2, tempdf)
+
+}
+doypreds <- doypreds2
+rm(doypreds2)
+
+riskalpha <- 0.25
+doypreds$riskcategory <- " About average    "
+doypreds$riskcategory[doypreds$percentile <= riskalpha/2] <- " Lower than usual    "
+doypreds$riskcategory[doypreds$percentile >= 1-(riskalpha/2)] <- " Higher than usual    "
+doypredscurrent <- doypreds[doypreds$year == as.numeric(format(weekinquestion, "%Y")),]
+projected_districts.df <- left_join(projected_districts.df, doypredscurrent,
+                                   by="district")
+projected_districts.df$riskcategory[is.na(projected_districts.df$riskcategory)] <- " Not able to model    "
+thisplotrisk <- ggplot(projected_districts.df) +
+      aes(long,lat,fill=riskcategory,group=group,guides=FALSE) +
+      geom_polygon() +
+      geom_path(color="black") +
+      coord_map() +
+      ggtitle("") +
+      theme(text=element_text(size=15)) +
+      theme(plot.title=element_text(size=15),
+            legend.key=element_rect(fill="white")) +
+      theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
+            axis.ticks = element_blank(), axis.text.x = element_blank(),
+            axis.text.y = element_blank(), axis.title.x=element_blank(),
+            axis.title.y = element_blank(),
+            legend.position="bottom",
+            legend.key.width=unit(1, "cm"),
+            legend.key.height=unit(0.5,"cm")) +
+      theme(legend.direction="vertical") +
+      scale_fill_manual(name=paste("Risk for ", weekinquestionSun, " to ",
+                                   format(weekinquestionSat, "%m-%d"), sep=""),
+                        values=c(" Lower than usual    "="lightblue",
+                                 " About average    "="yellow",
+                                 " Higher than usual    "="red",
+                                 " Not able to model    "="grey"))
+
+
+plot(thisplotrisk)
 ```
 \newpage
 
