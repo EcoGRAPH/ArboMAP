@@ -58,7 +58,6 @@ if (!(ostype %in% c("windows", "mac"))) { ostype <- "windows" }
 
 # model names
 modelnames <- c("tp-sv-anom", "cub-sv-nonanom")
-#modelnames <- c("cub-fx-nonanom")
 
 # model formulas
 modelformulas <- c("cub-fx-nonanom"   = "anycases ~ 0 + district + MIRsummarystat + s(lag, by=var1, bs='cr') + s(lag, by=var2, bs='cr')",
