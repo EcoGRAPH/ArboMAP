@@ -56,9 +56,6 @@ for (package in packages) {
 ostype <- "windows"
 if (!(ostype %in% c("windows", "mac"))) { ostype <- "windows" }
 
-# model names
-modelnames <- c("tp-sv-anom", "cub-sv-nonanom")
-
 # model formulas
 modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat + s(lag, by=var1, bs='cr', fx=TRUE, k=6) + s(lag, by=var2, bs='cr', fx=TRUE, k=6)",
                    "cub-fx-anom"   = "anycases ~ 0 + district + MIRsummarystat + s(lag, by=anom_var1, bs='cr', fx=TRUE, k=6) + s(lag, by=anom_var2, bs='cr', fx=TRUE, k=6) + s(doy, bs='cr')",
@@ -68,6 +65,12 @@ modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat +
                    "tp-fx-anom"    = "anycases ~ 0 + district + MIRsummarystat + s(lag, by=anom_var1, bs='tp') + s(lag, by=anom_var2, bs='tp') + s(doy, bs='cr')",
                    "tp-sv-nonanom" = "anycases ~ 0 + district + MIRsummarystat + te(lag, doymat, by=var1, bs='tp') + te(lag, doymat, by=var2, bs='tp')",
                    "tp-sv-anom"    = "anycases ~ 0 + district + MIRsummarystat + te(lag, doymat, by=anom_var1, bs='tp') + te(lag, doymat, by=anom_var2, bs='tp') + s(doy, bs='tp')")
+
+# run all listed models
+modelnames <- names(modelformulas)
+
+## or choose just one
+#modelnames <- c("cub-sv-nonanom")
 
 # adjust smoothness
 modelgamma <- 1.0
@@ -1199,14 +1202,15 @@ thisplotrisk <- ggplot(projected_districts.df) +
 
 plot(thisplotrisk)
 ```
+
 ## Estimated dependence functions
 
-```{r modelplots, include=TRUE, echo=FALSE}
+```{r modelplots, include=TRUE, echo=FALSE, fig.width=7, fig.height=4}
 curmodel <- modelnames[1]
 for (curmodel in modelnames) {
   
   thisplot <- modelplots[[curmodel]]
-  plotholder <- list()
+  #plotholder <- list()
   for (curplot in 1:length(thisplot)) {
   
     thissubplot <- thisplot[[curplot]]
@@ -1221,7 +1225,7 @@ for (curmodel in modelnames) {
         xlab(thissubplot$xlab) + ylab(thissubplot$ylab) +
         ggtitle(paste("model: ", curmodel, ", term: ", thissubplot$ylab, sep=""))
       
-      plotholder[[thissubplot$ylab]] <- mygg
+      #plotholder[[thissubplot$ylab]] <- mygg
       
     }
     
@@ -1231,11 +1235,17 @@ for (curmodel in modelnames) {
       tempdf <- expand.grid(x=thissubplot$x,
                             y=thissubplot$y)
       tempdf$fit <- thissubplot$fit
-      mygg <- ggplot(tempdf) + geom_raster(aes(x=x, y=y, fill=fit)) +
-        xlab(thissubplot$xlab) + ylab(thissubplot$ylab) +
+      
+      # select a subset of y to plot as lines
+      ychosen <- quantile(thissubplot$y, probs=c(0.3, 0.5, 0.7), type=3)
+      tempdf <- tempdf[tempdf$y %in% ychosen,]
+      tempdf$doy <- factor(round_any(tempdf$y, 1))
+      
+      mygg <- ggplot(tempdf) + geom_line(aes(x=x, y=fit, group=doy, color=doy, linetype=doy)) +
+        xlab(thissubplot$xlab) + ylab("fit") +
         ggtitle(paste("model: ", curmodel, ", term: ", thissubplot$main, sep=""))
 
-      plotholder[[thissubplot$main]] <- mygg
+      #plotholder[[thissubplot$main]] <- mygg
       
     }
    
