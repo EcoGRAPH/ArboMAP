@@ -877,6 +877,10 @@ for (curmodel in modelnames) {
   
   # predict on this model
   fullcasemat$pred <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
+  
+  # censor predictions outside of the observed range
+  fullcasemat$pred[fullcasemat$weeknum < humanminobsweek,] <- 0
+  fullcasemat$pred[fullcasemat$weeknum > humanmaxobsweek,] <- 0
 
   # get data frame of predictions from this model
   tempdf <- data.frame(weekstartdate = fullcasemat$weekstartdate,
@@ -922,6 +926,12 @@ tempdf$newdate <- tempdf$year + tempdf$newwe
 # plot just this year
 preds$year <- as.numeric(format(preds$weekstartdate, "%Y"))
 tempdf2 <- preds[preds$year == maxmosqyear,]
+tempdf2 <- group_by(tempdf2, weekstartdate, model)
+tempdf2 <- dplyr::summarize(tempdf2,
+                            pred=mean(pred, na.rm=TRUE))
+tempdf2$weeknum <- as.numeric(format(tempdf2$weekstartdate, "%U"))
+tempdf2 <- tempdf2[tempdf2$weeknum >= humanminobsweek,]
+tempdf2 <- tempdf2[tempdf2$weeknum <= humanmaxobsweek,]
 ```
 ```{r fig.width=7, fig.height=4, echo=FALSE, warnings=FALSE}
 thisplot <- ggplot(tempdf) + geom_line(aes(x=newdate,
