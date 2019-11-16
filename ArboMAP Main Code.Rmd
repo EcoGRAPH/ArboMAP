@@ -976,7 +976,7 @@ tempdf2 <- thisyear[thisyear$weekstartdate >= weekinquestionSun,]
 tempdf2 <- tempdf2[1:length(modelnames),]
 
 tempdf2$totalestimated <- round_any(tempdf2$est * length(district_shapes), 0.1)
-tempdf2$est <- round_any(tempdf2$est, 0.01)
+tempdf2$est <- paste(round_any(100*tempdf2$est, 0.1), "%", sep="")
 
 kable(tempdf2[c("model", "est", "totalestimated")],
       col.names=c("model", "prop. positive", "districts positive"))
@@ -1104,7 +1104,7 @@ thisplot <- ggplot(projected_districts.df) +
             legend.position="bottom",
             legend.key.width=unit(1, "cm"),
             legend.key.height=unit(0.25,"cm")) +
-  facet_wrap(~model. ncol=2)
+  facet_wrap(~model, ncol=2)
 plot(thisplot)
 ```
 
