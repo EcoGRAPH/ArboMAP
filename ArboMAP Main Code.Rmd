@@ -1,6 +1,6 @@
 ---
 title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
-author: "Summary of Model Outputs (v2.1)   \nJustin K. Davis and Michael C. Wimberly  \n(justinkdavis@ou.edu, mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
+author: "Summary of Model Outputs (v2.2)   \nJustin K. Davis and Michael C. Wimberly  \n(justinkdavis@ou.edu, mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
 date: "Updated `r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
 ---
@@ -95,7 +95,7 @@ maxobservedhumandate <- as.Date("2017-12-31", "%Y-%m-%d")
 humancasealpha <- 0.02
 
 # which week are we producing the graphs for?
-weekinquestion <- as.Date("2018-06-15", "%Y-%m-%d")
+weekinquestion <- as.Date("2018-07-15", "%Y-%m-%d")
 
 # where are the weather csv files stored?
 weatherpathstr <- ".\\weather data\\"
@@ -941,11 +941,30 @@ tempdf2 <- dplyr::summarize(tempdf2,
 tempdf2$weeknum <- as.numeric(format(tempdf2$weekstartdate, "%U"))
 tempdf2 <- tempdf2[tempdf2$weeknum >= humanminobsweek,]
 tempdf2 <- tempdf2[tempdf2$weeknum <= humanmaxobsweek,]
+
+tempdf3 <- tempdf[tempdf$weekstartdate <= weekinquestion,]
+
+tempdf2$cenobs <- tempdf2$pred
+tempdf2$cenobs[tempdf2$weekstartdate > weekinquestion] <- NA
+
 ```
 ```{r fig.width=7, fig.height=4, echo=FALSE, warnings=FALSE}
-thisplot <- ggplot(tempdf) + geom_line(aes(x=newdate,
-                               y=obs, group=model)) +
-  geom_line(aes(x=newdate, y=est, group=model, color=model, linetype=model)) +
+# set up manual colors and linetypes
+mycolors <- seq(from=2,
+                to=length(unique(tempdf$model))+1,
+                by=1)
+names(mycolors) <- unique(tempdf$model)
+mylinetypes <- seq(from=2,
+                   to=length(unique(tempdf$model))+1,
+                   by=1)
+mylinetypes <- factor(mylinetypes)
+names(mylinetypes) <- unique(tempdf$model)
+
+thisplot <- ggplot() + geom_line(data=tempdf, aes(x=newdate, y=obs, group=model)) +
+  geom_line(data=tempdf, aes(x=newdate, y=est, group=model, color=model, linetype=model)) +
+  geom_line(data=tempdf3, aes(x=newdate, y=est, group=model, color=model), linetype=1, show.legend=FALSE) +
+  scale_color_manual(values = mycolors) +
+  scale_linetype_manual(values = mylinetypes) +
   ggtitle("Statewide model predictions") +
   xlab("") + ylab("") +
   scale_x_continuous(breaks=seq(from=minmosqyear,to=(maxmosqyear+1),by=1),
@@ -954,16 +973,26 @@ thisplot <- ggplot(tempdf) + geom_line(aes(x=newdate,
   ylab("Proportion of districts positive") +
   theme(panel.grid.minor.x=element_blank()) +
   theme(axis.text.x = element_text(hjust=-0.225)) +
-  theme(legend.position="bottom")
+  theme(legend.position="bottom") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(),
+        legend.key = element_blank())
 plot(thisplot)
-thisplot2 <- ggplot(tempdf2) +
+thisplot2 <- ggplot(data=tempdf2) +
+  geom_line(aes(x=weekstartdate, y=cenobs, group=model, color=model), show.legend=FALSE) +
   geom_line(aes(x=weekstartdate, y=pred, group=model, color=model, linetype=model)) +
+  scale_color_manual("", values = mycolors) +
+  scale_linetype_manual("", values = mylinetypes) +
   ggtitle(paste("Statewide model predictions in ", maxmosqyear, sep="")) +
   xlab("") + ylab("") +
+  geom_vline(xintercept=weekinquestion) + 
   ylab("Proportion of districts positive") +
   theme(panel.grid.minor.x=element_blank()) +
   theme(axis.text.x = element_text(hjust=-0.225)) +
-  theme(legend.position="bottom")
+  theme(legend.position="bottom") +
+  guides(color=guide_legend(), linetype=guide_legend()) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(),
+        legend.key = element_blank()) +
+  labs(color="model", linetype="model")
 plot(thisplot2)
 ```
 
