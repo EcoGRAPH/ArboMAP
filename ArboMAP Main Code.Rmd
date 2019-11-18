@@ -95,7 +95,7 @@ maxobservedhumandate <- as.Date("2017-12-31", "%Y-%m-%d")
 humancasealpha <- 0.02
 
 # which week are we producing the graphs for?
-weekinquestion <- as.Date("2018-09-15", "%Y-%m-%d")
+weekinquestion <- as.Date("2018-06-15", "%Y-%m-%d")
 
 # where are the weather csv files stored?
 weatherpathstr <- ".\\weather data\\"
