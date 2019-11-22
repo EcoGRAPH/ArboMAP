@@ -110,7 +110,7 @@ weathersummaryfile <- "weather data summary file.csv"
 # which variables do you want to use?
 # vpd, rmean, pr
 var1name <- "tmeanc"
-var2name <- "rmean"
+var2name <- "vpd"
 
 # where are the mosquito test files located?
 mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
