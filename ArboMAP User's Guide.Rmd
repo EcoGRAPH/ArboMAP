@@ -99,13 +99,13 @@ The ArboMAP User's Guide.Rmd file, which you will open in RStudio, contains a pr
 knitr::include_graphics('pictures for setup document/files and settings in rmarkdown.PNG')
 ```
 
-## A note on models
+## Choosing your models
 
 The `modelformulas` object contains a list of formulas used to model the data. Currently, the naming convention describes whether cubic (cub) or thin-plate (tp) splines are used. Then, the distributed lags are either fixed (fx) or seasonally-varying (sv). Then, we either use anomalized (anom) or non-anomalized (nonanom) environmental data.
 
-So, for example, the "cub-sv-nonanom" model is the model we used for our most recent publications. The "tp-sv-anom" model takes advantage of improvements in the mgcv library to use thin-plate splines to model distributed lags which vary over the season, over anomalized weather data. The tp-sv-anom model currently has the best fit out of all the listed models.
+So, for example, the "cub-sv-nonanom" model is the model we used for our most recent publications. The "tp-sv-anom" model takes advantage of improvements in the mgcv library to use thin-plate splines to model distributed lags which vary over the season, over anomalized weather data. The tp-sv-anom model currently has the best fit out of all the listed models on our historical data, but this may not be the case for all users. Typically for new users, we will recommend the simple "cub-fx-nonanom" model, which is most numerically stable and unlikely to fail, and the "tp-sv-anom" model for what is likely to be the best fit, but requires more computational power and may fail if the data do not tell a clear story.
 
-The user has the option to run all listed models simultaneously by writing `modelnames <- names(modelformulas)` instead of `modelnames <- c("cub-sv-nonanom", "tp-sv-anom")` or some other list of models. This is not advisable unless the user is on a decently-powerful computer with a number of cores available for processing.
+The user has the option to run all listed models simultaneously by writing `modelnames <- names(modelformulas)` instead of `modelnames <- c("cub-sv-nonanom", "tp-sv-anom")` or some other list of models. This is not advisable unless the user is on a decently-powerful computer with a number of cores available for processing. We use the parallel processing of the mgcv::bam to fit models quickly, and ArboMAP should not be run on a busy computer or a laptop on battery power. Running the two default models takes approximately five minutes on an older desktop, and is much faster on a server with many available cores. If the run-time becomes excessive, choosing simpler models should help, but running individual models in separate instances of ArboMAP is unlikely to produce any benefit.
 
 ## Obtaining data at the beginning of the season
 
