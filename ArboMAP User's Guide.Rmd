@@ -93,13 +93,19 @@ The ArboMAP User's Guide.Rmd file, which you will open in RStudio, contains a pr
 * `compyear1` and `compyear2` indicate which two years in the past we'd like to compare the current year to in one of the graphics.
 * `var1name` and `var2name` indicate which two weather variables you'd like to use as predictors in the model. By default, these are set to mean daily temperature from the gridMET set (tmeanc) and the vapor pressure deficit (vpd).
 
-The `modelformulas` object contains a list of formulas used to model the data. Currently, the naming convention describes whether cubic (cub) or thin-plate (tp) splines are used. Then, the distributed lags are either fixed (fx) or seasonally-varying (sv). Then, we either use anomalized (anom) or non-anomalized (nonanom) environmental data. By choosing the names of the models in `modelnames`, you can run either all the models or any combination. Currently, the default is to run two: cub-sv-nonanom, which is similar to our earliest models, and tp-sv-anom, which uses the most up-to-date statistical model.
-
 `Maxobservedhumandate` should be updated at the beginning of every season to point to the end of last year, so that only human cases in previous years are used to condition the model's predictions. `Weekinquestion` should be updated weekly.
 
 ```{r echo=FALSE, out.width='80%'}
 knitr::include_graphics('pictures for setup document/files and settings in rmarkdown.PNG')
 ```
+
+## A note on models
+
+The `modelformulas` object contains a list of formulas used to model the data. Currently, the naming convention describes whether cubic (cub) or thin-plate (tp) splines are used. Then, the distributed lags are either fixed (fx) or seasonally-varying (sv). Then, we either use anomalized (anom) or non-anomalized (nonanom) environmental data.
+
+So, for example, the "cub-sv-nonanom" model is the model we used for our most recent publications. The "tp-sv-anom" model takes advantage of improvements in the mgcv library to use thin-plate splines to model distributed lags which vary over the season, over anomalized weather data. The tp-sv-anom model currently has the best fit out of all the listed models.
+
+The user has the option to run all listed models simultaneously by writing `modelnames <- names(modelformulas)` instead of `modelnames <- c("cub-sv-nonanom", "tp-sv-anom")` or some other list of models. This is not advisable unless the user is on a decently-powerful computer with a number of cores available for processing.
 
 ## Obtaining data at the beginning of the season
 
@@ -215,17 +221,7 @@ You will be given a file called \"ArboMAP.Rmd\", which should be placed in \"D:/
 
 ### \ \ \ \ \ Weather data
 
-Each forecasting run will generate a report containing a number of graphics to interpret; an example from 2018 is below. First, statewide mean daily temperature in the current year (red) is compared to the median (black) and max/min (grey) temperatures for all historical gridMet data that you are currently using. Higher temperatures are associated with more WNV, so red above black typically means more human cases. Higher temperature, more WNV.
-
-```{r echo=FALSE, out.width='60%'}
-knitr::include_graphics('pictures for setup document/temperature.PNG')
-```
-
-The model of WNV for South Dakota also uses the vapor pressure deficit; an example from 2018 is below. This is the force exerted by the atmosphere to extract moisture from something - the higher the deficit, the drier the air. Usually, if the atmosphere is more humid (lower deficit), there is more WNV. Lower deficit, more WNV.
-
-```{r echo=FALSE, out.width='60%'}
-knitr::include_graphics('pictures for setup document/vapor pressure deficit.PNG')
-```
+Each forecasting run will generate a report containing a number of graphics to interpret. The raw and anomalized environmental data for all years will be shown, including measurements during the current year. The anomalized data are data from which the daily average has been subtracted, so the anomaly is the measurement above or below what is normal for that point in the year.
 
 ### \ \ \ \ \ Mosquito data
 
@@ -247,43 +243,35 @@ Note that the MIGR is a single number, derived from a model that fits all of a y
 knitr::include_graphics('pictures for setup document/mosqinfectgrowthrates.PNG')
 ```
 
+### \ \ \ \ \ Censoring chart
+
+It will typically be the case that there are long stretches of time in which there are no human infections. Trying to model these makes most algorithms unstable - if you try to model too many 0s, you are likely to see odd results in your model fit statistics, AIC, etc. Hence, we only model cases within a certain time period - in the default, synthetic data, this is between weeks 24 and 42 of the year. This range can be tightened or relaxed by adjusting the `humancasealpha` parameter in the settings, which retains 100(1-alpha)% of the cases to model.
+
 ### \ \ \ \ \ Multi-year WNV forecasting chart
 
-Next are the model outputs. For each week of a year, the model estimates what proportion of districts will report at least one human case based on fit to historical data. This is displayed first on a statewide basis - red are estimates and black are observations. For the year in which you're making predictions, observed (black) should be constantly zero. Red should fit historical observations reasonably well - if there are major deviations, then it is likely that some data, probably the human or mosquito data, are in the wrong format.
-
-```{r echo=FALSE, out.width='60%'}
-knitr::include_graphics('pictures for setup document/predictions.PNG')
-```
+Next are the model outputs. For each week of a year, the model estimates what proportion of districts will report at least one human case based on fits to historical data (black). Each model specified in the list at the beginning of the code will be assigned one line.
 
 ### \ \ \ \ \ Current-year WNV forecasting chart
 
-Next are model outputs for the year you're estimating and the two years you've selected for comparison. We typically choose 2012, an outbreak year, and the year one before you're estimating (e.g. if you're estimating 2018, then we will also display 2017). Predictions for the forecasting week are in red, and the week in question begins at the red dot.
+Next are model outputs for the year you're estimating and the two years you've selected for comparison. The solid, vertical line indicates the week of the year for which predictions are produced.
 
-```{r echo=FALSE, out.width='60%'}
-knitr::include_graphics('pictures for setup document/estimates.PNG')
-```
+### \ \ \ \ \ Positives-to-cases chart
+
+ArboMAP models positive district-weeks, which are either 0 if there were no cases in that district in that week, or 1 if there was at least one case. We can attempt to convert this to total case counts, by fitting a smooth curve (red, dotted) to the relationship between positive district-weeks and total case counts in a year (each dot). Predictions are summarized in the table below.
 
 ### \ \ \ \ \ Current-week WNV absolute risk map
 
-Next are the absolute probabilities of each district reporting at least one human case during the week in question. If the district is darkest blue, then the model says there is no probability of reporting a case during the week you've selected. This is often the case in the early or late seasons, especially in the lower-population districts. If a district is brightest red, then the model says the district will definitely report at least one human case this week.
-
-```{r echo=FALSE, out.width='60%'}
-knitr::include_graphics('pictures for setup document/map absolute.PNG')
-```
+Next are the absolute probabilities of each district reporting at least one human case during the week in question. If the district is darkest blue, then the model says there is no probability of reporting a case during the week you've selected. This is often the case in the early or late seasons, especially in the lower-population districts. If a district is brightest red, then the model says the district will definitely report at least one human case this week. Each model will have a map.
 
 ### \ \ \ \ \ Current-week WNV relative risk map
 
 Next are the relative probabilities. A district in the early season may have low risk because the virus is not yet circulating, but is that lower or higher than usual, for that district, during that week of the year? Brookings County on May 15th 2018 will have low risk, but that risk may be higher than usual when compared to Brookings on May 15th in 2004-2017? If a district is red, this means that risk is predicted to be substantially higher than average in that district, during the week in question. If blue, then lower. If yellow, then average. It is important to remember that red and blue do not mean high or low absolute risk. They mean high*er* or low*er than usual*. A district that is lower than usual can still have many cases in a week; e.g. Brown County in early August can be lower than usual, but will still likely report cases.
 
-```{r echo=FALSE, out.width='60%'}
-knitr::include_graphics('pictures for setup document/map relative.PNG')
-```
-
-Combining the two maps above, we conclude that it's still early in the season and absolute risk is low, but there are indications that risk is higher than usual in most districts. You will want to interpret the temperature, humidity, and mosquito infection charts to understand exactly why this is the case.
+The predictions of all models are averaged to produce this map.
 
 # Selecting covariates to use
 
-Previously, ArboMAP included another Rmd file to facilitate selection of covariates. Unfortunately, as the number of options increases, it is no longer feasible to run all combinations of model structure and environmental covariates. We suggest you run with thin-plate splines, and then test different combinations of anomalized/non-anomalized and seasonally-varying/fixed splines. Typically, you will want to begin with one temperature and one moisture index - mean daily temperature (tmeanc) and the vapor pressure deficit (vpd) have served us well, and are not a bad place to start.
+Previously, ArboMAP included another Rmd file to facilitate selection of covariates. Unfortunately, as the number of options increases, it is no longer feasible to run all combinations of model structure and environmental covariates. We suggest you run at least two models - the models given in the default settings are reliable and test with a variety of environmental covariates. Typically, you will want to begin with one temperature and one moisture index - mean daily temperature (tmeanc) and the vapor pressure deficit (vpd) have served us well, and are not a bad place to start.
 
 # Troubleshooting
 
