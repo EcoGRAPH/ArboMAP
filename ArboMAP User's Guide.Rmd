@@ -269,6 +269,16 @@ Next are the relative probabilities. A district in the early season may have low
 
 The predictions of all models are averaged to produce this map.
 
+### \ \ \ \ \ Estimated dependence functions
+
+Because ArboMAP allows you to run a variety of models with different forms, the output in this series of graphs may vary wildly depending on your chosen formulas. Additionally, some of the outputs may be difficult to interpret. In all cases, above each graph you will see "model: cub-sv-nonanom" or some other model name which indicates which model the dependence function comes from. Then:
+
+* s(doy) indicates a smooth over the day of the year (doy). This is usually a cyclical term used in anomalized models, which models the general trend over all years in the sample. This is relative - the lower the function at some day of the year, the less likely you are to see human WNV cases on that day of the year, all else being equal. Generally, this should range between -5 and 5 - if it goes beyond this range, it is likely that you are modeling too many empty district-weeks and should raise your humancasealpha so that more empty weeks are cut off.
+
+* s(lag):variable is a single distributed distributed lag function, showing the dependence of risk now (lag=0) on environmental data some time in the past. Var1/2 are whichever variables you have chosen (temperature and vapor pressure deficit) in the settings. As an example, if the estimated distributed lag is positive at lag=120, then the environmental variable four months ago correlates with an increase in human cases today. If you used anomalized environmental data, these variables will be prefixed with "anom_".
+
+* te(lag, doymat):variable indicate how the risk today (lag=0) depends on environmental data at some point in the past. Var1/2 are whichever variables you have chosen (temperature and vapor pressure deficit) in the settings. If you used anomalized environmental data, this will have the "anom_" prefix. If you have chosen a seasonally-varying model, then these will depend on the day of the year and three different dependence functions will be shown.  For example, precipitation in the winter (near doy=0) will not have much of an effect on human risk, whether two days (lag=2) or three months (lag=90) ago. If these lines are essentially all the same, you might achieve a better fit with fixed (fx) rather than seasonally-varying (sv) distributed lags.
+
 # Selecting covariates to use
 
 Previously, ArboMAP included another Rmd file to facilitate selection of covariates. Unfortunately, as the number of options increases, it is no longer feasible to run all combinations of model structure and environmental covariates. We suggest you run at least two models - the models given in the default settings are reliable and test with a variety of environmental covariates. Typically, you will want to begin with one temperature and one moisture index - mean daily temperature (tmeanc) and the vapor pressure deficit (vpd) have served us well, and are not a bad place to start.
