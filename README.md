@@ -3,8 +3,7 @@
 ArboMAP is a set of software to be used in the RStudio envionment to model and predict vector-borne diseases, especially arboviruses transmitted by mosquitoes. 
 
 **ArboMAP_User_s_Guide.pdf** contains information on installation and use of ArboMAP. New users should begin by reading through the file completely.  
-**ArboMAP Main Code.Rmd** contains code for generating weekly forecasting reports.  
-**ArboMAP Variable Selection** contains code for selecting the best subset of climate variables to use with the arbovirus prediction model.  
+**ArboMAP Main Code.Rmd** contains code for generating weekly forecasting reports.
 **ArboMAP User's Guide.Rmd** contains code for generating the user guide.  
 **GRIDMET_dowmloader.js** contains code for the Google Earth Engine application for environmental data access.  
 **ArboMAP.Rproj** is an RStudio project that can be used to run the code and will allow the programs to find all the necessary data.
@@ -29,13 +28,21 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 
 **Version information:**
 
+v2.2
+
+- Instead of asking the user to repeatedly run varying models in separate instances of ArboMAP, the user may now specify multiple models directly by building formulas in the settings.
+- A number of changes to graphing, including the graphing of smoothed components from each model. These do not currently have the best names, since they are created by gam, and will require some interpretation by the user.
+- It is likely that the user will observe long stretches of no human infections, especially during winter months. We have adjusted the modeling so that a certain portion of outlying cases are truncated before modeling, and only cases during the main body of the transmission season are used for modeling. This improves model fit, stability, run time, etc.
+- Some changes to the User's Guide to reflect the above changes. These are not yet complete and the user should take care in creating new formulas for new models to run.
+- An attempt has been made to allow ArboMAP to run on Mac machines. This seems to be a question solely of filenames and will be revisited in future releases if these changes do not suffice.
+
 v2.1
 
 - ArboMAP now allows the comparison of fixed-degree cubic vs. thin-plate splines, seasonally-varying distributed lags vs. fixed lags, and anomalized environmental/human data vs. raw data.
 - These different combinations can be compared directly with AIC, AUC, and the Hosmer-Lemeshow goodness-of-fit test, which are included automatically in a new set of outputs in the main PDF.
 - Model objects are saved automatically in a new directory, so that post hoc analyses not yet available in ArboMAP can be performed.
 - Fixed a problem with a sometimes-missing directory.
-- We have addressed some concerns over numerical stability when combining anomalization and seasonally-varying distributed lags, which in parametrix models would be unidentifiable/overdetermined.
+- We have addressed some concerns over numerical stability when combining anomalization and seasonally-varying distributed lags, which in parametric models would be unidentifiable/overdetermined.
 - We have redone some of the simulated data, so that the outcomes with default settings are more reasonable.
 
 v2.0
