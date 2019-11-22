@@ -29,6 +29,14 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 
 **Version information:**
 
+v2.2
+
+- Instead of asking the user to repeatedly run varying models in separate instances of ArboMAP, the user may now specify multiple models directly by building formulas in the settings.
+- A number of changes to graphing, including the graphing of smoothed components from each model. These do not currently have the best names, since they are created by gam, and will require some interpretation by the user.
+- It is likely that the user will observe long stretches of no human infections - we have adjusted the modeling so that a certain portion of outlying cases are truncated before modeling, and only cases during the main body of the transmission season are used for modeling. This improves model fit, stability, run time, etc.
+- Some changes to the User's Guide to reflect the above changes. These are not yet complete and the user should take care in creating new formulas for new models to run.
+- An attempt has been made to allow ArboMAP to run on Mac machines. This seems to be a question solely of filenames and will be revisited in future releases if these changes do not suffice.
+
 v2.1
 
 - ArboMAP now allows the comparison of fixed-degree cubic vs. thin-plate splines, seasonally-varying distributed lags vs. fixed lags, and anomalized environmental/human data vs. raw data.
