@@ -5,7 +5,7 @@ ArboMAP is a set of software to be used in the RStudio envionment to model and p
 **ArboMAP_User_s_Guide.pdf** contains information on installation and use of ArboMAP. New users should begin by reading through the file completely.  
 **ArboMAP Main Code.Rmd** contains code for generating weekly forecasting reports.
 **ArboMAP User's Guide.Rmd** contains code for generating the user guide.  
-**GRIDMET_dowmloader.js** contains code for the Google Earth Engine application for environmental data access.  
+**GRIDMET_downloader.js** contains code for the Google Earth Engine application for environmental data access.  
 **ArboMAP.Rproj** is an RStudio project that can be used to run the code and will allow the programs to find all the necessary data.
 
 The various directories contain either example input data or example outputs from ArboMAP.
