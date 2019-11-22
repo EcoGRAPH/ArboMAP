@@ -70,10 +70,10 @@ modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat +
                    "tp-sv-nonanom" = "anycases ~ 0 + district + MIRsummarystat + te(lag, doymat, by=var1, bs='tp') + te(lag, doymat, by=var2, bs='tp')",
                    "tp-sv-anom"    = "anycases ~ 0 + district + MIRsummarystat + te(lag, doymat, by=anom_var1, bs='tp') + te(lag, doymat, by=anom_var2, bs='tp') + s(doy, bs='tp')")
 
-# run all listed models
-modelnames <- names(modelformulas)
+## run all listed models
+#modelnames <- names(modelformulas)
 
-# or choose just two
+# or choose just some selection
 modelnames <- c("cub-sv-nonanom", "tp-sv-anom")
 
 # where do we want the outputs? 
