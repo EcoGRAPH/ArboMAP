@@ -74,7 +74,7 @@ modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat +
 #modelnames <- names(modelformulas)
 
 # or choose just some selection
-modelnames <- c("cub-sv-nonanom", "tp-sv-anom")
+modelnames <- c("cub-fx-nonanom", "tp-fx-anom")
 
 # where do we want the outputs? 
 graphicoutputdir <- ".\\graphical outputs\\"
