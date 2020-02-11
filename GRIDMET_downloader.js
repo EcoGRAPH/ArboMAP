@@ -54,8 +54,8 @@ var conus = counties.filter(ee.Filter.inList('STATEFP',nonCONUS).not());
 // vapor pressure deficit
 var gridmet_filt = gridmet
   .filterDate(startdate, enddate)
-  .select(['pr', 'rmax', 'rmin', 'tmmn', 'tmmx', 'vpd'],
-          ['pr', 'rmax', 'rmin', 'tmin', 'tmax', 'vpd']);
+  .select(['pr', 'rmax', 'rmin', 'tmmn', 'tmmx', 'vpd', 'vs'],
+          ['pr', 'rmax', 'rmin', 'tmin', 'tmax', 'vpd', 'vs']);
 
 // Function to calculate derived variables and add them to the image collection
 var addvars = function(image) {
@@ -83,7 +83,7 @@ var addvars = function(image) {
               .addBands(tminc)
               .addBands(tmaxc)
               .addBands(tmeanc)
-              .select('rmean', 'tminc', 'tmaxc', 'tmeanc', 'pr', 'vpd')
+              .select('rmean', 'tminc', 'tmaxc', 'tmeanc', 'pr', 'vpd', 'vs')
               .set('doy', curdoy)
               .set('year', curyear);
      
@@ -118,19 +118,23 @@ var exportzonal = function() {
     // To get the doy and year, we conver the metadata to grids and then summarize
     var image2 = image.addBands([image.metadata('doy'), image.metadata('year')]);
     // Reduce by regions to get zonal means for each county
-    var output = image2.select(['tmeanc', 'tminc', 'tmaxc', 'pr', 'rmean', 'vpd', 'doy', 'year'])
+    var output = image2.select(['tmeanc', 'tminc', 'tmaxc', 'pr', 'rmean', 'vpd', 'vs', 'doy', 'year'])
                        .reduceRegions({
                        collection: sumstate,
                        reducer: ee.Reducer.mean()});
     return output;
   };
-  var cnty_sum = gridmet_sum.map(zonalsum);                  
+  var cnty_sum = gridmet_sum.map(zonalsum);
+  var oldnames = ["NAME", "doy", "year", "tminc", "tmeanc", "tmaxc", "pr", "rmean", "vpd", "vs"];
+  var newnames = ["district", "doy", "year", "tminc", "tmeanc", "tmaxc", "pr", "rmean", "vpd", "vs"];
+  var newdf = cnty_sum.flatten().select(oldnames, newnames, false);
+                
   // Feature collection needs to be "flattened" to yield one record for for each 
   // combination of county and date
   // Need to click "RUN in the Tasks tab to configure and start the export
   Export.table.toDrive({
-    collection: cnty_sum.flatten(),
-    selectors: ["NAME", 'doy', 'year', "tmeanc", 'tminc', 'tmaxc', "pr", 'rmean', "vpd"]
+    collection: newdf,
+    selectors: newnames
   });
 };
 
@@ -159,6 +163,7 @@ var showLayer = function() {
   var temp = img_filt.select('tmeanc');
   var rh = img_filt.select('rmean');
   var vpd = img_filt.select('vpd');
+  var vs = img_filt.select('vs');
   var pr = img_filt.select('pr');
   
   var tempminmax = temp.reduceRegion(ee.Reducer.minMax());
