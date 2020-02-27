@@ -57,8 +57,8 @@ for (package in packages) {
 
 # operating system
 # it's possible we could detect this on our own, but it's simpler for the user to simply specify
-ostype <- "windows"
-if (!(ostype %in% c("windows", "mac"))) { ostype <- "windows" }
+ostype <- .Platform$OS.type
+if (!(ostype %in% c("windows", "unix"))) { ostype <- "windows" }
 
 # model formulas
 modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat + s(lag, by=var1, bs='cr', fx=TRUE, k=6) + s(lag, by=var2, bs='cr', fx=TRUE, k=6)",
@@ -150,7 +150,7 @@ laglen   <- 181
 dlagdeg  <- 8
 
 # mac file setup
-if (ostype == "mac") {
+if (ostype == "unix") {
 
   # where do we want the outputs?
   graphicoutputdir <- "./graphical outputs/"
