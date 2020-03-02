@@ -138,12 +138,12 @@ weekinquestionSunstr <- strftime(weekinquestionSun, '%A')
 weekinquestionSatstr <- strftime(weekinquestionSat, '%A')
 
 # figure out which is the last Sunday in the max desired year
-maxhumandesireddate <- as.Date(paste(maxhumandesiredyear, "12-31", sep=""))
+maxhumandesireddate <- as.Date(paste(maxhumandesiredyear, "-12-31", sep=""))
 maxhumandesireddate <- maxhumandesireddate - (as.numeric(strftime(maxhumandesireddate, '%u')) %% 7)
 maxhumandesireddatestr <- strftime(maxhumandesireddate, '%A')
 
 # figure out which is the first Sunday in the min desired human year
-minhumandesireddate <- as.Date(paste(minhumandesiredyear, "01-01", sep=""))
+minhumandesireddate <- as.Date(paste(minhumandesiredyear, "-01-01", sep=""))
 minhumandesireddate <- minhumandesireddate - (as.numeric(strftime(minhumandesireddate, '%u')) %% 7)
 minhumandesireddatestr <- strftime(minhumandesireddate, '%A')
 
@@ -166,9 +166,6 @@ if (ostype == "mac") {
   
   # where are the mosquito test files located?
   mosqfile <- "./mosquito data/simulated mosquito tests.csv"
-  
-  # which district stratification scheme are we using?
-  stratafile <- "./strata/17-04-20 - classified strata - classic.csv"
   
 }
 ```
@@ -406,9 +403,9 @@ randeffs$mosqinfect <- predict(infectglm, newdata=randeffs, allow.new.levels = T
 randeffs$adjmosqinfect <- randeffs$mosqinfect - mean(randeffs$mosqinfect,na.rm=TRUE)
 ```
 ```{r fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
-thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect, group=stratum, color=stratum)) +
+thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect)) +
   geom_abline(slope=0, intercept=0, linetype=2) +
-  scale_x_continuous(breaks=minmosqyear:maxmosqyear) +
+  scale_x_continuous(breaks=minmosqbelieveyear:maxmosqbelieveyear) +
   theme(axis.text.x=element_text(angle=45, hjust=1),
         panel.grid.minor=element_blank(),
         panel.grid.major.y=element_blank())+
@@ -494,8 +491,7 @@ observedfraction <- 100*round(observedbefore / observedtotal, 2)
 The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqyear` is shown here by grouping observations nearby in time.
 
 ```{r mosqbymonth, include=TRUE, echo=FALSE, fig.width=6, fig.height=3}
-mosqmopreds <- expand.grid(strata=unique(wnv$strata),
-                           year=minmosqbelieveyear:maxmosqbelieveyear,
+mosqmopreds <- expand.grid(year=minmosqbelieveyear:maxmosqbelieveyear,
                            doy=seq(from=min(wnv$doy, na.rm=TRUE),
                                    to  =max(wnv$doy, na.rm=TRUE), by=1))
 mosqmopreds$dminus <- mosqmopreds$doy - mean(wnv$doy, na.rm=TRUE)
@@ -509,7 +505,7 @@ thisyear1   <- mosqmopreds[mosqmopreds$year == maxmosqbelieveyear,]
 comparison1 <- mosqmopreds[mosqmopreds$year == compyear1,]
 comparison2 <- mosqmopreds[mosqmopreds$year == compyear2,]
 
-thisyeardot <- wnv[wnv$year == maxmosqyear,]
+thisyeardot <- wnv[wnv$year == maxmosqbelieveyear,]
 
 if (sum(!is.na(thisyeardot$doy)) > 20) {
 
