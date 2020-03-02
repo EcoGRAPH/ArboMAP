@@ -44,7 +44,7 @@ packages <- c("reshape2", "ggplot2", "gridExtra",
               "GISTools","data.table","splines","maps",
               "broom","mapproj", "Hmisc", "parallel",
               "rccmisc", "pROC", "ResourceSelection",
-              "knitr")
+              "knitr", "tigris")
 for (package in packages) {
     if (!require(package, character.only=T, quietly=T)) {
         install.packages(package, repos = "http://cran.us.r-project.org")
@@ -54,6 +54,8 @@ for (package in packages) {
 ```
 
 ```{r setoptions, include=FALSE, echo=FALSE}
+# state to model
+statetomodel <- "SD"
 
 # operating system
 # it's possible we could detect this on our own, but it's simpler for the user to simply specify
@@ -76,13 +78,6 @@ modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat +
 # or choose just some selection
 modelnames <- c("cub-fx-nonanom", "tp-fx-anom")
 
-# temporarily disable outputs, as these cause problems on some platforms
-# # where do we want the outputs? 
-# graphicoutputdir <- ".\\graphical outputs\\"
-# fullcasematoutputdir <- ".\\case matrix with estimates\\"
-# mosqmatoutputdir <- ".\\mosquito matrix with estimates\\"
-# modeloutputdir <- ".\\model output\\"
-
 # where are the human data located?
 # example of a file with directories an drive:
 humandatafile <- ".\\human case data\\simulated human case data.csv"
@@ -94,8 +89,8 @@ minhumanbelieveyear <- 2004
 maxhumanbelieveyear <- 2018
 minmosqbelieveyear  <- 2004
 maxmosqbelieveyear  <- 2018
-minenvbelieveyear <- 2003
-maxenvbelieveyear <- 2019
+minenvbelieveyear <- 1950
+maxenvbelieveyear <- 2250
 
 # set up the desired human years
 minhumandesiredyear <- 2002
@@ -143,14 +138,14 @@ weekinquestionSunstr <- strftime(weekinquestionSun, '%A')
 weekinquestionSatstr <- strftime(weekinquestionSat, '%A')
 
 # figure out which is the last Sunday in the max desired year
-maxdesiredhumandate <- as.Date(paste(maxhumandesiredyear, "12-31", sep=""))
-maxdesiredhumandate <- maxdesiredhumandate - (as.numeric(strftime(maxdesiredhumandate, '%u')) %% 7)
-maxdesiredhumandatestr <- strftime(maxdesiredhumandate, '%A')
+maxhumandesireddate <- as.Date(paste(maxhumandesiredyear, "12-31", sep=""))
+maxhumandesireddate <- maxhumandesireddate - (as.numeric(strftime(maxhumandesireddate, '%u')) %% 7)
+maxhumandesireddatestr <- strftime(maxhumandesireddate, '%A')
 
 # figure out which is the first Sunday in the min desired human year
-mindesiredhumandate <- as.Date(paste(minhumandesiredyear, "12-31", sep=""))
-mindesiredhumandate <- mindesiredhumandate - (as.numeric(strftime(mindesiredhumandate, '%u')) %% 7)
-mindesiredhumandatestr <- strftime(mindesiredhumandate, '%A')
+minhumandesireddate <- as.Date(paste(minhumandesiredyear, "01-01", sep=""))
+minhumandesireddate <- minhumandesireddate - (as.numeric(strftime(minhumandesireddate, '%u')) %% 7)
+minhumandesireddatestr <- strftime(minhumandesireddate, '%A')
 
 # set up lag and regression information
 laglen   <- 181
@@ -182,8 +177,8 @@ if (ostype == "mac") {
 ## Weather data
 
 ```{r weatherdataload, include=FALSE, echo=TRUE}
-# load the shapefile immediately so that we can get rid of any districts which are not found here
-district_shapes <- readShapePoly(districtshapefile)
+# load tigris files here so we have an early list of the permissible district names
+district_shapes <- counties(state=statetomodel, cb=TRUE)
 # simplify name
 district_shapes$district <- simplifynames(district_shapes$NAME)
 diagnostic_shapefiledistricts <- unique(district_shapes$district)
@@ -209,6 +204,10 @@ weather$date <- as.Date(paste(weather$year,
                               weather$doy,
                               sep="-"),
                         "%Y-%j")
+
+# cull if we don't believe certain weather dates
+weather <- weather[as.numeric(format(weather$date, "%Y")) >= minenvbelieveyear,]
+weather <- weather[as.numeric(format(weather$date, "%Y")) <= maxenvbelieveyear,]
 
 # get rid of duplicated rows
 weather$districtdate <- paste(weather$district, weather$date)
@@ -318,32 +317,17 @@ diagnostic_weatherdistricts <- unique(weather$district)
 # remove any districts which do not belong
 weather <- weather[weather$district %in% unique(district_shapes$district),]
 ```
-```{r silentsaveweather, include=FALSE, echo=FALSE}
-# put aside this set for use in the regression
-dailyextr <- weather
-rm(weather)
-gc()
-
-if (ostype == "windows") { 
-  
-  ggsave(paste(graphicoutputdir,
-               "var1.png",
-               sep=""), plot1)
-  ggsave(paste(graphicoutputdir,
-               "var2.png",
-               sep=""), plot2)
-  
-}
-```
 
 ## Vector infection data
 
 ```{r mosquitodataread, echo=FALSE} 
-
 wnv <- read.csv(mosqfile, stringsAsFactors=FALSE)
 wnv$col_date <- as.Date(wnv$col_date, "%m/%d/%Y")
 wnv$year <- as.numeric(format(wnv$col_date, "%Y"))
 
+# cull mosquito data which are not in the correct years
+wnv <- wnv[wnv$year >= minmosqbelieveyear,]
+wnv <- wnv[wnv$year <= maxmosqbelieveyear,]
 ```
 
 
@@ -354,9 +338,6 @@ diagnostic_mosquitodistricts <- unique(wnv$district)
 # remove any which do not belong
 wnv <- wnv[wnv$district %in% unique(district_shapes$district),]
 wnv$district <- factor(wnv$district)
-
-# convert date to a date object
-wnv$col_date <- as.Date(wnv$col_date, '%m/%d/%Y')
 
 # figure out how many rows we start with
 nrow1 <- nrow(wnv)
