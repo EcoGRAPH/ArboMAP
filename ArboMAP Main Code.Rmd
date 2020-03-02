@@ -92,12 +92,14 @@ humandatafile <- ".\\human case data\\simulated human case data.csv"
 # set up dates to constrain the human, mosquito, and weather data
 minhumanbelieveyear <- 2004
 maxhumanbelieveyear <- 2018
-
 minmosqbelieveyear  <- 2004
 maxmosqbelieveyear  <- 2018
-
 minenvbelieveyear <- 2003
 maxenvbelieveyear <- 2019
+
+# set up the desired human years
+minhumandesiredyear <- 2002
+maxhumandesiredyear <- 2020
 
 # cull some proportion of the outlying human cases
 humancasealpha <- 0.02
@@ -140,16 +142,15 @@ weekinquestionSat <- weekinquestionSun + 6
 weekinquestionSunstr <- strftime(weekinquestionSun, '%A')
 weekinquestionSatstr <- strftime(weekinquestionSat, '%A')
 
-# figure out which year this is and begin all weeks on Sunday
-maxmosqyear <- as.numeric(format(weekinquestion, "%Y"))
-maxdesiredhumandate <- as.Date(paste(maxmosqyear,
-                                     "-12-31",sep=""))
+# figure out which is the last Sunday in the max desired year
+maxdesiredhumandate <- as.Date(paste(maxhumandesiredyear, "12-31", sep=""))
 maxdesiredhumandate <- maxdesiredhumandate - (as.numeric(strftime(maxdesiredhumandate, '%u')) %% 7)
 maxdesiredhumandatestr <- strftime(maxdesiredhumandate, '%A')
 
-# make sure the max desired human date is no earlier than the week in question
-# otherwise, there will be no predictions for the week in question
-maxdesiredhumandate <- max(weekinquestionSun+7, maxdesiredhumandate)
+# figure out which is the first Sunday in the min desired human year
+mindesiredhumandate <- as.Date(paste(minhumandesiredyear, "12-31", sep=""))
+mindesiredhumandate <- mindesiredhumandate - (as.numeric(strftime(mindesiredhumandate, '%u')) %% 7)
+mindesiredhumandatestr <- strftime(mindesiredhumandate, '%A')
 
 # set up lag and regression information
 laglen   <- 181
@@ -158,12 +159,6 @@ dlagdeg  <- 8
 # mac file setup
 if (ostype == "mac") {
 
-  # where do we want the outputs?
-  graphicoutputdir <- "./graphical outputs/"
-  fullcasematoutputdir <- "./case matrix with estimates/"
-  mosqmatoutputdir <- "./mosquito matrix with estimates/"
-  modeloutputdir <- "./model output/"
-  
   # where are the human data located?
   # example of a file with directories an drive:
   humandatafile <- "./human case data/simulated human case data.csv"
@@ -179,9 +174,6 @@ if (ostype == "mac") {
   
   # which district stratification scheme are we using?
   stratafile <- "./strata/17-04-20 - classified strata - classic.csv"
-  
-  # where is the districtshapefile
-  districtshapefile <- "./shapefile/cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
   
 }
 ```
