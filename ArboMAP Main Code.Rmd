@@ -85,12 +85,17 @@ humandatafile <- ".\\human case data\\simulated human case data.csv"
 #humandatafile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\human\\19-01-29 - reconciled human WNV.csv"
 
 # set up dates to constrain the human, mosquito, and weather data
-minhumanbelieveyear <- 2004
-maxhumanbelieveyear <- 2018
-minmosqbelieveyear  <- 2004
-maxmosqbelieveyear  <- 2018
-minenvbelieveyear <- 1950
-maxenvbelieveyear <- 2250
+humanbelievableyears    <- c(2004:2016, 2018)
+mosquitobelievableyears <- 2003:2019
+envbelievableyears      <- 2000:2019
+
+# derive boundaries from the given sets
+minhumanbelieveyear <- min(humanbelievableyears)
+maxhumanbelieveyear <- max(humanbelievableyears)
+minmosqbelieveyear  <- min(mosquitobelievableyears)
+maxmosqbelieveyear  <- max(mosquitobelievableyears)
+minenvbelieveyear <- min(envbelievableyears)
+maxenvbelieveyear <- max(envbelievableyears)
 
 # set up the desired human years
 minhumandesiredyear <- 2002
@@ -586,11 +591,11 @@ weather <- weather[c("district", "date", "var1", "var2", "anom_var1", "anom_var2
 weather$district <- simplifynames(weather$district)
 # fill in missing and future climatological data
 totalweather <- expand.grid(district=unique(weather$district),
-                              date=seq(from=as.Date(paste(minhumandesiredyear-1, "-01-01", sep=""),
-                                                    "%Y-%m-%d"),
-                                       to=  as.Date(paste(maxhumanbelieveyear, "-12-31", sep=""),
-                                                    "%Y-%m-%d"),
-                                       by=1))
+                            date=seq(from=as.Date(paste(minhumandesiredyear-1, "-01-01", sep=""),
+                                                  "%Y-%m-%d"),
+                                     to=  as.Date(paste(maxhumandesiredyear, "-12-31", sep=""),
+                                                  "%Y-%m-%d"),
+                                     by=1))
 weather <- merge(x=totalweather, y=weather,
                    by.x=c("district","date"),
                    by.y=c("district","date"),
@@ -611,6 +616,8 @@ weather$var1[is.na(weather$var1)] <- weather$meanvar1[is.na(weather$var1)]
 weather$var2[is.na(weather$var2)] <- weather$meanvar2[is.na(weather$var2)]
 weather$anom_var1[is.na(weather$anom_var1)] <- 0
 weather$anom_var2[is.na(weather$anom_var2)] <- 0
+
+View(weather)
 
 # garbage collection
 rm(districtdoymean)
@@ -956,8 +963,9 @@ We visualize the raw estimated risk for `r weekinquestion` below. If a district 
 ```{r shapefile, include=FALSE, echo=FALSE, warnings=FALSE}
 district_shapes <- counties(state=statetomodel, cb=TRUE)
 district_shapes$NAME <- simplifynames(district_shapes$NAME)
+district_shapes$id <- district_shapes$NAME
 projected_districts.df <- tidy(district_shapes)
-projected_districts.df <- left_join(projected_districts.df, projected_districts@data, by="id")
+projected_districts.df <- left_join(projected_districts.df, district_shapes@data, by="id")
 projected_districts.df$district <- simplifynames(projected_districts.df$NAME)
 
 # get this week's predictions
