@@ -490,53 +490,12 @@ observedtotal  <- sum(fullcasemat$totalcases, na.rm=TRUE)
 weekinquestionreformat <- format(weekinquestionSun, "%m-%d")
 observedfraction <- 100*round(observedbefore / observedtotal, 2)
 ```
-```{r stratamap, include=FALSE, echo=FALSE}
-crs(district_shapes) <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80     +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
-projected_districts <- spTransform(district_shapes, crs("+proj=longlat +datum=WGS84 +no_defs"))
-projected_districts@data$id = rownames(projected_districts@data)
-projected_districts.df <- tidy(projected_districts)
-projected_districts.df <- left_join(projected_districts.df, projected_districts@data, by="id")
-
-stratamapcsv <- read.csv(stratafile)
-stratamapcsv$district <- simplifynames(stratamapcsv$district)
-stratamapcsv <- stratamapcsv[c("district", "strata")]
-
-projected_districts.df <- left_join(projected_districts.df, stratamapcsv,
-                                   by="district")
-
-projected_districts.df$stratum <- factor(projected_districts.df$strata.x)
-```
-```{r stratmap2, include=TRUE, echo=FALSE, fig.width=7, fig.height=3}
-thisplot <- ggplot(projected_districts.df) +
-      aes(long,lat,fill=stratum,group=group,id=id,guides=FALSE) +
-      geom_polygon() + xlab("") + ylab("") +
-      geom_path(color="black") +
-      theme(legend.position="bottom") +
-      coord_map() + ggtitle("State stratification map") +
-        theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
-            axis.ticks = element_blank(), axis.text.x = element_blank(),
-            axis.text.y = element_blank(), axis.title.x=element_blank(),
-            axis.title.y = element_blank(),
-            legend.position="right",
-            legend.key.width=unit(1, "cm"),
-            legend.key.height=unit(0.5,"cm"))
-plot(thisplot)
-```
-```{r silentsave88791122823, include=FALSE, echo=FALSE}
-if (ostype == "windows") {
-  
-  ggsave(paste(graphicoutputdir,
-               "strata.png",
-               sep=""), thisplot)
-  
-}
-```
 
 The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqyear` is shown here by grouping observations nearby in time.
 
 ```{r mosqbymonth, include=TRUE, echo=FALSE, fig.width=6, fig.height=3}
 mosqmopreds <- expand.grid(strata=unique(wnv$strata),
-                           year=minmosqyear:maxmosqyear,
+                           year=minmosqbelieveyear:maxmosqbelieveyear,
                            doy=seq(from=min(wnv$doy, na.rm=TRUE),
                                    to  =max(wnv$doy, na.rm=TRUE), by=1))
 mosqmopreds$dminus <- mosqmopreds$doy - mean(wnv$doy, na.rm=TRUE)
@@ -546,7 +505,7 @@ mosqmopreds <- group_by(mosqmopreds, dminus, year)
 mosqmopreds <- dplyr::summarize(mosqmopreds,
                          preds=mean(preds, na.rm=TRUE),
                          doy=mean(doy, na.rm=TRUE))
-thisyear1   <- mosqmopreds[mosqmopreds$year == maxmosqyear,]
+thisyear1   <- mosqmopreds[mosqmopreds$year == maxmosqbelieveyear,]
 comparison1 <- mosqmopreds[mosqmopreds$year == compyear1,]
 comparison2 <- mosqmopreds[mosqmopreds$year == compyear2,]
 
@@ -588,15 +547,6 @@ if (sum(!is.na(thisyeardot$doy)) > 20) {
 
 
 plot(thisplot)
-```
-```{r include=FALSE, echo=FALSE}
-if (ostype == "windows") { 
-  
-  ggsave(paste(graphicoutputdir,
-               "mosqinfectgrowthrates.png",
-               sep=""), thisplot)
-  
-}
 ```
 
 ## Human data
@@ -640,9 +590,10 @@ dailyextr <- dailyextr[c("district", "date", "var1", "var2", "anom_var1", "anom_
 dailyextr$district <- simplifynames(dailyextr$district)
 # fill in missing and future climatological data
 totaldailyextr <- expand.grid(district=unique(dailyextr$district),
-                              date=seq(from=as.Date(paste((minmosqyear-1), "-01-01", sep=""),
+                              date=seq(from=as.Date(paste(minhumandesiredyear-1, "-01-01", sep=""),
                                                     "%Y-%m-%d"),
-                                       to=maxdesiredhumandate,
+                                       to=  as.Date(paste(maxhumanbelieveyear, "12-31", sep=""),
+                                                    "%Y-%m-%d"),
                                        by=1))
 dailyextr <- merge(x=totaldailyextr, y=dailyextr,
                    by.x=c("district","date"),
@@ -742,11 +693,6 @@ fullcasemat[,grep(x=colnames(fullcasemat), pattern="var2_", fixed=TRUE)] <- NULL
 fullcasemat[,grep(x=colnames(fullcasemat), pattern="anom_var1_", fixed=TRUE)] <- NULL
 fullcasemat[,grep(x=colnames(fullcasemat), pattern="anom_var2_", fixed=TRUE)] <- NULL
 
-# import strata
-fullcasemat <- merge(x=fullcasemat, y=strata,
-                     by.x="district", by.y="district",
-                     all.x=TRUE)
-
 # create lag matrix
 fullcasemat$lag <- fullcasemat$var1
 for (curcol in 1:dim(fullcasemat$lag)[2]) {
@@ -765,35 +711,19 @@ rm(mean2data)
 gc()
 
 # include the mosquito summary statistic
-stratayearmosq <- randeffs
-stratayearmosq <- stratayearmosq[c("stratayear","mosqinfect")]
-names(stratayearmosq) <- c("stratayear","MIRsummarystat")
+yearmosq <- randeffs
+yearmosq <- yearmosq[c("year","mosqinfect")]
+names(yearmosq) <- c("year","MIRsummarystat")
 
 fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
-fullcasemat$stratayear <- paste(fullcasemat$strata, fullcasemat$year, sep=":")
-fullcasemat$year <- NULL
 
-fullcasemat <- merge(x=fullcasemat, y=stratayearmosq,
-                     by.x="stratayear", by.y="stratayear",
+fullcasemat <- merge(x=fullcasemat, y=yearmosq,
+                     by="year",
                      all.x=TRUE)
 
-# calculate missing MIRsummarystat
-stratayearmosq$strata <- substr(stratayearmosq$stratayear, 1, 3)
-tempdf <- aggregate(stratayearmosq$MIRsummarystat,
-                    by=list(stratayearmosq$strata),
-                    FUN=mean,
-                    na.rm=TRUE)
-names(tempdf) <- c("strata","MIRsummarystat2")
-
-fullcasemat <- merge(x=fullcasemat, y=tempdf,
-                     by.x="strata", by.y="strata",
-                     all.x=TRUE)
+# calculate missing MIR summary statistic
+# handle this with another model later
 fullcasemat$MIRsummarystat[is.na(fullcasemat$MIRsummarystat)] <- fullcasemat$MIRsummarystat2[is.na(fullcasemat$MIRsummarystat)]
-
-fullcasemat$strata <- NULL
-fullcasemat$stratayear <- NULL
-fullcasemat$MIRsummarystat2 <- NULL
-
 fullcasemat <- ungroup(fullcasemat)
 ```
 
@@ -811,9 +741,6 @@ for (curmodel in modelnames) {
   
   thisformula <- modelformulas[c(curmodel)]
   myform <- as.formula(thisformula)
-  
-  ## probably delete this
-  #fullcasemat <- fullcasemat[fullcasemat$modeled == 1,]
   
   # main human risk model
   cl <- makeCluster(detectCores(logical=FALSE)-1)
@@ -961,7 +888,7 @@ tempdf$weeknum <- as.numeric(format(tempdf$weekstartdate, "%U"))
 tempdf <- tempdf[tempdf$weeknum >= humanminobsweek,]
 tempdf <- tempdf[tempdf$weeknum <= humanmaxobsweek,]
 
-thisyear <- tempdf[tempdf$year == maxmosqyear,]
+thisyear <- tempdf[tempdf$year == maxhumandesiredyear,]
 
 tempdf <- bind_rows(thisyear,
                     comparison1,
@@ -992,8 +919,8 @@ yearlies <- dplyr::summarise(preds,
 
 yearlies$weight <- 1
 
-thisyear <- yearlies[yearlies$year == maxmosqyear,]
-prevyears <- yearlies[yearlies$year < maxmosqyear,]
+thisyear <- yearlies[yearlies$year == maxhumandesiredyear,]
+prevyears <- yearlies[yearlies$year < maxhumandesiredyear,]
 
 thisyear$totpos <- thisyear$totest
 prevyears <- bind_rows(prevyears, expand.grid(totpos=0,
@@ -1026,19 +953,14 @@ kable(thisyear[c("model", "totest", "totcases")],
       col.names=c("model", "est. positives", "total est. cases"))
 ```
 
-
-
 ## Results for `r weekinquestionSun` to `r format(weekinquestionSat, "%m-%d")`
 
 We visualize the raw estimated risk for `r weekinquestion` below. If a district is darkest blue, then we estimate that there should be no human cases reported for this district, during this week. If a district is brightest red, we are certain that there will be at least one human case reported for this district, during this week.
 
 ```{r shapefile, include=FALSE, echo=FALSE, warnings=FALSE}
-district_shapes <- readShapePoly(districtshapefile)
+district_shapes <- counties(state=statetomodel, cb=TRUE)
 district_shapes$NAME <- simplifynames(district_shapes$NAME)
-crs(district_shapes) <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80     +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
-projected_districts <- spTransform(district_shapes, crs("+proj=longlat +datum=WGS84 +no_defs"))
-projected_districts@data$id = rownames(projected_districts@data)
-projected_districts.df <- tidy(projected_districts)
+projected_districts.df <- tidy(district_shapes)
 projected_districts.df <- left_join(projected_districts.df, projected_districts@data, by="id")
 projected_districts.df$district <- simplifynames(projected_districts.df$NAME)
 
@@ -1059,8 +981,6 @@ for (curmodel in unique(thisweek$model)) {
 
 }
 projected_districts.df <- tempdf2
-#View(projected_districts.df)
-
 ```
 ```{r shapefile2, include=TRUE, echo=FALSE, fig.width=7, fig.height=8}
 thisplot <- ggplot(projected_districts.df) +
