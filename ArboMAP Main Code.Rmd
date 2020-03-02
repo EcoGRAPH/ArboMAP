@@ -841,15 +841,7 @@ thisplot <- ggplot() + geom_line(data=tempdf, aes(x=newdate, y=obs, group=model)
   theme(panel.grid.minor.x=element_blank()) +
   theme(legend.position="bottom") +
   theme(panel.grid.minor = element_blank(), panel.background = element_blank(),
-        legend.key = element_blank())
-
-
-
-
-
-
-
-
+        legend.key = element_blank(), text=element_text(size=10))
 plot(thisplot)
 thisplot2 <- ggplot(data=tempdf2) +
   geom_line(aes(x=weekstartdate, y=cenobs, group=model, color=model), show.legend=FALSE) +
