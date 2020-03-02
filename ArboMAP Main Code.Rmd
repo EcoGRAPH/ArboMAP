@@ -451,8 +451,7 @@ fullcasemat <- expand.grid(sort(unique(human$district)), filledweeks)
 names(fullcasemat) <- c("district", "weekstartdate")
 fullcasemat$anycases   <- rep(0, nrow(fullcasemat))
 fullcasemat$totalcases <- rep(0, nrow(fullcasemat))
-fullcasemat$observed   <- 1*((as.numeric(format(fullcasemat$weekstartdate, "%Y")) >= minhumanbelieveyear)&
-                             (as.numeric(format(fullcasemat$weekstartdate, "%Y")) <= maxhumanbelieveyear))
+fullcasemat$observed   <- 1*(as.numeric(format(fullcasemat$weekstartdate, "%Y")) %in% humanbelievableyears)
 
 # mark those district-weeks which are in the modeled set
 fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
@@ -720,10 +719,42 @@ fullcasemat <- merge(x=fullcasemat, y=yearmosq,
                      by="year",
                      all.x=TRUE)
 
+# create a matrix containing indicators for years in which there are observed rows but missing mosquito data
+fullcasemat <- group_by(fullcasemat, year)
+yearobs <- dplyr::summarise(observed = sum(observed, na.rm=TRUE))
+yearobs <- left_join(yearobs, yearmosq, by="year")
+# retain those which have observations
+yearobs <- yearobs[yearobs$observed > 0,]
+# but no mosquito data
+yearobs <- yearobs[is.na(yearobs$MIRsummarystat),]
+
+
+
+
+
+
 # calculate missing MIR summary statistic
-# handle this with another model later
 fullcasemat$MIRsummarystat[is.na(fullcasemat$MIRsummarystat)] <- mean(fullcasemat$MIRsummarystat, na.rm=TRUE)
 fullcasemat <- ungroup(fullcasemat)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ```
 
 ```{r humanreg, echo=FALSE, include=FALSE}
