@@ -831,9 +831,9 @@ thisplot <- ggplot() + geom_line(data=tempdf, aes(x=newdate, y=obs, group=model)
   scale_linetype_manual(values = mylinetypes) +
   ggtitle("Statewide model predictions") +
   xlab("") + ylab("") +
-  scale_x_continuous(breaks=seq(from=minmosqyear,to=(maxhumandesiredyear+1),by=1),
-                     labels=c(seq(from=minmosqyear, to=maxhumandesiredyear, by=1), ""),
-                     limits=c((minmosqyear+0.125),(maxhumandesiredyear+1))) +
+  scale_x_continuous(breaks=seq(from=minhumandesiredyear,to=(maxhumandesiredyear+1),by=1),
+                     labels=c(seq(from=minhumandesiredyear, to=maxhumandesiredyear, by=1), ""),
+                     limits=c((minhumandesiredyear+0.125),(maxhumandesiredyear+1))) +
   ylab("Proportion of districts positive") +
   theme(panel.grid.minor.x=element_blank()) +
   theme(axis.text.x = element_text(hjust=-0.225)) +
