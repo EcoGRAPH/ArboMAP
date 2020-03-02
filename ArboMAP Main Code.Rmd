@@ -100,7 +100,7 @@ maxhumandesiredyear <- 2020
 humancasealpha <- 0.02
 
 # which week are we producing the graphs for?
-weekinquestion <- as.Date("2018-07-15", "%Y-%m-%d")
+weekinquestion <- as.Date("2020-07-15", "%Y-%m-%d")
 
 # where are the weather csv files stored?
 weatherpathstr <- ".\\weather data\\"
@@ -436,8 +436,8 @@ human <- human[which((human$creationyear >= minhumanbelieveyear) & (human$creati
 # figure out which chunk of data we should be analyzing
 human$weeknum <- as.numeric(format(human$date, "%U"))
 minmaxweekquants <- quantile(human$weeknum, probs=c(humancasealpha/2, 1-humancasealpha/2), na.rm=TRUE)
-humanminobsweek <- minmaxweekquants[1]
-humanmaxobsweek <- minmaxweekquants[2]
+minhumanobsweek <- minmaxweekquants[1]
+maxhumanobsweek <- minmaxweekquants[2]
 
 # create the full list of weeks
 minobservedhumandate <- min(human$date)
@@ -453,7 +453,7 @@ fullcasemat$observed   <- 1*((as.numeric(format(fullcasemat$weekstartdate, "%Y")
 
 # mark those district-weeks which are in the modeled set
 fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
-fullcasemat$modeled <- fullcasemat$observed * (fullcasemat$weeknum >= humanminobsweek) * (fullcasemat$weeknum <= humanmaxobsweek)
+fullcasemat$modeled <- fullcasemat$observed * (fullcasemat$weeknum >= minhumanobsweek) * (fullcasemat$weeknum <= maxhumanobsweek)
 
 # count cases
 for (i in 1:nrow(fullcasemat)) {
@@ -488,7 +488,7 @@ weekinquestionreformat <- format(weekinquestionSun, "%m-%d")
 observedfraction <- 100*round(observedbefore / observedtotal, 2)
 ```
 
-The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqyear` is shown here by grouping observations nearby in time.
+The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqbelieveyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqbelieveyear` is shown here by grouping observations nearby in time.
 
 ```{r mosqbymonth, include=TRUE, echo=FALSE, fig.width=6, fig.height=3}
 mosqmopreds <- expand.grid(year=minmosqbelieveyear:maxmosqbelieveyear,
@@ -558,20 +558,20 @@ fullcasemat <- ungroup(fullcasemat)
 ggplot(sumanyhumancases) + geom_line(aes(x=weeknum, y=totany)) +
   ggtitle("positive districts by week, any year") +
   xlab("week number") + ylab("total districts positive") +
-  geom_vline(xintercept=humanminobsweek, linetype=2) +
-  geom_vline(xintercept=humanmaxobsweek, linetype=2) +
+  geom_vline(xintercept=minhumanobsweek, linetype=2) +
+  geom_vline(xintercept=maxhumanobsweek, linetype=2) +
   scale_x_continuous(breaks=seq(from=min(sumanyhumancases$weeknum),
                                 to=max(sumanyhumancases$weeknum),
                                 by=2))
 ```
 
-The predictive model of human cases was calibrated using `r totcase` historical cases, not including any cases from `r maxmosqyear`. No cases from `r maxmosqyear` are used to make predictions; the estimates for this year are based solely on weather and vector data. Typically, `r observedfraction`% of a year's cases occur before the end of this week in any given year.
+The predictive model of human cases was calibrated using `r totcase` historical cases, not including any cases from `r maxhumandesiredyear`. No cases from `r maxhumandesiredyear` are used to make predictions; the estimates for this year are based solely on weather and vector data. Typically, `r observedfraction`% of a year's cases occur before the end of this week in any given year.
 
 # Model results
 
 ## Statewide trends
 
-The graphs below show observed statewide risk (black) and estimated risk (red) up to `r maxdesiredhumandatestr` `r maxdesiredhumandate`. Observed risk should be completely zero during the last year - these data are not used in the model, and will only be updated once final human case data are received at the end of the year.
+The graphs below show observed statewide risk (black) and estimated risk (red) up to `r maxhumandesireddatestr` `r maxhumandesireddate`. Observed risk should be completely zero during the last year - these data are not used in the model, and will only be updated once final human case data are received at the end of the year.
 
 ```{r humandata2, echo=TRUE, warnings=FALSE, include=FALSE}
 # select which variables we're going to use
@@ -753,8 +753,8 @@ for (curmodel in modelnames) {
   fullcasemat$pred <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
   
   # censor predictions outside of the observed range
-  fullcasemat$pred[fullcasemat$weeknum < humanminobsweek] <- 0
-  fullcasemat$pred[fullcasemat$weeknum > humanmaxobsweek] <- 0
+  fullcasemat$pred[fullcasemat$weeknum < minhumanobsweek] <- 0
+  fullcasemat$pred[fullcasemat$weeknum > maxhumanobsweek] <- 0
 
   # get data frame of predictions from this model
   tempdf <- data.frame(weekstartdate = fullcasemat$weekstartdate,
@@ -785,8 +785,8 @@ for (curmodel in modelnames) {
 preds$weeknum <- as.numeric(format(preds$weekstartdate, "%U"))
 
 # figure out in which weeks we actually have cases, for the purpose of graphing
-tempdf <- preds[preds$weeknum >= (humanminobsweek-1),]
-tempdf <- tempdf[tempdf$weeknum <= (humanmaxobsweek+1),]
+tempdf <- preds[preds$weeknum >= (minhumanobsweek-1),]
+tempdf <- tempdf[tempdf$weeknum <= (maxhumanobsweek+1),]
 
 tempdf <- group_by(tempdf, weekstartdate, model)
 tempdf <- dplyr::summarize(tempdf,
@@ -794,19 +794,19 @@ tempdf <- dplyr::summarize(tempdf,
                     est=mean(pred, na.rm=TRUE),
                     week=mean(weeknum, na.rm=TRUE))
 
-tempdf$newwe <- (tempdf$week - humanminobsweek) / (humanmaxobsweek - humanminobsweek + 1)
+tempdf$newwe <- (tempdf$week - minhumanobsweek) / (maxhumanobsweek - minhumanobsweek + 1)
 tempdf$year <- as.numeric(format(tempdf$weekstartdate, "%Y"))
 tempdf$newdate <- tempdf$year + tempdf$newwe
 
 # plot just this year
 preds$year <- as.numeric(format(preds$weekstartdate, "%Y"))
-tempdf2 <- preds[preds$year == maxmosqyear,]
+tempdf2 <- preds[preds$year == maxhumandesiredyear,]
 tempdf2 <- group_by(tempdf2, weekstartdate, model)
 tempdf2 <- dplyr::summarize(tempdf2,
                             pred=mean(pred, na.rm=TRUE))
 tempdf2$weeknum <- as.numeric(format(tempdf2$weekstartdate, "%U"))
-tempdf2 <- tempdf2[tempdf2$weeknum >= humanminobsweek,]
-tempdf2 <- tempdf2[tempdf2$weeknum <= humanmaxobsweek,]
+tempdf2 <- tempdf2[tempdf2$weeknum >= minhumanobsweek,]
+tempdf2 <- tempdf2[tempdf2$weeknum <= maxhumanobsweek,]
 
 tempdf3 <- tempdf[tempdf$weekstartdate <= weekinquestion,]
 
@@ -831,9 +831,9 @@ thisplot <- ggplot() + geom_line(data=tempdf, aes(x=newdate, y=obs, group=model)
   scale_linetype_manual(values = mylinetypes) +
   ggtitle("Statewide model predictions") +
   xlab("") + ylab("") +
-  scale_x_continuous(breaks=seq(from=minmosqyear,to=(maxmosqyear+1),by=1),
-                     labels=c(seq(from=minmosqyear, to=maxmosqyear, by=1), ""),
-                     limits=c((minmosqyear+0.125),(maxmosqyear+1))) +
+  scale_x_continuous(breaks=seq(from=minmosqyear,to=(maxhumandesiredyear+1),by=1),
+                     labels=c(seq(from=minmosqyear, to=maxhumandesiredyear, by=1), ""),
+                     limits=c((minmosqyear+0.125),(maxhumandesiredyear+1))) +
   ylab("Proportion of districts positive") +
   theme(panel.grid.minor.x=element_blank()) +
   theme(axis.text.x = element_text(hjust=-0.225)) +
@@ -846,7 +846,7 @@ thisplot2 <- ggplot(data=tempdf2) +
   geom_line(aes(x=weekstartdate, y=pred, group=model, color=model, linetype=model)) +
   scale_color_manual("", values = mycolors) +
   scale_linetype_manual("", values = mylinetypes) +
-  ggtitle(paste("Statewide model predictions in ", maxmosqyear, sep="")) +
+  ggtitle(paste("Statewide model predictions in ", maxhumandesiredyear, sep="")) +
   xlab("") + ylab("") +
   geom_vline(xintercept=weekinquestion) + 
   ylab("Proportion of districts positive") +
@@ -881,8 +881,8 @@ tempdf$year <- as.numeric(format(tempdf$weekstartdate, "%Y"))
 tempdf$month <- as.numeric(format(tempdf$weekstartdate, "%m"))
 tempdf$weeknum <- as.numeric(format(tempdf$weekstartdate, "%U"))
 
-tempdf <- tempdf[tempdf$weeknum >= humanminobsweek,]
-tempdf <- tempdf[tempdf$weeknum <= humanmaxobsweek,]
+tempdf <- tempdf[tempdf$weeknum >= minhumanobsweek,]
+tempdf <- tempdf[tempdf$weeknum <= maxhumanobsweek,]
 
 thisyear <- tempdf[tempdf$year == maxhumandesiredyear,]
 
