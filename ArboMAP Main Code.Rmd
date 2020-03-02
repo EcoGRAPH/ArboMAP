@@ -208,8 +208,7 @@ weather$date <- as.Date(paste(weather$year,
                         "%Y-%j")
 
 # cull if we don't believe certain weather dates
-weather <- weather[as.numeric(format(weather$date, "%Y")) >= minenvbelieveyear,]
-weather <- weather[as.numeric(format(weather$date, "%Y")) <= maxenvbelieveyear,]
+weather <- weather[as.numeric(format(weather$date, "%Y")) %in% envbelievableyears,]
 
 # get rid of duplicated rows
 weather$districtdate <- paste(weather$district, weather$date)
@@ -327,8 +326,7 @@ wnv$col_date <- as.Date(wnv$col_date, "%m/%d/%Y")
 wnv$year <- as.numeric(format(wnv$col_date, "%Y"))
 
 # cull mosquito data which are not in the correct years
-wnv <- wnv[wnv$year >= minmosqbelieveyear,]
-wnv <- wnv[wnv$year <= maxmosqbelieveyear,]
+wnv <- wnv[wnv$year %in% mosquitobelievableyears,]
 ```
 
 
@@ -436,7 +434,7 @@ human$district <- factor(human$district)
 human$doy <- as.numeric(format(human$date, "%j"))
 
 # retain only those in the right date range
-human <- human[which((human$creationyear >= minhumanbelieveyear) & (human$creationyear <= maxhumanbelieveyear)),]
+human <- human[human$creationyear %in% humanbelievableyears,]
 
 # figure out which chunk of data we should be analyzing
 human$weeknum <- as.numeric(format(human$date, "%U"))
@@ -616,8 +614,6 @@ weather$var1[is.na(weather$var1)] <- weather$meanvar1[is.na(weather$var1)]
 weather$var2[is.na(weather$var2)] <- weather$meanvar2[is.na(weather$var2)]
 weather$anom_var1[is.na(weather$anom_var1)] <- 0
 weather$anom_var2[is.na(weather$anom_var2)] <- 0
-
-View(weather)
 
 # garbage collection
 rm(districtdoymean)
