@@ -86,7 +86,7 @@ humandatafile <- ".\\human case data\\simulated human case data.csv"
 
 # set up dates to constrain the human, mosquito, and weather data
 humanbelievableyears    <- c(2004:2016, 2018)
-mosquitobelievableyears <- 2003:2019
+mosquitobelievableyears <- c(2003:2004, 2016:2018)
 envbelievableyears      <- 2000:2019
 
 # derive boundaries from the given sets
@@ -834,15 +834,22 @@ thisplot <- ggplot() + geom_line(data=tempdf, aes(x=newdate, y=obs, group=model)
   scale_linetype_manual(values = mylinetypes) +
   ggtitle("Statewide model predictions") +
   xlab("") + ylab("") +
-  scale_x_continuous(breaks=seq(from=minhumandesiredyear,to=(maxhumandesiredyear+1),by=1),
+  scale_x_continuous(breaks=seq(from=minhumandesiredyear+0.5,to=(maxhumandesiredyear+1+0.5),by=1),
                      labels=c(seq(from=minhumandesiredyear, to=maxhumandesiredyear, by=1), ""),
-                     limits=c((minhumandesiredyear+0.125),(maxhumandesiredyear+1))) +
+                     limits=c((minhumandesiredyear-0.125),(maxhumandesiredyear+1))) +
   ylab("Proportion of districts positive") +
   theme(panel.grid.minor.x=element_blank()) +
-  theme(axis.text.x = element_text(hjust=-0.225)) +
   theme(legend.position="bottom") +
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(),
+  theme(panel.grid.minor = element_blank(), panel.background = element_blank(),
         legend.key = element_blank())
+
+
+
+
+
+
+
+
 plot(thisplot)
 thisplot2 <- ggplot(data=tempdf2) +
   geom_line(aes(x=weekstartdate, y=cenobs, group=model, color=model), show.legend=FALSE) +
