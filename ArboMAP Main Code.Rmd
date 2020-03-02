@@ -76,11 +76,12 @@ modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat +
 # or choose just some selection
 modelnames <- c("cub-fx-nonanom", "tp-fx-anom")
 
-# where do we want the outputs? 
-graphicoutputdir <- ".\\graphical outputs\\"
-fullcasematoutputdir <- ".\\case matrix with estimates\\"
-mosqmatoutputdir <- ".\\mosquito matrix with estimates\\"
-modeloutputdir <- ".\\model output\\"
+# temporarily disable outputs, as these cause problems on some platforms
+# # where do we want the outputs? 
+# graphicoutputdir <- ".\\graphical outputs\\"
+# fullcasematoutputdir <- ".\\case matrix with estimates\\"
+# mosqmatoutputdir <- ".\\mosquito matrix with estimates\\"
+# modeloutputdir <- ".\\model output\\"
 
 # where are the human data located?
 # example of a file with directories an drive:
@@ -88,10 +89,15 @@ humandatafile <- ".\\human case data\\simulated human case data.csv"
 # example of a hard-coded directory
 #humandatafile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\human\\19-01-29 - reconciled human WNV.csv"
 
-# what is the date of the last human case we're willing to believe?
-# probably, cut this off at the end of last year
-# DO NOT use any human cases from the year you're modeling
-maxobservedhumandate <- as.Date("2017-12-31", "%Y-%m-%d")
+# set up dates to constrain the human, mosquito, and weather data
+minhumanbelieveyear <- 2004
+maxhumanbelieveyear <- 2018
+
+minmosqbelieveyear  <- 2004
+maxmosqbelieveyear  <- 2018
+
+minenvbelieveyear <- 2003
+maxenvbelieveyear <- 2019
 
 # cull some proportion of the outlying human cases
 humancasealpha <- 0.02
