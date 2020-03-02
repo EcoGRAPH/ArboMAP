@@ -231,7 +231,6 @@ weather$var1 <- weather[,which(colnames(weather) == var1name)]
 weather$var2 <- weather[,which(colnames(weather) == var2name)]
 weather$anom_var1 <- weather[,which(colnames(weather) == paste("anom_", var1name, sep=""))]
 weather$anom_var2 <- weather[,which(colnames(weather) == paste("anom_", var2name, sep=""))]
-
 weather <- group_by(weather,
                     doy)
 doymet <- dplyr::summarise(weather,
@@ -350,9 +349,6 @@ wnv$species <- NULL
 wnv$district <- factor(wnv$district)
 wnv$district <- droplevels(wnv$district)
 
-# figure out which years we're modeling
-minmosqyear <- min(wnv$year, na.rm=TRUE)
-
 # get rid of those which don't have a result
 wnv <- wnv[which(!is.na(wnv$wnv_result)),]
 wnv <- wnv[which(!is.na(wnv$doy)),]
@@ -364,9 +360,9 @@ wnv <- wnv[which(wnv$doy <= 212),]
 
 # after cleaning, how many do we have?
 nrow2 <- nrow(wnv)
-nrow3 <- nrow(wnv[wnv$year == maxmosqyear,])
+nrow3 <- nrow(wnv[wnv$year == max(wnv$year, na.rm=TRUE),])
 
-tempdf <- wnv[wnv$year == maxmosqyear,]
+tempdf <- wnv[wnv$year == max(wnv$year, na.rm=TRUE),]
 tempdf <- tempdf[!is.na(tempdf$wnv_result),]
 wnvdenominator <- nrow(tempdf)
 wnvnumerator <- nrow(tempdf[tempdf$wnv_result == 1,])
@@ -375,18 +371,9 @@ numpos <- wnvnumerator
 perpos <- 100*round(wnvnumerator/wnvdenominator, 3)
 ```
 
-There are `r nrow2` samples in the vector testing database. For `r maxmosqyear`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. The regions used for stratification are mapped below; districts are thought to share risk more closely with others in the same strata, although all districts share some level of risk with all other districts.  
+There are `r nrow2` samples in the vector testing database. For `r max(wnv$year, na.rm=TRUE)`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. The regions used for stratification are mapped below; districts are thought to share risk more closely with others in the same strata, although all districts share some level of risk with all other districts.  
 
 ```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
-# import district identifiers
-strata <- read.csv(stratafile)
-strata$district <- simplifynames(strata$district)
-strata <- strata[c("district", "strata")]
-wnv <- merge(x=wnv, y=strata,
-             by.x="district",
-             by.y="district",
-             all.x=TRUE)
-
 # figure out how many distinct districts we have left
 districtlist           <- data.frame(district=unique(wnv$district))
 distinctdistricts      <- length(unique(wnv$district))
@@ -399,39 +386,24 @@ wnv <- merge(x=wnv, y=districtlist,
 wnv$dminus <- wnv$doy - mean(wnv$doy, na.rm=TRUE)
 
 # make sure all the observations have a stratum and year
-wnv <- wnv[!is.na(wnv$strata),]
 wnv <- wnv[!is.na(wnv$year),]
 
 # run a random effect model on orthogonalized data
 infectglm <- glmer(wnv_result ~ 1+dminus+
                     (0+1|year) +
-                    (0+dminus|year) +
-                    (0+1|strata:year) + 
-                    (0+dminus|strata:year),
+                    (0+dminus|year),
                   family=binomial(),
                   data=wnv)
-
 wnv$est <- predict(infectglm, newdata=wnv, type="response")
-
-if (ostype == "windows") { 
-  
-  write.csv(x=wnv, file=paste(mosqmatoutputdir,
-                              "mosqmatrix.csv",
-                              sep=""))
-  
-}
 
 # predict random effects for all years
 # dminus cannot be set to simply 0 - we have to make sure this isn't read in as a factor
-randeffs <- expand.grid(strata=unique(wnv$strata),
-                        year=minmosqyear:maxmosqyear,
+randeffs <- expand.grid(year=minmosqbelieveyear:maxmosqbelieveyear,
                         dminus=0.00001)
-randeffs <- randeffs[which(!is.na(randeffs$strata)),]
+
 # if you don't allow new levels, the most recent year might not have an estimate
 randeffs$mosqinfect <- predict(infectglm, newdata=randeffs, allow.new.levels = TRUE)
-randeffs$stratayear <- paste(randeffs$strata, randeffs$year, sep=":")
 randeffs$adjmosqinfect <- randeffs$mosqinfect - mean(randeffs$mosqinfect,na.rm=TRUE)
-randeffs$stratum <- factor(randeffs$strata)
 ```
 ```{r fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
 thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect, group=stratum, color=stratum)) +
@@ -442,15 +414,6 @@ thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect, group=stra
         panel.grid.major.y=element_blank())+
   xlab("") + ylab("Relative risk due to\nvector infection growth rate")
 plot(thisplot)
-```
-```{r silentsavemosq, include=FALSE, echo=FALSE}
-if (ostype == "windows") {
-  
-  ggsave(paste(graphicoutputdir,
-               "vector infection rates.png",
-               sep=""), thisplot)
-  
-}
 ```
 
 ```{r humandata, include=FALSE, echo=TRUE}
@@ -471,9 +434,7 @@ human$district <- factor(human$district)
 human$doy <- as.numeric(format(human$date, "%j"))
 
 # retain only those in the right date range
-hWNVminyear <- minmosqyear
-hWNVmaxyear <- maxmosqyear-1
-human <- human[which((human$creationyear >= hWNVminyear) & (human$creationyear <= hWNVmaxyear)),]
+human <- human[which((human$creationyear >= minhumanbelieveyear) & (human$creationyear <= maxhumanbelieveyear)),]
 
 # figure out which chunk of data we should be analyzing
 human$weeknum <- as.numeric(format(human$date, "%U"))
@@ -485,15 +446,13 @@ humanmaxobsweek <- minmaxweekquants[2]
 minobservedhumandate <- min(human$date)
 
 # set up the data frame so that it ends at the maxdesiredhumandate 
-filledweeks <- seq(from=maxdesiredhumandate, to=minobservedhumandate, by=-7)
-
+filledweeks <- seq(from=maxhumandesireddate, to=minhumandesireddate, by=-7)
 fullcasemat <- expand.grid(sort(unique(human$district)), filledweeks)
 names(fullcasemat) <- c("district", "weekstartdate")
-head(fullcasemat)
 fullcasemat$anycases   <- rep(0, nrow(fullcasemat))
 fullcasemat$totalcases <- rep(0, nrow(fullcasemat))
-fullcasemat$observed   <- 1*((fullcasemat$weekstartdate >= minobservedhumandate)&
-                             (fullcasemat$weekstartdate <= maxobservedhumandate))
+fullcasemat$observed   <- 1*((as.numeric(format(fullcasemat$weekstartdate, "%Y")) >= minhumanbelieveyear)&
+                             (as.numeric(format(fullcasemat$weekstartdate, "%Y")) <= maxhumanbelieveyear))
 
 # mark those district-weeks which are in the modeled set
 fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
