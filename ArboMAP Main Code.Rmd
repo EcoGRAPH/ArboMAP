@@ -575,47 +575,47 @@ The graphs below show observed statewide risk (black) and estimated risk (red) u
 
 ```{r humandata2, echo=TRUE, warnings=FALSE, include=FALSE}
 # select which variables we're going to use
-dailyextr <- data.frame(dailyextr)
-dailyextr$var1 <- dailyextr[,which(colnames(dailyextr) == var1name)]
-dailyextr$var2 <- dailyextr[,which(colnames(dailyextr) == var2name)]
+weather <- data.frame(weather)
+weather$var1 <- weather[,which(colnames(weather) == var1name)]
+weather$var2 <- weather[,which(colnames(weather) == var2name)]
 
-dailyextr$anom_var1 <- dailyextr[,which(colnames(dailyextr) == paste("anom_", var1name, sep=""))]
-dailyextr$anom_var2 <- dailyextr[,which(colnames(dailyextr) == paste("anom_", var2name, sep=""))]
+weather$anom_var1 <- weather[,which(colnames(weather) == paste("anom_", var1name, sep=""))]
+weather$anom_var2 <- weather[,which(colnames(weather) == paste("anom_", var2name, sep=""))]
 
-dailyextr <- dailyextr[c("district", "date", "var1", "var2", "anom_var1", "anom_var2")]
-dailyextr$district <- simplifynames(dailyextr$district)
+weather <- weather[c("district", "date", "var1", "var2", "anom_var1", "anom_var2")]
+weather$district <- simplifynames(weather$district)
 # fill in missing and future climatological data
-totaldailyextr <- expand.grid(district=unique(dailyextr$district),
+totalweather <- expand.grid(district=unique(weather$district),
                               date=seq(from=as.Date(paste(minhumandesiredyear-1, "-01-01", sep=""),
                                                     "%Y-%m-%d"),
-                                       to=  as.Date(paste(maxhumanbelieveyear, "12-31", sep=""),
+                                       to=  as.Date(paste(maxhumanbelieveyear, "-12-31", sep=""),
                                                     "%Y-%m-%d"),
                                        by=1))
-dailyextr <- merge(x=totaldailyextr, y=dailyextr,
+weather <- merge(x=totalweather, y=weather,
                    by.x=c("district","date"),
                    by.y=c("district","date"),
                    all.x=TRUE)
-dailyextr$doy <- as.numeric(format(dailyextr$date, "%j"))
+weather$doy <- as.numeric(format(weather$date, "%j"))
 
-dailyextr <- group_by(dailyextr, district, doy)
-districtdoymean <- dplyr::summarize(dailyextr,
+weather <- group_by(weather, district, doy)
+districtdoymean <- dplyr::summarize(weather,
                            meanvar1=mean(var1, na.rm=TRUE),
                            meanvar2=mean(var2, na.rm=TRUE))
-dailyextr <- ungroup(dailyextr)                           
+weather <- ungroup(weather)                           
 
-dailyextr <- left_join(dailyextr, districtdoymean,
+weather <- left_join(weather, districtdoymean,
                    by=c("district","doy"))
 
 # replace missing with reasonable values
-dailyextr$var1[is.na(dailyextr$var1)] <- dailyextr$meanvar1[is.na(dailyextr$var1)]
-dailyextr$var2[is.na(dailyextr$var2)] <- dailyextr$meanvar2[is.na(dailyextr$var2)]
-dailyextr$anom_var1[is.na(dailyextr$anom_var1)] <- 0
-dailyextr$anom_var2[is.na(dailyextr$anom_var2)] <- 0
+weather$var1[is.na(weather$var1)] <- weather$meanvar1[is.na(weather$var1)]
+weather$var2[is.na(weather$var2)] <- weather$meanvar2[is.na(weather$var2)]
+weather$anom_var1[is.na(weather$anom_var1)] <- 0
+weather$anom_var2[is.na(weather$anom_var2)] <- 0
 
 # garbage collection
 rm(districtdoymean)
-dailyextr$meanvar1 <- NULL
-dailyextr$meanvar2 <- NULL
+weather$meanvar1 <- NULL
+weather$meanvar2 <- NULL
 gc()
 
 # we need the districts to be in lower case to merge with the gridMET data
@@ -627,12 +627,12 @@ datalagger <- expand.grid(unique(fullcasemat$district),
 names(datalagger) <- c("district","date","lag")
 datalagger$laggeddate <- datalagger$date-datalagger$lag
 
-datalagger <- left_join(datalagger, dailyextr,
+datalagger <- left_join(datalagger, weather,
                         by=c("district"="district",
                              "laggeddate"="date"))
 
 # garbage collection
-rm(dailyextr)
+rm(weather)
 gc()
 
 # pivot
@@ -719,7 +719,7 @@ fullcasemat <- merge(x=fullcasemat, y=yearmosq,
 
 # calculate missing MIR summary statistic
 # handle this with another model later
-fullcasemat$MIRsummarystat[is.na(fullcasemat$MIRsummarystat)] <- fullcasemat$MIRsummarystat2[is.na(fullcasemat$MIRsummarystat)]
+fullcasemat$MIRsummarystat[is.na(fullcasemat$MIRsummarystat)] <- mean(fullcasemat$MIRsummarystat, na.rm=TRUE)
 fullcasemat <- ungroup(fullcasemat)
 ```
 
