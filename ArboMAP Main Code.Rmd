@@ -176,9 +176,20 @@ if (ostype == "mac") {
 ```
 
 # Data used for predictions
-## Weather data
 
-ArboMAP is set to use weather data from the years `r envbelievableyears`. If weather are data are necessary outside of this range (e.g. predicting into the far future) then the program will use daily averages from observed years to fill in times where data are not available. A year appearing in this list does not mean that those data are actually available to ArboMAP - solely that the program will permit their use if they are present.
+## Believable data
+
+ArboMAP is set to believe weather data from the years `r envbelievableyears`. If weather are data are necessary outside of this range (e.g. predicting into the far future) then the program will use daily averages from observed years to fill in times where data are not available. A year appearing in this list does not mean that those data are actually available to ArboMAP - solely that the program will permit their use if they are present. These data need to be actually present in the weather directory, but observations will be discarded if ArboMAP has not been instructed to believe those years.
+
+ArboMAP is set to believe mosquito infection data from the years `r mosquitobelievableyears`. Years without mosquito data are assumed to have average mosquito infection rates. Just because a year is present in this list does not imply that those data have actually been made available to ArboMAP - just that ArboMAP will use those data if they are available. Even if there were no positive pools in a given year, if there were pools tested then the data will be used; zero infection rates do predict low-risk years and should be believed.
+ 
+ArboMAP is set to believe human infection data from the years `r humanbelievableyears`. This list **should not** include the year in which human cases are being predicted; e.g. if you are predicting for 2020, then 2020 should not be in this list. If, however, you are running historical estimates (as opposed to future predictions), then it is reasonable to let ArboMAP trust these data.
+
+If you believe human data in a year and either 1) do not believe the mosquito data from that year or 2) are not able to obtain an estimated mosquito infection growth rate (MIGR) for that year (e.g. too few mosquito pools tested), then ArboMAP will derive an exact fit for MIGR in that year by pretending the MIGR is a value to be estimated from the human data, rather than derived from the mosquito data.
+
+\newpage
+
+## Weather data
 
 ```{r weatherdataload, include=FALSE, echo=TRUE}
 # load tigris files here so we have an early list of the permissible district names
@@ -321,8 +332,6 @@ weather <- weather[weather$district %in% unique(district_shapes$district),]
 ```
 
 ## Vector infection data
-
-ArboMAP is set to use mosquito infection data from the years `r mosquitobelievableyears`. Years without mosquito data are assumed to have average mosquito infection rates. Just because a year is present in this list does not imply that those data have actually been made available to ArboMAP - solely that ArboMAP will use those data if they are available. Even if there were no positive pools in a given year, if there were pools tested then the data will be used; zero infection rates do predict low-risk years and this is helpful information. 
 
 ```{r mosquitodataread, echo=FALSE} 
 wnv <- read.csv(mosqfile, stringsAsFactors=FALSE)
@@ -547,8 +556,6 @@ plot(thisplot)
 ```
 
 ## Human data
-
-ArboMAP is set to use human infection data from the years `r humanbelievableyears`. This list **should not** include the year in which human cases are being predicted; e.g. if you are predicting for this year, then this year should not be in this list, since you do not have access to all the human data yet and cannot use it to condition the models. If in some previous years the reported cases were zero, then those years should still be included in this list.
 
 In the graph below, positive districts by week are shown over all years. Only weeks within the two dashed lines (excluding `r 100*humancasealpha`% total of the earliest and latest cases) are used in modeling for numerical stability.
 
@@ -1015,7 +1022,6 @@ for (curmodel in unique(thisweek$model)) {
 
 }
 projected_districts.df <- tempdf2
-View(projected_districts.df)
 ```
 ```{r shapefile2, include=TRUE, echo=FALSE, fig.width=7, fig.height=8}
 thisplot <- ggplot(projected_districts.df) +
