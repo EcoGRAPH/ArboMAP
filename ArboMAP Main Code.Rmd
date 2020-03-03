@@ -86,7 +86,7 @@ humandatafile <- ".\\human case data\\simulated human case data.csv"
 
 # set up dates to constrain the human, mosquito, and weather data
 humanbelievableyears    <- c(2004:2018)
-mosquitobelievableyears <- c(2003:2010, 2012:2018)
+mosquitobelievableyears <- c(2003:2018)
 envbelievableyears      <- 2000:2019
 
 # derive boundaries from the given sets
@@ -753,7 +753,7 @@ if (length(yearsneedingcolumns) == 0) {
 fullcasemat <- left_join(fullcasemat, yearfiller, by="year")
 ```
 
-ArboMAP is performing a exact fit for data in years: `r ynctext`. This occurs whenever there are human data in a year (the year is in `humanbelievableyears`) but no corresponding mosquito data (the year is not in `mosquitobelievableyears`) or for some reason the risk factor due to mosquitoes could not be estimated. We do not want to ignore human data if no mosquito data are available, since we can still examine the relationship with environmental covariates.
+ArboMAP is performing a exact fit for data in years: `r ynctext`. An exact fit occurs whenever there are human data in a year (the year is in `humanbelievableyears`) but no corresponding mosquito data (the year is not in `mosquitobelievableyears`) or for some reason the risk factor due to mosquitoes could not be estimated. We do not want to ignore human data if no mosquito data are available, since we can still examine the relationship with environmental covariates.
 
 ```{r humanreg, echo=FALSE, include=FALSE}
 # set up list to contain models
@@ -876,9 +876,9 @@ thisplot <- ggplot() + geom_line(data=tempdf, aes(x=newdate, y=obs, group=model)
   scale_linetype_manual(values = mylinetypes) +
   ggtitle("Statewide model predictions") +
   xlab("") + ylab("") +
-  scale_x_continuous(breaks=seq(from=minhumandesiredyear+0.5,to=(maxhumandesiredyear+1+0.5),by=1),
-                     labels=c(seq(from=minhumandesiredyear, to=maxhumandesiredyear, by=1), ""),
-                     limits=c((minhumandesiredyear-0.125),(maxhumandesiredyear+1))) +
+  scale_x_continuous(breaks=seq(from=minhumandesiredyear+0.5,to=(maxhumandesiredyear+0.5),by=1),
+                     labels=seq(from=minhumandesiredyear, to=maxhumandesiredyear, by=1),
+                     limits=c((minhumandesiredyear),(maxhumandesiredyear+1))) +
   ylab("Proportion of districts positive") +
   theme(panel.grid.minor.x=element_blank()) +
   theme(legend.position="bottom") +
@@ -1143,6 +1143,8 @@ plot(thisplotrisk)
 ```
 
 ## Estimated dependence functions
+
+Because the user can write model formulas from scratch, we are not able to assume anything about the regression model. Therefore, plotting the model is difficult when you don't know what components the model has. In what follows, every 1-/2-D plot from the chosen models are shown. These will have names assigned by the gam function, which should be comprehensible if the user built the model.
 
 ```{r modelplots, include=TRUE, echo=FALSE, fig.width=7, fig.height=4}
 curmodel <- modelnames[1]
