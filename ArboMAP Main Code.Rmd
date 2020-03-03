@@ -185,7 +185,7 @@ ArboMAP is set to believe mosquito infection data from the years `r mosquitobeli
  
 ArboMAP is set to believe human infection data from the years `r humanbelievableyears`. This list **should not** include the year in which human cases are being predicted; e.g. if you are predicting for 2020, then 2020 should not be in this list. If, however, you are running historical estimates (as opposed to future predictions), then it is reasonable to let ArboMAP trust these data.
 
-If you believe human data in a year and either 1) do not believe the mosquito data from that year or 2) are not able to obtain an estimated mosquito infection growth rate (MIGR) for that year (e.g. too few mosquito pools tested), then ArboMAP will derive an exact fit for MIGR in that year by pretending the MIGR is a value to be estimated from the human data, rather than derived from the mosquito data.
+If you believe human data in a year and either 1) do not believe the mosquito data from that year or 2) are not able to obtain an estimated mosquito infection growth rate (MIGR) for that year (e.g. too few mosquito pools tested), then ArboMAP will derive an exact fit for MIGR in that year by pretending the MIGR is a value to be estimated from the human data, rather than derived from the mosquito data. This is backwards of what is typically done - the mosquito data should typically tell us risk rather than vice versa, but it allows us to still estimate the relationships with environmental covariates whenever mosquito data are not available.
 
 \newpage
 
