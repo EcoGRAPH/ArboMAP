@@ -744,7 +744,6 @@ if (length(yearsneedingcolumns) == 0) {
 
 # add these mosquito data to the fullcasemat
 fullcasemat <- left_join(fullcasemat, yearfiller, by="year")
-View(yearfiller)
 ```
 
 ArboMAP is performing a exact fit for data in years: `r ynctext`. This occurs whenever there are human data in a year (the year is in humanbelievableyears) but no corresponding mosquito data (the year is not in mosquitobelievableyears). We do not want to ignore human data if no mosquito data are available, since we can still examine the relationship with environmental covariates.
@@ -994,7 +993,7 @@ We visualize the raw estimated risk for `r weekinquestion` below. If a district 
 ```{r shapefile, include=FALSE, echo=FALSE, warnings=FALSE}
 district_shapes <- counties(state=statetomodel, cb=TRUE)
 district_shapes$NAME <- simplifynames(district_shapes$NAME)
-district_shapes$id <- district_shapes$NAME
+district_shapes$id <- rownames(district_shapes@data)
 projected_districts.df <- tidy(district_shapes)
 projected_districts.df <- left_join(projected_districts.df, district_shapes@data, by="id")
 projected_districts.df$district <- simplifynames(projected_districts.df$NAME)
@@ -1016,6 +1015,7 @@ for (curmodel in unique(thisweek$model)) {
 
 }
 projected_districts.df <- tempdf2
+View(projected_districts.df)
 ```
 ```{r shapefile2, include=TRUE, echo=FALSE, fig.width=7, fig.height=8}
 thisplot <- ggplot(projected_districts.df) +
