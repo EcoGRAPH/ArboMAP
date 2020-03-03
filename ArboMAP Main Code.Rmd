@@ -85,8 +85,8 @@ humandatafile <- ".\\human case data\\simulated human case data.csv"
 #humandatafile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\human\\19-01-29 - reconciled human WNV.csv"
 
 # set up dates to constrain the human, mosquito, and weather data
-humanbelievableyears    <- c(2004:2016, 2018)
-mosquitobelievableyears <- c(2003:2010, 2016:2018)
+humanbelievableyears    <- c(2004:2018)
+mosquitobelievableyears <- c(2003:2010, 2012:2018)
 envbelievableyears      <- 2000:2019
 
 # derive boundaries from the given sets
@@ -185,7 +185,7 @@ ArboMAP is set to believe mosquito infection data from the years `r mosquitobeli
  
 ArboMAP is set to believe human infection data from the years `r humanbelievableyears`. This list **should not** include the year in which human cases are being predicted; e.g. if you are predicting for 2020, then 2020 should not be in this list. If, however, you are running historical estimates (as opposed to future predictions), then it is reasonable to let ArboMAP trust these data.
 
-If you believe human data in a year and either 1) do not believe the mosquito data from that year or 2) are not able to obtain an estimated mosquito infection growth rate (MIGR) for that year (e.g. too few mosquito pools tested), then ArboMAP will derive an exact fit for MIGR in that year by pretending the MIGR is a value to be estimated from the human data, rather than derived from the mosquito data. This is backwards of what is typically done - the mosquito data should typically tell us risk rather than vice versa, but it allows us to still estimate the relationships with environmental covariates whenever mosquito data are not available.
+If you believe human data in a year and either 1) do not believe the mosquito data from that year or 2) are not able to obtain an estimated mosquito infection growth rate for that year (e.g. too few mosquito pools reported), then ArboMAP will substitute the mosquito data with a single constant for that risk. This allows us to estimate relationships with environmental data even when mosquito data are not available.
 
 \newpage
 
@@ -753,7 +753,7 @@ if (length(yearsneedingcolumns) == 0) {
 fullcasemat <- left_join(fullcasemat, yearfiller, by="year")
 ```
 
-ArboMAP is performing a exact fit for data in years: `r ynctext`. This occurs whenever there are human data in a year (the year is in humanbelievableyears) but no corresponding mosquito data (the year is not in mosquitobelievableyears). We do not want to ignore human data if no mosquito data are available, since we can still examine the relationship with environmental covariates.
+ArboMAP is performing a exact fit for data in years: `r ynctext`. This occurs whenever there are human data in a year (the year is in `humanbelievableyears`) but no corresponding mosquito data (the year is not in `mosquitobelievableyears`) or for some reason the risk factor due to mosquitoes could not be estimated. We do not want to ignore human data if no mosquito data are available, since we can still examine the relationship with environmental covariates.
 
 ```{r humanreg, echo=FALSE, include=FALSE}
 # set up list to contain models
