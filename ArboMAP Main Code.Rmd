@@ -86,7 +86,7 @@ humandatafile <- ".\\human case data\\simulated human case data.csv"
 
 # set up dates to constrain the human, mosquito, and weather data
 humanbelievableyears    <- c(2004:2016, 2018)
-mosquitobelievableyears <- c(2003:2011, 2016:2018)
+mosquitobelievableyears <- c(2003:2010, 2016:2018)
 envbelievableyears      <- 2000:2019
 
 # derive boundaries from the given sets
@@ -375,7 +375,7 @@ numpos <- wnvnumerator
 perpos <- 100*round(wnvnumerator/wnvdenominator, 3)
 ```
 
-There are `r nrow2` samples in the vector testing database. For `r max(wnv$year, na.rm=TRUE)`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. The regions used for stratification are mapped below; districts are thought to share risk more closely with others in the same strata, although all districts share some level of risk with all other districts.  
+There are `r nrow2` samples in the vector testing database. For `r max(wnv$year, na.rm=TRUE)`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. If an estimate does not appear in a year, it is likely because the `mosquitobelievableyears` variable in ArboMAP was not set to include it; i.e. ArboMAP was told to disregard mosquito infection data for this year. 
 
 ```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
 # figure out how many distinct districts we have left
@@ -402,16 +402,12 @@ infectglm <- glmer(wnv_result ~ 1+dminus+
 wnv$est <- predict(infectglm, newdata=wnv, type="response")
 
 # predict random effects for all years
-# dminus cannot be set to simply 0 - we have to make sure this isn't read in as a factor
-randeffs <- expand.grid(year=minmosqbelieveyear:maxmosqbelieveyear,
-                        dminus=0.00001)
-
-# if you don't allow new levels, the most recent year might not have an estimate
-randeffs$mosqinfect <- predict(infectglm, newdata=randeffs, allow.new.levels = TRUE)
-randeffs$adjmosqinfect <- randeffs$mosqinfect - mean(randeffs$mosqinfect,na.rm=TRUE)
+randeffs <- data.frame(year=as.numeric(rownames(random.effects(infectglm)$year)),
+                       mosqinfect=random.effects(infectglm)$year$dminus)
+randeffs$mosqinfect <- randeffs$mosqinfect - mean(randeffs$mosqinfect,na.rm=TRUE)
 ```
 ```{r fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
-thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=adjmosqinfect)) +
+thisplot <- ggplot(randeffs) + geom_point(aes(x=year, y=mosqinfect)) +
   geom_abline(slope=0, intercept=0, linetype=2) +
   scale_x_continuous(breaks=minmosqbelieveyear:maxmosqbelieveyear) +
   theme(axis.text.x=element_text(angle=45, hjust=1),
@@ -547,8 +543,6 @@ if (sum(!is.na(thisyeardot$doy)) > 20) {
           axis.line = element_line(colour = "black"))
   
 }
-
-
 plot(thisplot)
 ```
 
@@ -716,56 +710,44 @@ rm(mean2data)
 gc()
 
 # include the mosquito summary statistic
-yearmosq <- randeffs
-yearmosq <- yearmosq[c("year","mosqinfect")]
-names(yearmosq) <- c("year","MIRsummarystat")
+names(randeffs) <- c("year","MIRsummarystat")
 
+# figure out which need imputed MIGR, etc.
 fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
+yearfiller <- data.frame(year = unique(fullcasemat$year))
+yearfiller <- left_join(yearfiller, randeffs, by="year")
+yearfiller$shouldimpute <- is.na(yearfiller$MIRsummarystat) & (yearfiller$year %in% humanbelievableyears)
 
-fullcasemat <- merge(x=fullcasemat, y=yearmosq,
-                     by="year",
-                     all.x=TRUE)
+# replace missing with zeros (i.e. average risk)
+yearfiller$MIRsummarystat <- mean(yearfiller$MIRsummarystat, na.rm=TRUE)
 
-# create a matrix containing indicators for years in which there are observed rows but missing mosquito data
-fullcasemat <- group_by(fullcasemat, year)
-yearobs <- dplyr::summarise(fullcasemat, observed = sum(observed, na.rm=TRUE))
-yearobs <- left_join(yearobs, yearmosq, by="year")
-# retain those which have observations
-yearobs <- yearobs[yearobs$observed > 0,]
-#View(yearobs)
+# figure out which years need an exactfit column
+yearsneedingcolumns <- yearfiller$year[which(yearfiller$shouldimpute)]
+if (length(yearsneedingcolumns) > 0) {
+  
+   for (curyear in yearsneedingcolumns) {
+    
+     fullcasemat[paste("exactfit_", curyear, sep="")] <- 1*(fullcasemat$year == curyear)
+     
+   }
+  
+}
+if (length(yearsneedingcolumns) == 0) {
+  
+  ynctext <- "none"
+  
+} else {
+  
+  ynctext <- yearsneedingcolumns
+  
+}
 
-
-# but no mosquito data
-yearobs <- yearobs[is.na(yearobs$MIRsummarystat),]
-#View(yearobs)
-
-
-
-
-
-# calculate missing MIR summary statistic
-fullcasemat$MIRsummarystat[is.na(fullcasemat$MIRsummarystat)] <- mean(fullcasemat$MIRsummarystat, na.rm=TRUE)
-fullcasemat <- ungroup(fullcasemat)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# add these mosquito data to the fullcasemat
+fullcasemat <- left_join(fullcasemat, yearfiller, by="year")
+View(yearfiller)
 ```
+
+ArboMAP is performing a exact fit for data in years: `r ynctext`. This occurs whenever there are human data in a year (the year is in humanbelievableyears) but no corresponding mosquito data (the year is not in mosquitobelievableyears). We do not want to ignore human data if no mosquito data are available, since we can still examine the relationship with environmental covariates.
 
 ```{r humanreg, echo=FALSE, include=FALSE}
 # set up list to contain models
@@ -777,11 +759,24 @@ fullcasemat$district <- factor(fullcasemat$district)
 # get list of models and run them
 preds <- data.frame()
 modelevals <- data.frame()
+curmodel <- modelnames[1]
 for (curmodel in modelnames) {
   
+  # get the formula
   thisformula <- modelformulas[c(curmodel)]
-  myform <- as.formula(thisformula)
   
+  # add any exact fits
+  exactfitlist <- colnames(fullcasemat)[grep(x=colnames(fullcasemat),
+                                             pattern="exactfit_",
+                                             fixed=TRUE)]
+  if (length(exactfitlist) > 0) {
+    
+    exactfitlist <- paste(exactfitlist, collapse = " + ")
+    thisformula <- paste(thisformula, exactfitlist, sep= " + ")
+    
+  }
+  myform <- as.formula(thisformula)
+
   # main human risk model
   cl <- makeCluster(detectCores(logical=FALSE)-1)
   firstreg  <- bam(formula=myform,
