@@ -86,7 +86,7 @@ humandatafile <- ".\\human case data\\simulated human case data.csv"
 
 # set up dates to constrain the human, mosquito, and weather data
 humanbelievableyears    <- c(2004:2016, 2018)
-mosquitobelievableyears <- c(2003:2004, 2016:2018)
+mosquitobelievableyears <- c(2003:2011, 2016:2018)
 envbelievableyears      <- 2000:2019
 
 # derive boundaries from the given sets
@@ -177,6 +177,8 @@ if (ostype == "mac") {
 
 # Data used for predictions
 ## Weather data
+
+ArboMAP is set to use weather data from the years `r envbelievableyears`. If weather are data are necessary outside of this range (e.g. predicting into the far future) then the program will use daily averages from observed years to fill in times where data are not available. A year appearing in this list does not mean that those data are actually available to ArboMAP - solely that the program will permit their use if they are present.
 
 ```{r weatherdataload, include=FALSE, echo=TRUE}
 # load tigris files here so we have an early list of the permissible district names
@@ -320,6 +322,8 @@ weather <- weather[weather$district %in% unique(district_shapes$district),]
 
 ## Vector infection data
 
+ArboMAP is set to use mosquito infection data from the years `r mosquitobelievableyears`. Years without mosquito data are assumed to have average mosquito infection rates. Just because a year is present in this list does not imply that those data have actually been made available to ArboMAP - solely that ArboMAP will use those data if they are available. Even if there were no positive pools in a given year, if there were pools tested then the data will be used; zero infection rates do predict low-risk years and this is helpful information. 
+
 ```{r mosquitodataread, echo=FALSE} 
 wnv <- read.csv(mosqfile, stringsAsFactors=FALSE)
 wnv$col_date <- as.Date(wnv$col_date, "%m/%d/%Y")
@@ -387,6 +391,7 @@ wnv$dminus <- wnv$doy - mean(wnv$doy, na.rm=TRUE)
 
 # make sure all the observations have a stratum and year
 wnv <- wnv[!is.na(wnv$year),]
+wnv$year <- factor(wnv$year)
 
 # run a random effect model on orthogonalized data
 infectglm <- glmer(wnv_result ~ 1+dminus+
@@ -548,6 +553,8 @@ plot(thisplot)
 ```
 
 ## Human data
+
+ArboMAP is set to use human infection data from the years `r humanbelievableyears`. This list **should not** include the year in which human cases are being predicted; e.g. if you are predicting for this year, then this year should not be in this list, since you do not have access to all the human data yet and cannot use it to condition the models. If in some previous years the reported cases were zero, then those years should still be included in this list.
 
 In the graph below, positive districts by week are shown over all years. Only weeks within the two dashed lines (excluding `r 100*humancasealpha`% total of the earliest and latest cases) are used in modeling for numerical stability.
 
