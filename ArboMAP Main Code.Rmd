@@ -85,7 +85,7 @@ humandatafile <- ".\\human case data\\simulated human case data.csv"
 #humandatafile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\human\\19-01-29 - reconciled human WNV.csv"
 
 # set up dates to constrain the human, mosquito, and weather data
-humanbelievableyears    <- c(2004:2018)
+humanbelievableyears    <- c(2004:2007, 2012:2018)
 mosquitobelievableyears <- c(2003:2018)
 envbelievableyears      <- 2000:2019
 
@@ -98,7 +98,7 @@ minenvbelieveyear <- min(envbelievableyears)
 maxenvbelieveyear <- max(envbelievableyears)
 
 # set up the desired human years
-minhumandesiredyear <- 2002
+minhumandesiredyear <- 2004
 maxhumandesiredyear <- 2020
 
 # cull some proportion of the outlying human cases
@@ -845,7 +845,7 @@ tempdf$newdate <- tempdf$year + tempdf$newwe
 
 # plot just this year
 preds$year <- as.numeric(format(preds$weekstartdate, "%Y"))
-tempdf2 <- preds[preds$year == maxhumandesiredyear,]
+tempdf2 <- preds[preds$year == as.numeric(format(weekinquestion, "%Y")),]
 tempdf2 <- group_by(tempdf2, weekstartdate, model)
 tempdf2 <- dplyr::summarize(tempdf2,
                             pred=mean(pred, na.rm=TRUE))
@@ -890,7 +890,7 @@ thisplot2 <- ggplot(data=tempdf2) +
   geom_line(aes(x=weekstartdate, y=pred, group=model, color=model, linetype=model)) +
   scale_color_manual("", values = mycolors) +
   scale_linetype_manual("", values = mylinetypes) +
-  ggtitle(paste("Statewide model predictions in ", maxhumandesiredyear, sep="")) +
+  ggtitle(paste("Statewide model predictions in ", as.numeric(format(weekinquestion, "%Y")), sep="")) +
   xlab("") + ylab("") +
   geom_vline(xintercept=weekinquestion) + 
   ylab("Proportion of districts positive") +
