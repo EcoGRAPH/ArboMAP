@@ -30,10 +30,10 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 
 v2.3
 
-- The user is now required to tell ArboMAP which years of which data can be believed. This is helpful to differentiate a year completely lacking human cases and a year in which there were reported human cases but no data were reported.
+- The user is now required to tell ArboMAP which years of which data can be believed. This is helpful, for example, to differentiate a year completely lacking human cases and a year in which there were reported human cases but no data were reported.
 - Predictions can be produced arbitrarily far into the past and future, rather than restricting estimates to wherever mosquito infection data exist.
 - The user no longer has to provide shapefiles - these are downloaded during the run by the tigris package. This does mean that analyses not based on US states will require some modification.
-- There have been changes to the model behind the scenes. If a year has believable human data but no associated mosquito infection data, previous versions were unable to produce estimates for that year. Now, we create an indicator variable that fits the intercept for that year, allowing the human data to still be used.
+- There have been changes to the model behind the scenes. If a year has believable human data but no associated mosquito infection data, previous versions were unable to produce estimates for that year. Now, we create an indicator variable that fits the intercept for that year, allowing the human data to still be used, for example to relate to the environmental data.
 - The method by which random effects from the MIGR model were derived has been changed. Instead of using the predict function, which occasionally produced inappropriate results (due to interaction with tibbles, numerics being forcibly converted to factors, etc.), we now draw the random effects directly from the model summary.
 
 v2.2
