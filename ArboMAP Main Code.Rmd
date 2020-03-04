@@ -128,12 +128,6 @@ mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
 #mosqfile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\mosquito\\19-01-29 - state testing.csv"
 #mosqfile <- "C:\\home\\work\\davis\\OK WNV data\\mosquito data\\ok - only culex.csv"
 
-# which district stratification scheme are we using?
-stratafile <- ".\\strata\\17-04-20 - classified strata - classic.csv"
-
-# where is the districtshapefile
-districtshapefile <- ".\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
-
 # to which two other years do we want to compare the current year's predictions?
 compyear1 <- 2012
 compyear2 <- 2017

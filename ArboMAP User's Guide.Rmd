@@ -81,23 +81,19 @@ ArboMAP requires a variety of files to run, and the following directory structur
 
 The ArboMAP User's Guide.Rmd file, which you will open in RStudio, contains a preface (shown below) with settings that tells the program where to find the various pieces of data used to make predictions. Errors in these filenames are a common reason that the code will refuse to run.
 
-* `graphicoutputdir` tells the program where to store its graphical outputs. You may want to use some of the graphics in the PDF for your own purposes, so they will be stored in PNG format in this directory.
+* `statetomodel` is the two-letter abbreviation for the state you wish to model; e.g. "SD" for South Dakota
+* `modelformulas` is a list of named generalized additive models that ArboMAP can run. These are flexible and the advanced user is invited to change the formulas to investigate different models, but note that the program does not currently support 3-/higher-dimensional smooths.
+* `modelnames` is the list of models that ArboMAP will actually run.
+* The three `believableyears` variables tell ArboMAP which data to trust. For example, `humanbelievableyears = c(2012, 2015:2017)` would tell ArboMAP to trust human data in 2012, 2015, 2016, 2017. Suppose for example that in your setting there were no cases in 2015 but that the year was listed in `humanbelievableyears`. This would tell ArboMAP that all those zeros were real zeros. Similarly, if your human data file contains data from 2011, it will be discarded before modeling.
 * `humandatafile` contains the human WNV cases
-* `maxobservedhumandate` tells the program which is the last human case that should be used in modeling. If you happen to know that there are some cases in 2018 and you're predicting 2018, then you should set this to the end of 2017. We do not use the current year's data in making predictions, and trying to do so will mess up the predictions. This is an extra safeguard in case you do accidentally update the case file to include data from this year.
+* `maxhumandesiredyear` and `minhumandesireddate` tell ArboMAP which years in which to generate estimates for the data. These will be based on all believable data above, and mosquito/environmental data are extrapolated where appropriate.
+* `humancasealpha` tells ArboMAP to discard the earliest/latest alpha% of the human cases in all years. This prevents bad data (e.g. infections reported in December but actually contracted in July) from causing numerical difficulties in the analysis.
 * `weekinquestion` tells the program which week you'd like to obtain predictions for. Weeks in this program begin on Sunday and run until the next Saturday, and the weekinquestion date will automatically be rounded to the previous Sunday. For example, if 2018-07-16 happens to be a Monday, then the week examined is 2018-07-15 (Sunday) through 2018-07-21 (Saturday).
 * `weatherpathstr` indicates the directory where all the weather data CSV files are stored
 * `weathersummaryfile` is the name of the file that the program will create to summarize all the CSV files. Since it's possible you've downloaded a year many times (especially the current year), the program has to create a summary file and stores it with the rest of the weather data. Other than this extra file and all the CSV files, there should be nothing else in this directory.
 * `mosqfile` contains the mosquito testing data
-* `stratafile` tells us where to find the file containing the data to split up the state into four regions to model the mosquito infection rate (see below)
-* `districtshapefile` points to the SHP file for mapping districts
 * `compyear1` and `compyear2` indicate which two years in the past we'd like to compare the current year to in one of the graphics.
 * `var1name` and `var2name` indicate which two weather variables you'd like to use as predictors in the model. By default, these are set to mean daily temperature from the gridMET set (tmeanc) and the vapor pressure deficit (vpd).
-
-`Maxobservedhumandate` should be updated at the beginning of every season to point to the end of last year, so that only human cases in previous years are used to condition the model's predictions. `Weekinquestion` should be updated weekly.
-
-```{r echo=FALSE, out.width='80%'}
-knitr::include_graphics('pictures for setup document/files and settings in rmarkdown.PNG')
-```
 
 ## Choosing your models
 
@@ -225,23 +221,7 @@ Each forecasting run will generate a report containing a number of graphics to i
 
 ### \ \ \ \ \ Mosquito data
 
-The model of WNV also summarizes the mosquito infection growth rate (MIGR) for multiple strata within the state. Every winter, the virus goes into hiding. In the early season, WNV begins replicating and spreading among birds and mosquitoes. The MIGR is a measure of how quickly that's occuring. We cannot estimate the MIGR for every district, but instead split the state into four strata, shown below, and estimate the MIGR within the strata. If the map does not resemble this, especially if the map is entirely grey, it's likely that the program cannot locate the strata file.
-
-```{r echo=FALSE, out.width='60%'}
-knitr::include_graphics('pictures for setup document/strata.PNG')
-```
-
-Below we show the estimates of the MIGR per year, per stratum. If the line is above 0, then mosquito infections are growing in pools more quickly than in the average year, and more human WNV should be expected. If lower, then risk to humans is lower. Note that the state does fluctuate up and down as a whole (e.g. in 2011 when barely any positive mosquito pools were found, and only two human cases were diagnosed), but sometimes the strata do differ (e.g. the MIGR in western SD was relatively low in 2014, but was relatively high in 2015).
-
-```{r echo=FALSE, out.width='60%'}
-knitr::include_graphics('pictures for setup document/mosquito infection rates.PNG')
-```
-
-Note that the MIGR is a single number, derived from a model that fits all of a year's mosquito infection data. Below, we show observations from 2018 (red dots), along with the curve that best fits these data (red), and samples from two other years, 2012 (blue) and 2017 (blue, dashed). The faster this line rises, the higher the MIGR, and the higher the risk.
-
-```{r echo=FALSE, out.width='60%'}
-knitr::include_graphics('pictures for setup document/mosqinfectgrowthrates.PNG')
-```
+The model of WNV also summarizes the mosquito infection growth rate (MIGR) for multiple strata within the state. Every winter, the virus goes into hiding. In the early season, WNV begins replicating and spreading among birds and mosquitoes. The MIGR is a measure of how quickly that's occuring. Below we show the estimates of the MIGR over time per year. If the point is above 0, then mosquito infections are growing in pools more quickly than in the average year, and more human WNV should be expected. 
 
 ### \ \ \ \ \ Censoring chart
 
