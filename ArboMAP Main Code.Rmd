@@ -83,11 +83,12 @@ modelnames <- c("cub-fx-nonanom", "tp-fx-anom")
 humandatafile <- ".\\human case data\\simulated human case data.csv"
 # example of a hard-coded directory
 #humandatafile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\human\\19-01-29 - reconciled human WNV.csv"
+#humandatafile <- "C:\\home\\work\\davis\\OK WNV data\\human case data\\ok human case data.csv"
 
 # set up dates to constrain the human, mosquito, and weather data
-humanbelievableyears    <- c(2004:2007, 2012:2018)
-mosquitobelievableyears <- c(2003:2018)
-envbelievableyears      <- 2000:2019
+humanbelievableyears    <- c(2004:2018)
+mosquitobelievableyears <- c(2004:2008, 2010:2018)
+envbelievableyears      <- 2000:2018
 
 # derive boundaries from the given sets
 minhumanbelieveyear <- min(humanbelievableyears)
@@ -99,18 +100,19 @@ maxenvbelieveyear <- max(envbelievableyears)
 
 # set up the desired human years
 minhumandesiredyear <- 2004
-maxhumandesiredyear <- 2020
+maxhumandesiredyear <- 2019
 
 # cull some proportion of the outlying human cases
 humancasealpha <- 0.02
 
 # which week are we producing the graphs for?
-weekinquestion <- as.Date("2020-07-15", "%Y-%m-%d")
+weekinquestion <- as.Date("2018-07-15", "%Y-%m-%d")
 
 # where are the weather csv files stored?
 weatherpathstr <- ".\\weather data\\"
 # example of a hard-coded directory
 #weatherpathstr <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\weather\\"
+#weatherpathstr <- "C:\\home\\work\\davis\\OK WNV data\\Weather\\"
 
 # what is the name of the summary file to be created?
 weathersummaryfile <- "weather data summary file.csv"
@@ -124,6 +126,7 @@ var2name <- "vpd"
 mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
 # example of a hard-coded directory
 #mosqfile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\mosquito\\19-01-29 - state testing.csv"
+#mosqfile <- "C:\\home\\work\\davis\\OK WNV data\\mosquito data\\ok - only culex.csv"
 
 # which district stratification scheme are we using?
 stratafile <- ".\\strata\\17-04-20 - classified strata - classic.csv"
@@ -367,9 +370,9 @@ wnv <- wnv[which(!is.na(wnv$wnv_result)),]
 wnv <- wnv[which(!is.na(wnv$doy)),]
 
 # delete anything before a certain day
-wnv <- wnv[which(wnv$doy >= 100),]
+wnv <- wnv[which(wnv$doy >= 140),]
 # delete anything after a certain day
-wnv <- wnv[which(wnv$doy <= 212),]
+wnv <- wnv[which(wnv$doy <= 214),]
 
 # after cleaning, how many do we have?
 nrow2 <- nrow(wnv)
@@ -412,8 +415,8 @@ wnv$est <- predict(infectglm, newdata=wnv, type="response")
 
 # predict random effects for all years
 randeffs <- data.frame(year=as.numeric(rownames(random.effects(infectglm)$year)),
-                       mosqinfect=random.effects(infectglm)$year$dminus)
-randeffs$mosqinfect <- randeffs$mosqinfect - mean(randeffs$mosqinfect,na.rm=TRUE)
+                       mosqinfect=random.effects(infectglm)$year$`(Intercept)`)
+
 ```
 ```{r fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
 thisplot <- ggplot(randeffs) + geom_point(aes(x=year, y=mosqinfect)) +
@@ -537,9 +540,9 @@ if (sum(!is.na(thisyeardot$doy)) > 20) {
           panel.grid.minor = element_blank(),
           panel.background = element_blank(),
           axis.line = element_line(colour = "black"))
-  
+
 } else {
-  
+
   thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
                                                    color="grey", alpha=0.5) +
     geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
@@ -550,7 +553,7 @@ if (sum(!is.na(thisyeardot$doy)) > 20) {
           panel.grid.minor = element_blank(),
           panel.background = element_blank(),
           axis.line = element_line(colour = "black"))
-  
+
 }
 plot(thisplot)
 ```
@@ -930,12 +933,12 @@ tempdf <- tempdf[tempdf$weeknum <= maxhumanobsweek,]
 
 thisyear <- tempdf[tempdf$year == maxhumandesiredyear,]
 
-tempdf <- bind_rows(thisyear,
-                    comparison1,
-                    comparison2)
+# tempdf <- bind_rows(thisyear,
+#                     comparison1,
+#                     comparison2)
 
-tempdf$est[tempdf$year == compyear1] <- tempdf$obs[tempdf$year == compyear1]
-tempdf$est[tempdf$year == compyear2] <- tempdf$obs[tempdf$year == compyear2]
+# tempdf$est[tempdf$year == compyear1] <- tempdf$obs[tempdf$year == compyear1]
+# tempdf$est[tempdf$year == compyear2] <- tempdf$obs[tempdf$year == compyear2]
 tempdf$year <- factor(tempdf$year)
 
 tempdf2 <- thisyear[thisyear$weekstartdate >= weekinquestionSun,]
@@ -971,7 +974,7 @@ prevyears <- bind_rows(prevyears, expand.grid(totpos=0,
 prevyears$model <- factor(prevyears$model)
 
 # figure out relationship between positivity and total cases
-relationship <- gam(totcases ~ s(totpos, by=model), weights=weight, data=prevyears)
+relationship <- lm(totcases ~ poly(totpos, 2), weights=weight, data=prevyears)
 
 predframe <- expand.grid(totpos = seq(from=0,
                                      to=max(prevyears$totpos, na.rm=TRUE),
