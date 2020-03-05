@@ -87,7 +87,7 @@ humandatafile <- ".\\human case data\\simulated human case data.csv"
 
 # set up dates to constrain the human, mosquito, and weather data
 humanbelievableyears    <- c(2004:2018)
-mosquitobelievableyears <- c(2004:2008, 2010:2018)
+mosquitobelievableyears <- c(2004:2018)
 envbelievableyears      <- 2000:2018
 
 # derive boundaries from the given sets
@@ -1160,6 +1160,7 @@ for (curmodel in modelnames) {
                            y=thissubplot$fit)
       
       mygg <- ggplot(tempdf) + geom_line(aes(x=x, y=y)) +
+        geom_hline(yintercept=0, linetype=2) +
         xlab(thissubplot$xlab) + ylab(thissubplot$ylab) +
         ggtitle(paste("model: ", curmodel, ", term: ", thissubplot$ylab, sep=""))
       
@@ -1180,6 +1181,7 @@ for (curmodel in modelnames) {
       tempdf$doy <- factor(round_any(tempdf$y, 1))
       
       mygg <- ggplot(tempdf) + geom_line(aes(x=x, y=fit, group=doy, color=doy, linetype=doy)) +
+        geom_hline(yintercept=0, linetype=2) +
         xlab(thissubplot$xlab) + ylab("fit") +
         ggtitle(paste("model: ", curmodel, ", term: ", thissubplot$main, sep=""))
 
