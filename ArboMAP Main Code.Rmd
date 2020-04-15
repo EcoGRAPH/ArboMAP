@@ -2,7 +2,7 @@
 title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
 author: "Summary of Model Outputs (v2.2)   \nJustin K. Davis and Michael C. Wimberly  \n(justinkdavis@ou.edu, mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
 date: "Updated `r format(Sys.time(), '%B %d, %Y')`"
-output: pdf_document
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -76,13 +76,13 @@ modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat +
 #modelnames <- names(modelformulas)
 
 # or choose just some selection
-modelnames <- c("cub-fx-nonanom", "tp-fx-anom")
+modelnames <- c("cub-fx-nonanom")
 
 # where are the human data located?
 # example of a file with directories an drive:
 humandatafile <- ".\\human case data\\simulated human case data.csv"
 # example of a hard-coded directory
-#humandatafile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\human\\19-01-29 - reconciled human WNV.csv"
+humandatafile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\human\\19-01-29 - reconciled human WNV.csv"
 #humandatafile <- "C:\\home\\work\\davis\\OK WNV data\\human case data\\ok human case data.csv"
 
 # set up dates to constrain the human, mosquito, and weather data
@@ -111,7 +111,7 @@ weekinquestion <- as.Date("2018-07-15", "%Y-%m-%d")
 # where are the weather csv files stored?
 weatherpathstr <- ".\\weather data\\"
 # example of a hard-coded directory
-#weatherpathstr <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\weather\\"
+weatherpathstr <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\weather\\"
 #weatherpathstr <- "C:\\home\\work\\davis\\OK WNV data\\Weather\\"
 
 # what is the name of the summary file to be created?
@@ -125,7 +125,7 @@ var2name <- "vpd"
 # where are the mosquito test files located?
 mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
 # example of a hard-coded directory
-#mosqfile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\mosquito\\19-01-29 - state testing.csv"
+mosqfile <- "C:\\home\\work\\davis\\ArboMAP for Mike on 19-08-13\\mosquito\\19-01-29 - state testing.csv"
 #mosqfile <- "C:\\home\\work\\davis\\OK WNV data\\mosquito data\\ok - only culex.csv"
 
 # to which two other years do we want to compare the current year's predictions?
