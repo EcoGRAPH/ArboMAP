@@ -23,9 +23,18 @@ simplifynames <- function(priornames=NULL) {
   # remove spaces
   priornames <- gsub(pattern=" ", replacement="", x=priornames, fixed=TRUE)
   
-  # remove district and parish
+  # remove other offending placename modifiers
   priornames <- gsub(pattern="county", replacement="", x=priornames, fixed=TRUE)
   priornames <- gsub(pattern="parish", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="par.", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="(zone)", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="lower", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="upper", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="southern", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="northern", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="saint", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="st", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern=".", replacement="", x=priornames, fixed=TRUE)
 
   # return names
   return(priornames)
@@ -72,21 +81,25 @@ modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat +
                    "tp-sv-nonanom" = "anycases ~ 0 + district + MIRsummarystat + te(lag, doymat, by=var1, bs='tp') + te(lag, doymat, by=var2, bs='tp')",
                    "tp-sv-anom"    = "anycases ~ 0 + district + MIRsummarystat + te(lag, doymat, by=anom_var1, bs='tp') + te(lag, doymat, by=anom_var2, bs='tp') + s(doy, bs='tp')")
 
-## run all listed models
-#modelnames <- names(modelformulas)
+# run all listed models
+modelnames <- names(modelformulas)
 
 # or choose just some selection
-modelnames <- c("cub-fx-nonanom",
-                "tp-sv-anom")
+modelnames <- c("cub-fx-nonanom")
 
 # where are the human data located?
 # example of a file with directories an drive:
 humandatafile <- "C:\\home\\work\\davis\\WNV repository\\South Dakota\\human\\20-07-15 - SD human WNV.csv"
 
+# should we impute human cases in districts where there aren't enough to
+# support the estimate of a district-specific intercept? i.e. should we
+# put a floor on estimated risk?
+imputemissingdistricts <- TRUE
+
 # set up dates to constrain the human, mosquito, and weather data
 humanbelievableyears    <- c(2004:2019)
-mosquitobelievableyears <- c(2004:2020)
-envbelievableyears      <- 2000:2020
+mosquitobelievableyears <- c(2004:2019)
+envbelievableyears      <- 2000:2019
 
 # derive boundaries from the given sets
 minhumanbelieveyear <- min(humanbelievableyears)
@@ -98,13 +111,13 @@ maxenvbelieveyear <- max(envbelievableyears)
 
 # set up the desired human years
 minhumandesiredyear <- 2004
-maxhumandesiredyear <- 2020
+maxhumandesiredyear <- 2019
 
 # cull some proportion of the outlying human cases
 humancasealpha <- 0.02
 
 # which week are we producing the graphs for?
-weekinquestion <- as.Date("2020-07-27", "%Y-%m-%d")
+weekinquestion <- as.Date("2019-10-01", "%Y-%m-%d")
 
 # where are the weather csv files stored?
 weatherpathstr <- "C:\\home\\work\\davis\\WNV repository\\South Dakota\\weather\\"
@@ -118,8 +131,27 @@ var1name <- "tmeanc"
 var2name <- "vpd"
 
 # where are the mosquito test files located?
-mosqfile <- "C:\\home\\work\\davis\\WNV repository\\South Dakota\\mosquito\\20-07-15 - mosquito testing records.csv"
+#mosqfile <- "C:\\home\\work\\davis\\WNV repository\\South Dakota\\mosquito\\21-02-12 - example of flat mosquito file.csv"
+mosqfile <- "C:\\home\\work\\davis\\WNV repository\\South Dakota\\mosquito\\20-09-24 - mosquito testing records.csv"
 
+# declare which summary statistic will be used to create the MIRsummarystat
+mosqsummarystyle <- "AUC"
+if (!(mosqsummarystyle %in% c("simpleratio",
+                              "MIGR",
+                              "stratifiedMIGR",
+                              "MII",
+                              "stratifiedMII",
+                              "AUC"))) {
+  
+  mosqsummarystyle <- "simpleratio"
+  
+}
+
+# if we have simpleratio data, do we need to resample so that one of the other
+# methods of summary can be used? If we do want to resample, which data do we use?
+resamplemosquitodata <- FALSE
+resamplemosquitodatafile <- "C:\\home\\work\\davis\\WNV repository\\South Dakota\\mosquito\\20-09-24 - mosquito testing records.csv"
+  
 # to which two other years do we want to compare the current year's predictions?
 compyear1 <- 2012
 compyear2 <- 2019
@@ -196,7 +228,7 @@ weather <- weather[as.numeric(format(weather$date, "%Y")) %in% envbelievableyear
 
 # get rid of duplicated rows
 weather$districtdate <- paste(weather$district, weather$date)
-weather <- subset(weather, !duplicated(weather$districtdate))
+weather <- distinct(weather, districtdate, .keep_all=TRUE)
 
 # be certain district is a factor before modeling
 weather$district <- factor(weather$district)
@@ -206,10 +238,16 @@ for (curcol in c(var1name, var2name)) {
       
     weather$tempvar <- weather[,curcol]
     tempmod <- bam(tempvar ~ district + s(doy, bs="cc", by=district), data=weather, discrete=TRUE)
-    weather[,paste("anom_", curcol, sep="")] <- resid(tempmod)
+    # replace any missing
+    temppred <- predict(tempmod, newdata=weather)
+    weather[is.na(weather[,curcol]), curcol] <- temppred[is.na(weather[,curcol])]
+    
+    # calculate the anomaly in a different way
+    weather[,paste("anom_", curcol, sep="")] <- weather[,curcol] - temppred
 
 }
 weather$tempvar <- NULL
+temppred <- NULL
 
 # plot normals and this year
 weather$var1 <- weather[,which(colnames(weather) == var1name)]
@@ -307,9 +345,65 @@ weather <- weather[weather$district %in% unique(district_shapes$district),]
 ## Vector infection data
 
 ```{r mosquitodataread, echo=FALSE} 
-wnv <- read.csv(mosqfile, stringsAsFactors=FALSE)
-wnv$col_date <- as.Date(wnv$col_date, "%m/%d/%Y")
-wnv$year <- as.numeric(format(wnv$col_date, "%Y"))
+# if we need to resample the data, then do it right now
+if (resamplemosquitodata) {
+  
+  # read in the flat file
+  tempdf <- read.csv(mosqfile, stringsAsFactors=FALSE)
+  
+  # read and format the resampling file
+  wnvresamplefile <- read.csv(resamplemosquitodatafile)
+  wnvresamplefile$col_date <- as.Date(wnvresamplefile$col_date, "%m/%d/%Y")
+  wnvresamplefile$doy      <- as.numeric(format(wnvresamplefile$col_date, "%j"))
+  
+  positivedoys <- wnvresamplefile$doy[wnvresamplefile$wnv_result == 1]
+  negativedoys <- wnvresamplefile$doy[wnvresamplefile$wnv_result == 0]
+  
+  # create and fill up the expanded file
+  wnv <- data.frame()
+  for (i in 1:nrow(tempdf)) {
+    
+    positives <- tempdf$positives[i]
+    negatives <- tempdf$total[i] - tempdf$positives[i]
+    
+    if (positives > 0) {
+    
+      tempdf1 <- data.frame(doy = sample(x=positivedoys,
+                                         size=positives,
+                                         replace=TRUE),
+                            year = tempdf$year[i],
+                            district = district_shapes$district[1],
+                            wnv_result = 1)
+      
+    } else { tempdf1 <- data.frame() }
+    
+    if (negatives > 0) {
+      
+      tempdf0 <- data.frame(doy = sample(x=negativedoys,
+                                         size=negatives,
+                                         replace=TRUE),
+                            year = tempdf$year[i],
+                            district = district_shapes$district[1],
+                            wnv_result = 0)
+      
+    } else { tempdf2 <- data.frame() }
+    
+    wnv <- bind_rows(wnv, tempdf1, tempdf0)
+    
+  }
+  
+  wnv$col_date <- as.Date(paste(wnv$year, wnv$doy, sep="-"),
+                          "%Y-%j")
+  
+  
+} else {
+
+  wnv <- read.csv(mosqfile, stringsAsFactors=FALSE)
+  
+  wnv$col_date <- as.Date(wnv$col_date, "%m/%d/%Y")
+  wnv$year <- as.numeric(format(wnv$col_date, "%Y"))
+  
+}
 
 # cull mosquito data which are not in the correct years
 wnv <- wnv[wnv$year %in% mosquitobelievableyears,]
@@ -317,87 +411,184 @@ wnv <- wnv[wnv$year %in% mosquitobelievableyears,]
 
 
 ```{r mosquitodataprocess, echo=FALSE}
-# convert district to factor
-wnv$district <- simplifynames(wnv$district)
-diagnostic_mosquitodistricts <- unique(wnv$district)
-# remove any which do not belong
-wnv <- wnv[wnv$district %in% unique(district_shapes$district),]
-wnv$district <- factor(wnv$district)
+if (mosqsummarystyle %in% c("simpleratio")) {
+  
+  wnv$col_year <- as.numeric(format(wnv$col_date, "%Y"))
+  
+    nrow1 <- NA
+  nrow2 <- NA
+  nrow3 <- NA
+  numpos <- NA
+  perpos <- NA
+  diagnostic_mosquitodistricts <- NA
+  
+  
+}
+if (mosqsummarystyle == "AUC") {
+  
+  wnv$col_year <- as.numeric(format(wnv$col_date, "%Y"))
+  wnv$doy      <- as.numeric(format(wnv$col_date, "%j"))
+  wnv <- wnv[which(!is.na(wnv$wnv_result)),]
+  wnv <- wnv[which(!is.na(wnv$doy)),]
+  
+  nrow1 <- NA
+  nrow2 <- NA
+  nrow3 <- NA
+  numpos <- NA
+  perpos <- NA
+  diagnostic_mosquitodistricts <- NA
+  
+}
+if (mosqsummarystyle %in% c("MIGR", "MII")) {
 
-# figure out how many rows we start with
-nrow1 <- nrow(wnv)
-
-# create some variables we can use to filter
-wnv$col_year <- as.numeric(format(wnv$col_date, "%Y"))
-wnv$doy      <- as.numeric(format(wnv$col_date, "%j"))
-wnv$weeknum  <- as.numeric(format(wnv$col_date, "%U"))
-wnv$species <- NULL
-wnv$district <- factor(wnv$district)
-wnv$district <- droplevels(wnv$district)
-
-# get rid of those which don't have a result
-wnv <- wnv[which(!is.na(wnv$wnv_result)),]
-wnv <- wnv[which(!is.na(wnv$doy)),]
-
-# delete anything before a certain day
-wnv <- wnv[which(wnv$doy >= 140),]
-# delete anything after a certain day
-wnv <- wnv[which(wnv$doy <= 214),]
-
-# after cleaning, how many do we have?
-nrow2 <- nrow(wnv)
-nrow3 <- nrow(wnv[wnv$year == max(wnv$year, na.rm=TRUE),])
-
-tempdf <- wnv[wnv$year == max(wnv$year, na.rm=TRUE),]
-tempdf <- tempdf[!is.na(tempdf$wnv_result),]
-wnvdenominator <- nrow(tempdf)
-wnvnumerator <- nrow(tempdf[tempdf$wnv_result == 1,])
-
-numpos <- wnvnumerator
-perpos <- 100*round(wnvnumerator/wnvdenominator, 3)
+  # convert district to factor
+  wnv$district <- simplifynames(wnv$district)
+  diagnostic_mosquitodistricts <- unique(wnv$district)
+  # remove any which do not belong
+  wnv <- wnv[wnv$district %in% unique(district_shapes$district),]
+  wnv$district <- factor(wnv$district)
+  
+  # figure out how many rows we start with
+  nrow1 <- nrow(wnv)
+  
+  # create some variables we can use to filter
+  wnv$col_year <- as.numeric(format(wnv$col_date, "%Y"))
+  wnv$doy      <- as.numeric(format(wnv$col_date, "%j"))
+  wnv$weeknum  <- as.numeric(format(wnv$col_date, "%U"))
+  wnv$species <- NULL
+  wnv$district <- factor(wnv$district)
+  wnv$district <- droplevels(wnv$district)
+  
+  # get rid of those which don't have a result
+  wnv <- wnv[which(!is.na(wnv$wnv_result)),]
+  wnv <- wnv[which(!is.na(wnv$doy)),]
+  
+  # delete anything before a certain day
+  wnv <- wnv[which(wnv$doy >= 140),]
+  # delete anything after a certain day
+  wnv <- wnv[which(wnv$doy <= 214),]
+  
+  # after cleaning, how many do we have?
+  nrow2 <- nrow(wnv)
+  nrow3 <- nrow(wnv[wnv$year == max(wnv$year, na.rm=TRUE),])
+  
+  tempdf <- wnv[wnv$year == max(wnv$year, na.rm=TRUE),]
+  tempdf <- tempdf[!is.na(tempdf$wnv_result),]
+  wnvdenominator <- nrow(tempdf)
+  wnvnumerator <- nrow(tempdf[tempdf$wnv_result == 1,])
+  
+  numpos <- wnvnumerator
+  perpos <- 100*round(wnvnumerator/wnvdenominator, 3)
+  
+}
 ```
 
 There are `r nrow2` samples in the vector testing database. For `r max(wnv$year, na.rm=TRUE)`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. If an estimate does not appear in a year, it is likely because the `mosquitobelievableyears` variable in ArboMAP was not set to include it; i.e. ArboMAP was told to disregard mosquito infection data for this year. 
 
 ```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
-# figure out how many distinct districts we have left
-districtlist           <- data.frame(district=unique(wnv$district))
-distinctdistricts      <- length(unique(wnv$district))
-districtlist$districtnum <- seq(from=1, to=distinctdistricts, by=1)
-wnv <- merge(x=wnv, y=districtlist,
-             by="district",
-             all=TRUE)
 
-# create a variable that at least has a little chance of being orthogonal to 1.
-wnv$dminus <- wnv$doy - mean(wnv$doy, na.rm=TRUE)
+if (mosqsummarystyle == "simpleratio") {
+  
+  wnv$year <- wnv$col_year
+  randeffs <- as.data.frame(dplyr::summarise(wnv, year),
+                            totpos = sum(wnv_result, na.rm=true),
+                            tottest = n())
+  
+  randeffs$mosqinfect <- randeffs$totpos / randeffs$tottest
+  randeffs$year <- as.numeric(as.character(randeffs$year))
+  randeffs <- randeffs[c("year", "mosqinfect")]
+  
+}
+if (mosqsummarystyle == "AUC") {
 
-# make sure all the observations have a stratum and year
-wnv <- wnv[!is.na(wnv$year),]
-wnv$year <- factor(wnv$year)
+  # create a variable that at least has a little chance of being orthogonal to 1.
+  wnv$dminus <- wnv$doy - mean(wnv$doy, na.rm=TRUE)
+  
+  # make sure all the observations have a year
+  wnv <- wnv[!is.na(wnv$year),]
+  wnv$year <- factor(wnv$year)
+  
+  # run a random effect model on orthogonalized data
+  infectglm <- glmer(wnv_result ~ poly(dminus,2) + (poly(dminus, 2)|year),
+                    family=binomial(),
+                    data=wnv)
+  
+  # create a data frame to store the calculations for the aucs
+  predframe <- expand.grid(year = unique(wnv$year),
+                           dminus = seq(from=min(wnv$dminus, na.rm=TRUE),
+                                        to  =max(wnv$dminus, na.rm=TRUE),
+                                        length.out=100))
+  predframe$pred <- predict(infectglm,
+                            newdata=predframe,
+                            type="response")
+  
+  # calculate the AUCs
+  randeffs <- as.data.frame(dplyr::summarise(group_by(predframe, year),
+                                             mosqinfect=sum(pred, na.rm=TRUE)))
+  randeffs$year <- as.numeric(as.character(randeffs$year))
+  
+}
+if (mosqsummarystyle %in% c("MIGR", "MII")) {
 
-# run a random effect model on orthogonalized data
-infectglm <- glmer(wnv_result ~ 1+dminus+
-                    (0+1|year) +
-                    (0+dminus|year),
-                  family=binomial(),
-                  data=wnv)
-wnv$est <- predict(infectglm, newdata=wnv, type="response")
-
-# predict random effects for all years
-randeffs <- data.frame(year=as.numeric(rownames(random.effects(infectglm)$year)),
-                       mosqinfect=random.effects(infectglm)$year$`(Intercept)`)
-                       #mosqinfect=random.effects(infectglm)$year$dminus)
-
+  # figure out how many distinct districts we have left
+  districtlist           <- data.frame(district=unique(wnv$district))
+  distinctdistricts      <- length(unique(wnv$district))
+  districtlist$districtnum <- seq(from=1, to=distinctdistricts, by=1)
+  wnv <- merge(x=wnv, y=districtlist,
+               by="district",
+               all=TRUE)
+  
+  # create a variable that at least has a little chance of being orthogonal to 1.
+  wnv$dminus <- wnv$doy - mean(wnv$doy, na.rm=TRUE)
+  
+  # make sure all the observations have a stratum and year
+  wnv <- wnv[!is.na(wnv$year),]
+  wnv$year <- factor(wnv$year)
+  
+  # run a random effect model on orthogonalized data
+  infectglm <- glmer(wnv_result ~ 1+dminus+
+                      (0+1|year) +
+                      (0+dminus|year),
+                    family=binomial(),
+                    data=wnv)
+  wnv$est <- predict(infectglm, newdata=wnv, type="response")
+  
+  if (mosqsummarystyle == "MIGR") {
+  
+    # predict random effects for all years
+    randeffs <- data.frame(year=as.numeric(rownames(random.effects(infectglm)$year)),
+                           mosqinfect=random.effects(infectglm)$year[,1])
+    
+  }
+  if (mosqsummarystyle == "MII") {
+    
+    # predict random effects for all years
+    randeffs <- data.frame(year=as.numeric(rownames(random.effects(infectglm)$year)),
+                           mosqinfect=random.effects(infectglm)$year[,2])
+     
+  }
+  
+}
+  
 ```
 ```{r fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
-thisplot <- ggplot(randeffs) + geom_point(aes(x=year, y=mosqinfect)) +
-  geom_abline(slope=0, intercept=0, linetype=2) +
-  scale_x_continuous(breaks=minmosqbelieveyear:maxmosqbelieveyear) +
-  theme(axis.text.x=element_text(angle=45, hjust=1),
-        panel.grid.minor=element_blank(),
-        panel.grid.major.y=element_blank())+
-  xlab("") + ylab("Relative risk due to\nvector infection growth rate")
-plot(thisplot)
+if (mosqsummarystyle %in% c("MIGR", "MII", "AUC", "simpleratio")) {
+
+  # center these statistics
+  randeffs$mosqinfect <- randeffs$mosqinfect - mean(randeffs$mosqinfect, na.rm=TRUE)
+  
+  # plot
+  thisplot <- ggplot(randeffs) + geom_point(aes(x=year, y=mosqinfect)) +
+    geom_abline(slope=0, intercept=0, linetype=2) +
+    scale_x_continuous(breaks=minmosqbelieveyear:maxmosqbelieveyear) +
+    theme(axis.text.x=element_text(angle=45, hjust=1),
+          panel.grid.minor=element_blank(),
+          panel.grid.major.y=element_blank())+
+    xlab("") + ylab("Relative risk due to\nvector infection rate")
+  plot(thisplot)
+  write.csv(randeffs, file="randeffs.csv")
+  
+}
 ```
 
 ```{r humandata, include=FALSE, echo=TRUE}
@@ -1021,6 +1212,22 @@ for (curmodel in unique(thisweek$model)) {
             legend.key.height=unit(0.25,"cm"))
   plot(thisplot)
 }
+```
+
+
+```{r miscscaves, include=FALSE, echo=FALSE}
+# tempdf1 <- dplyr::summarise(group_by(fullcasemat, year),
+#                             var1      =mean(var1[1,], na.rm=TRUE),
+#                             var2      =mean(var2[2,], na.rm=TRUE),
+#                             totalcases=sum(totalcases, na.rm=TRUE),
+#                             totalpcws =sum(anycases, na.rm=TRUE),
+#                             totalest  =sum(pred, na.rm=TRUE),
+#                             mosquito  =mean(MIRsummarystat, na.rm=TRUE))
+# thisplot1 <- ggplot(tempdf1) + geom_point(aes(x=mosquito, y=totalcases)) +
+#   xlab("modeleded mosquito infection rate (relative)") +
+#   ylab("total cases that year")
+# ggsave(plot=thisplot1, filename="total vs mosquito.png", height=6, width=6, units="in")
+# write.csv(tempdf1, file="total vs mosquito.csv")
 ```
 
 This map indicates whether probabilities reported in the previous map are higher (red) than average, lower (blue) than average, or right about normal (yellow) compared to the same week in previous years.

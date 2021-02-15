@@ -13,3 +13,5 @@ outputdf backup
 outputdf.RData
 outputdf.csv
 predictions
+randeffs.csv
+total vs mosquito.png
