@@ -66,13 +66,11 @@ for (package in packages) {
 # state to model
 statetomodel <- "SD"
 
-# where are the data located?
-humandatafile <- ".\\human case data\\simulated human case data.csv"
+# do we have a stratification file?
+stratafile <- "./strata/example SD strata.csv"
 
-# operating system
-# it's possible we could detect this on our own, but it's simpler for the user to simply specify
-ostype <- "windows"
-if (!(ostype %in% c("windows", "mac"))) { ostype <- "windows" }
+# where are the data located?
+humandatafile <- "./human case data/simulated human case data.csv"
 
 # model formulas
 modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat + s(lag, by=var1, bs='cr') + s(lag, by=var2, bs='cr')",
@@ -88,7 +86,7 @@ modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat +
 modelnames <- c("cub-fx-nonanom")
 
 # where are the human data located?
-humandatafile <- ".\\human case data\\simulated human case data.csv"
+humandatafile <- "./human case data/simulated human case data.csv"
 
 # should we impute human cases in districts where there aren't enough to
 # support the estimate of a district-specific intercept? i.e. should we
@@ -119,7 +117,7 @@ humancasealpha <- 0.02
 weekinquestion <- as.Date("2018-08-15", "%Y-%m-%d")
 
 # where are the weather csv files stored?
-weatherpathstr <- ".\\Weather data\\"
+weatherpathstr <- "./Weather data/"
 
 # what is the name of the summary file to be created?
 weathersummaryfile <- "weather data summary file.csv"
@@ -130,10 +128,10 @@ var1name <- "tmeanc"
 var2name <- "vpd"
 
 # where are the mosquito test files located?
-mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
+mosqfile <- "./mosquito data/simulated mosquito tests.csv"
 
 # declare which summary statistic will be used to create the MIRsummarystat
-mosqsummarystyle <- "AUC"
+mosqsummarystyle <- "stratifiedMIGR"
 if (!(mosqsummarystyle %in% c("simpleratio",
                               "MIGR",
                               "stratifiedMIGR",
@@ -148,7 +146,7 @@ if (!(mosqsummarystyle %in% c("simpleratio",
 # if we have simpleratio data, do we need to resample so that one of the other
 # methods of summary can be used? If we do want to resample, which data do we use?
 resamplemosquitodata <- FALSE
-resamplemosquitodatafile <- ".\\mosquito data\\simulated mosquito tests.csv"
+resamplemosquitodatafile <- "./mosquito data/simulated mosquito tests.csv"
 
 # to which two other years do we want to compare the current year's predictions?
 compyear1 <- 2012
@@ -437,7 +435,7 @@ if (mosqsummarystyle == "AUC") {
   diagnostic_mosquitodistricts <- NA
   
 }
-if (mosqsummarystyle %in% c("MIGR", "MII")) {
+if (mosqsummarystyle %in% c("MIGR", "MII", "stratifiedMIGR", "stratifiedMII")) {
   
   # convert district to factor
   wnv$district <- simplifynames(wnv$district)
@@ -484,7 +482,6 @@ if (mosqsummarystyle %in% c("MIGR", "MII")) {
 There are `r nrow2` samples in the vector testing database. For `r max(wnv$year, na.rm=TRUE)`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. If an estimate does not appear in a year, it is likely because the `mosquitobelievableyears` variable in ArboMAP was not set to include it; i.e. ArboMAP was told to disregard mosquito infection data for this year. 
 
 ```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
-
 if (mosqsummarystyle == "simpleratio") {
   
   wnv$year <- wnv$col_year
@@ -492,9 +489,9 @@ if (mosqsummarystyle == "simpleratio") {
                             totpos = sum(wnv_result, na.rm=true),
                             tottest = n())
   
-  randeffs$mosqinfect <- randeffs$totpos / randeffs$tottest
+  randeffs$MIRsummarystat <- randeffs$totpos / randeffs$tottest
   randeffs$year <- as.numeric(as.character(randeffs$year))
-  randeffs <- randeffs[c("year", "mosqinfect")]
+  randeffs <- randeffs[c("year", "MIRsummarystat")]
   
 }
 if (mosqsummarystyle == "AUC") {
@@ -522,7 +519,7 @@ if (mosqsummarystyle == "AUC") {
   
   # calculate the AUCs
   randeffs <- as.data.frame(dplyr::summarise(group_by(predframe, year),
-                                             mosqinfect=sum(pred, na.rm=TRUE)))
+                                             MIRsummarystat=sum(pred, na.rm=TRUE)))
   randeffs$year <- as.numeric(as.character(randeffs$year))
   
 }
@@ -555,28 +552,100 @@ if (mosqsummarystyle %in% c("MIGR", "MII")) {
     
     # predict random effects for all years
     randeffs <- data.frame(year=as.numeric(rownames(random.effects(infectglm)$year)),
-                           mosqinfect=random.effects(infectglm)$year[,1])
+                           MIRsummarystat=random.effects(infectglm)$year[,1])
     
   }
   if (mosqsummarystyle == "MII") {
     
     # predict random effects for all years
     randeffs <- data.frame(year=as.numeric(rownames(random.effects(infectglm)$year)),
-                           mosqinfect=random.effects(infectglm)$year[,2])
+                           MIRsummarystat=random.effects(infectglm)$year[,2])
     
   }
   
 }
-
+if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
+  
+  # figure out how many distinct districts we have left
+  districtlist           <- data.frame(district=unique(wnv$district))
+  distinctdistricts      <- length(unique(wnv$district))
+  districtlist$districtnum <- seq(from=1, to=distinctdistricts, by=1)
+  wnv <- merge(x=wnv, y=districtlist,
+               by="district",
+               all=TRUE)
+  
+  # create a variable that at least has a little chance of being orthogonal to 1.
+  wnv$dminus <- wnv$doy - mean(wnv$doy, na.rm=TRUE)
+  
+  # read stratum file
+  strata <- read.csv(stratafile)
+  strata <- strata[c("district","strata")]
+  strata$district <- simplifynames(strata$district)
+ 
+  wnv <- left_join(wnv,
+                   strata,
+                   by="district")
+  
+  # make sure all the observations have a stratum and year
+  wnv <- wnv[!is.na(wnv$year),]
+  wnv <- wnv[!is.na(wnv$strata),]
+  wnv$stratumyear <- factor(paste(wnv$strata, wnv$year, sep="-"))
+    
+  # run a random effect model on orthogonalized data
+  infectglm <- glmer(wnv_result ~ 1+dminus+
+                       (0+1|stratumyear) +
+                       (0+dminus|stratumyear),
+                     family=binomial(),
+                     data=wnv)
+  wnv$est <- predict(infectglm, newdata=wnv, type="response")
+  
+  if (mosqsummarystyle == "stratifiedMIGR") {
+    
+    # predict random effects for all years
+    randeffs <- data.frame(stratumyear=rownames(random.effects(infectglm)$stratumyear),
+                           MIRsummarystat=random.effects(infectglm)$stratumyear[,1])
+    randeffs$year <- as.numeric(sapply(strsplit(randeffs$stratumyear, "-"), function(x) x[2]))
+    randeffs$stratum <- sapply(strsplit(randeffs$stratumyear, "-"), function(x) x[1])
+    
+  }
+  if (mosqsummarystyle == "stratifiedMII") {
+    
+    # predict random effects for all years
+    randeffs <- data.frame(stratumyear=rownames(random.effects(infectglm)$stratumyear),
+                           MIRsummarystat=random.effects(infectglm)$stratumyear[,2])
+    randeffs$year <- as.numeric(sapply(strsplit(randeffs$stratumyear, "-"), function(x) x[2]))
+    randeffs$stratum <- sapply(strsplit(randeffs$stratumyear, "-"), function(x) x[1])
+    
+  }
+  
+}
 ```
 ```{r fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
 if (mosqsummarystyle %in% c("MIGR", "MII", "AUC", "simpleratio")) {
   
   # center these statistics
-  randeffs$mosqinfect <- randeffs$mosqinfect - mean(randeffs$mosqinfect, na.rm=TRUE)
+  randeffs$MIRsummarystat <- randeffs$MIRsummarystat - mean(randeffs$MIRsummarystat, na.rm=TRUE)
+  randeffs$MIRsummarystat[is.na(randeffs$MIRsummarystat)] <- 0
   
   # plot
-  thisplot <- ggplot(randeffs) + geom_point(aes(x=year, y=mosqinfect)) +
+  thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=MIRsummarystat)) +
+    geom_abline(slope=0, intercept=0, linetype=2) +
+    scale_x_continuous(breaks=minmosqbelieveyear:maxmosqbelieveyear) +
+    theme(axis.text.x=element_text(angle=45, hjust=1),
+          panel.grid.minor=element_blank(),
+          panel.grid.major.y=element_blank())+
+    xlab("") + ylab("Relative risk due to\nvector infection rate")
+  plot(thisplot)
+  write.csv(randeffs, file="randeffs.csv")
+  
+}
+if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
+  
+  # center these statistics
+  randeffs$MIRsummarystat <- randeffs$MIRsummarystat - mean(randeffs$MIRsummarystat, na.rm=TRUE)
+  
+  # plot
+  thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=MIRsummarystat, group=stratum, color=stratum)) +
     geom_abline(slope=0, intercept=0, linetype=2) +
     scale_x_continuous(breaks=minmosqbelieveyear:maxmosqbelieveyear) +
     theme(axis.text.x=element_text(angle=45, hjust=1),
@@ -689,58 +758,63 @@ observedfraction <- 100*round(observedbefore / observedtotal, 2)
 The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqbelieveyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqbelieveyear` is shown here by grouping observations nearby in time.
 
 ```{r mosqbymonth, include=TRUE, echo=FALSE, fig.width=6, fig.height=3}
-mosqmopreds <- expand.grid(year=minmosqbelieveyear:maxmosqbelieveyear,
-                           doy=seq(from=min(wnv$doy, na.rm=TRUE),
-                                   to  =max(wnv$doy, na.rm=TRUE), by=1))
-mosqmopreds$dminus <- mosqmopreds$doy - mean(wnv$doy, na.rm=TRUE)
-mosqmopreds$preds <- predict(infectglm, newdata=mosqmopreds, type="response", allow.new.levels=TRUE)
+if (!(mosqsummarystyle %in% c("stratifiedMIGR",
+                            "stratifiedMII"))) {
 
-mosqmopreds <- group_by(mosqmopreds, dminus, year)
-mosqmopreds <- dplyr::summarize(mosqmopreds,
-                                preds=mean(preds, na.rm=TRUE),
-                                doy=mean(doy, na.rm=TRUE),
-                                .groups="keep")
-thisyear1   <- mosqmopreds[mosqmopreds$year == maxmosqbelieveyear,]
-comparison1 <- mosqmopreds[mosqmopreds$year == compyear1,]
-comparison2 <- mosqmopreds[mosqmopreds$year == compyear2,]
-
-thisyeardot <- wnv[wnv$year == maxmosqbelieveyear,]
-
-if (sum(!is.na(thisyeardot$doy)) > 20) {
+  mosqmopreds <- expand.grid(year=minmosqbelieveyear:maxmosqbelieveyear,
+                             doy=seq(from=min(wnv$doy, na.rm=TRUE),
+                                     to  =max(wnv$doy, na.rm=TRUE), by=1))
+  mosqmopreds$dminus <- mosqmopreds$doy - mean(wnv$doy, na.rm=TRUE)
+  mosqmopreds$preds <- predict(infectglm, newdata=mosqmopreds, type="response", allow.new.levels=TRUE)
   
-  thisyeardot$rounddoy <- cut2(thisyeardot$doy, g=6)
-  thisyeardot <- group_by(thisyeardot, rounddoy)
-  thisyeardot <- dplyr::summarize(thisyeardot,
-                                  meanpos = mean(wnv_result, na.rm=TRUE),
-                                  meandoy = mean(doy, na.rm=TRUE),
+  mosqmopreds <- group_by(mosqmopreds, dminus, year)
+  mosqmopreds <- dplyr::summarize(mosqmopreds,
+                                  preds=mean(preds, na.rm=TRUE),
+                                  doy=mean(doy, na.rm=TRUE),
                                   .groups="keep")
-  thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
-                                                   color="grey", alpha=0.5) +
-    geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
-    geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
-    geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
-    geom_point(data=thisyeardot, aes(x=meandoy, y=meanpos), color="red") +
-    xlab("day of the year") + ylab("Vector pool positive rate") +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.background = element_blank(),
-          axis.line = element_line(colour = "black"))
+  thisyear1   <- mosqmopreds[mosqmopreds$year == maxmosqbelieveyear,]
+  comparison1 <- mosqmopreds[mosqmopreds$year == compyear1,]
+  comparison2 <- mosqmopreds[mosqmopreds$year == compyear2,]
   
-} else {
+  thisyeardot <- wnv[wnv$year == maxmosqbelieveyear,]
   
-  thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
-                                                   color="grey", alpha=0.5) +
-    geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
-    geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
-    geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
-    xlab("day of the year") + ylab("Vector pool positive rate") +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.background = element_blank(),
-          axis.line = element_line(colour = "black"))
+  if (sum(!is.na(thisyeardot$doy)) > 20) {
+    
+    thisyeardot$rounddoy <- cut2(thisyeardot$doy, g=6)
+    thisyeardot <- group_by(thisyeardot, rounddoy)
+    thisyeardot <- dplyr::summarize(thisyeardot,
+                                    meanpos = mean(wnv_result, na.rm=TRUE),
+                                    meandoy = mean(doy, na.rm=TRUE),
+                                    .groups="keep")
+    thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
+                                                     color="grey", alpha=0.5) +
+      geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
+      geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
+      geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
+      geom_point(data=thisyeardot, aes(x=meandoy, y=meanpos), color="red") +
+      xlab("day of the year") + ylab("Vector pool positive rate") +
+      theme(panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank(),
+            axis.line = element_line(colour = "black"))
+    
+  } else {
+    
+    thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
+                                                     color="grey", alpha=0.5) +
+      geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
+      geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
+      geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
+      xlab("day of the year") + ylab("Vector pool positive rate") +
+      theme(panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank(),
+            axis.line = element_line(colour = "black"))
+    
+  }
+  plot(thisplot)
   
 }
-plot(thisplot)
 ```
 
 ## Human data
@@ -901,22 +975,49 @@ for (curcol in 1:dim(fullcasemat$lag)[2]) {
 fullcasemat$doymat <- fullcasemat$lag
 fullcasemat$doymat[,] <- fullcasemat$doy
 
+fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
+
+# do we have strata?
+if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
+  
+  fullcasemat <- left_join(fullcasemat, strata, by="district")
+  fullcasemat$stratumyear <- paste(fullcasemat$strata,
+                                   fullcasemat$year,
+                                   sep="-")
+    
+}
+
 # garbage collection
 rm(mean1data)
 rm(mean2data)
 gc()
 
-# include the mosquito summary statistic
-names(randeffs) <- c("year","MIRsummarystat")
+# # include the mosquito summary statistic
+# names(randeffs) <- c("year","MIRsummarystat")
 
 # figure out which need imputed MIGR, etc.
-fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
-yearfiller <- data.frame(year = unique(fullcasemat$year))
-yearfiller <- left_join(yearfiller, randeffs, by="year")
-yearfiller$shouldimpute <- is.na(yearfiller$MIRsummarystat) & (yearfiller$year %in% humanbelievableyears)
+if (!(mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII"))) {
+  
+  yearfiller <- data.frame(year = unique(fullcasemat$year))
+  yearfiller <- left_join(yearfiller, randeffs, by="year")
+  yearfiller$shouldimpute <- is.na(yearfiller$MIRsummarystat) & (yearfiller$year %in% humanbelievableyears)
+  
+} else {
+  
+  yearfiller <- expand.grid(year = unique(fullcasemat$year),
+                            stratum = unique(strata$strata))
+  yearfiller$stratumyear <- paste(yearfiller$stratum,
+                                  yearfiller$year,
+                                  sep="-")
+  yearfiller <- left_join(yearfiller,
+                          randeffs[c("stratumyear", "MIRsummarystat")],
+                          by="stratumyear")
+  yearfiller$shouldimpute <- is.na(yearfiller$MIRsummarystat) & (yearfiller$year %in% humanbelievableyears)
+  
+}
 
 # replace missing with zeros (i.e. average risk)
-yearfiller$MIRsummarystat[is.na(yearfiller$MIRsummarystat)] <- mean(yearfiller$MIRsummarystat, na.rm=TRUE)
+yearfiller$MIRsummarystat[is.na(yearfiller$MIRsummarystat)] <- 0
 
 # figure out which years need an exactfit column
 yearsneedingcolumns <- yearfiller$year[which(yearfiller$shouldimpute)]
@@ -940,10 +1041,23 @@ if (length(yearsneedingcolumns) == 0) {
 }
 
 # add these mosquito data to the fullcasemat
-fullcasemat <- left_join(fullcasemat, yearfiller, by="year")
+if (!(mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII"))) {
+  
+  fullcasemat <- left_join(fullcasemat, yearfiller, by="year")
+
+} else {
+  
+  fullcasemat <- left_join(fullcasemat,
+                           yearfiller[c("stratumyear",
+                                        "MIRsummarystat",
+                                        "shouldimpute")],
+                           by="stratumyear")
+  
+}
+fullcasemat$MIRsummarystat[is.na(fullcasemat$MIRsummarystat)] <- 0
 ```
 
-ArboMAP is performing a exact fit for data in years: `r ynctext`. An exact fit occurs whenever there are human data in a year (the year is in `humanbelievableyears`) but no corresponding mosquito data (the year is not in `mosquitobelievableyears`) or for some reason the risk factor due to mosquitoes could not be estimated. We do not want to ignore human data if no mosquito data are available, since we can still examine the relationship with environmental covariates.
+hArboMAP is performing a exact fit for data in years: `r ynctext`. An exact fit occurs whenever there are human data in a year (the year is in `humanbelievableyears`) but no corresponding mosquito data (the year is not in `mosquitobelievableyears`) or for some reason the risk factor due to mosquitoes could not be estimated. We do not want to ignore human data if no mosquito data are available, since we can still examine the relationship with environmental covariates.
 
 ```{r humanreg, echo=FALSE, include=FALSE}
 # set up list to contain models
