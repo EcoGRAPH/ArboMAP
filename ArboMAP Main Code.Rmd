@@ -65,6 +65,7 @@ for (package in packages) {
 ```{r setoptions, include=FALSE, echo=FALSE}
 # state to model
 statetomodel <- "SD"
+statetomodel <- "OK"
 
 # operating system
 # it's possible we could detect this on our own, but it's simpler for the user to simply specify
@@ -90,6 +91,8 @@ modelnames <- c("cub-fx-nonanom")
 # where are the human data located?
 # example of a file with directories an drive:
 humandatafile <- "C:\\home\\work\\davis\\WNV repository\\South Dakota\\human\\20-07-15 - SD human WNV.csv"
+humandatafile <- ".\\human case data\\21-02-19 - fake human case data.csv"
+
 
 # should we impute human cases in districts where there aren't enough to
 # support the estimate of a district-specific intercept? i.e. should we
@@ -97,9 +100,9 @@ humandatafile <- "C:\\home\\work\\davis\\WNV repository\\South Dakota\\human\\20
 imputemissingdistricts <- TRUE
 
 # set up dates to constrain the human, mosquito, and weather data
-humanbelievableyears    <- c(2004:2019)
-mosquitobelievableyears <- c(2004:2019)
-envbelievableyears      <- 2000:2019
+humanbelievableyears    <- c(2004:2020)
+mosquitobelievableyears <- c(2012:2020)
+envbelievableyears      <- 2000:2020
 
 # derive boundaries from the given sets
 minhumanbelieveyear <- min(humanbelievableyears)
@@ -111,16 +114,16 @@ maxenvbelieveyear <- max(envbelievableyears)
 
 # set up the desired human years
 minhumandesiredyear <- 2004
-maxhumandesiredyear <- 2019
+maxhumandesiredyear <- 2020
 
 # cull some proportion of the outlying human cases
 humancasealpha <- 0.02
 
 # which week are we producing the graphs for?
-weekinquestion <- as.Date("2019-10-01", "%Y-%m-%d")
+weekinquestion <- as.Date("2020-10-01", "%Y-%m-%d")
 
 # where are the weather csv files stored?
-weatherpathstr <- "C:\\home\\work\\davis\\WNV repository\\South Dakota\\weather\\"
+weatherpathstr <- ".\\Weather\\"
 
 # what is the name of the summary file to be created?
 weathersummaryfile <- "weather data summary file.csv"
@@ -133,6 +136,7 @@ var2name <- "vpd"
 # where are the mosquito test files located?
 #mosqfile <- "C:\\home\\work\\davis\\WNV repository\\South Dakota\\mosquito\\21-02-12 - example of flat mosquito file.csv"
 mosqfile <- "C:\\home\\work\\davis\\WNV repository\\South Dakota\\mosquito\\20-09-24 - mosquito testing records.csv"
+mosqfile <- ".\\mosquito data\\okmosqdata - 2020 update - culex only.csv"
 
 # declare which summary statistic will be used to create the MIRsummarystat
 mosqsummarystyle <- "AUC"
@@ -244,6 +248,7 @@ for (curcol in c(var1name, var2name)) {
     
     # calculate the anomaly in a different way
     weather[,paste("anom_", curcol, sep="")] <- weather[,curcol] - temppred
+    weather[is.na(weather[,paste("anom_", curcol, sep="")]),paste("anom_", curcol, sep="")] <- 0
 
 }
 weather$tempvar <- NULL
@@ -616,6 +621,29 @@ human$weeknum <- as.numeric(format(human$date, "%U"))
 minmaxweekquants <- quantile(human$weeknum, probs=c(humancasealpha/2, 1-humancasealpha/2), na.rm=TRUE)
 minhumanobsweek <- minmaxweekquants[1]
 maxhumanobsweek <- minmaxweekquants[2]
+
+# do we need to create data to put 
+if (imputemissingdistricts) {
+  
+  missingdistricts <- diagnostic_shapefiledistricts[!(diagnostic_shapefiledistricts
+                                                      %in% human$district)]
+  
+  tempdf <- data.frame(district=missingdistricts)
+
+  whichtocopy <- sample(x=1:nrow(human$district),
+                        size=nrow(tempdf),
+                        replace=TRUE)
+  
+  tempdf$date <- human$date[whichtocopy]
+  tempdf$chardate <- human$chardate[whichtocopy]
+  tempdf$creationyear <- human$creationyear[whichtocopy]
+  tempdf$creationmonth <- human$creationmonth[whichtocopy]
+  tempdf$doy <- human$doy[whichtocopy]
+  tempdf$weeknum <- human$weeknum[whichtocopy]
+  
+  human <- bind_rows(human, tempdf)
+  
+}
 
 # create the full list of weeks
 minobservedhumandate <- min(human$date)
@@ -1170,7 +1198,7 @@ kable(thisyear[c("model", "totest", "totcases")],
 
 We visualize the raw estimated risk for `r weekinquestion` below. If a district is darkest blue, then we estimate that there should be no human cases reported for this district, during this week. If a district is brightest red, we are certain that there will be at least one human case reported for this district, during this week.
 
-```{r shapefile, include=FALSE, echo=FALSE, warnings=FALSE}
+```{r shapefile, include=TRUE, echo=FALSE, warnings=FALSE}
 district_shapes <- counties(state=statetomodel, cb=TRUE)
 district_shapes$district <- simplifynames(district_shapes$NAME)
 # district_shapes$id <- district_shapes$NAME
@@ -1194,7 +1222,7 @@ for (curmodel in unique(thisweek$model)) {
   thisplot <- ggplot(tempdf) +
       geom_sf(aes(fill=pred)) + xlab("") + ylab("") +
       theme(legend.position="bottom") +
-      scale_fill_distiller(palette = "Spectral", limits=c(0,1),
+      scale_fill_distiller(palette = "Spectral", limits = c(0,1),
                                                  breaks = c(0,1),
                                                  labels = c("Will definitely not\nreport any cases",
                                                             "Will definitely\nreport some cases"),
