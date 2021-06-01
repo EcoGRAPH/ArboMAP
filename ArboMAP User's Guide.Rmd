@@ -1,6 +1,6 @@
 ---
 title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
-author: "User Guide (v2.0)  \nJustin K. Davis and Michael C. Wimberly  \n(justinkdavis@ou.edu, mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
+author: "User Guide (v3.1)  \nJustin K. Davis and Michael C. Wimberly  \n(justinkdavis@ou.edu, mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
 date: "Updated `r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
 toc: true
@@ -10,32 +10,33 @@ toc: true
 knitr::opts_chunk$set(echo = TRUE, fig.align='center')
 options(warn=-1)
 ```
+# Introduction
 
-# What you need to know about ArboMAP
+## What you need to know about ArboMAP
 
-ArboMAP is a program used to model and predict cases of vector-borne disease. Here we consider human cases of the mosquito-born West Nile virus, but ArboMAP will likely work with any data set in which:
+ArboMAP is a program used to model and predict cases of vector-borne disease. It has been developed and tested with human cases of the mosquito-born West Nile virus. However, ArboMAP will likely work with any data sets that meet the following conditions:
   
-* there are multiple (>3) years of infection data from years in which the pathogen can be considered endemic, after any introductory years in which the pathogen is probably rapidly exploiting naive populations and should not yet be considered established
-* the disease has distinct transmission and quiescent seasons, including an initial, annual exponential growth phase when the pathogen is beginning to spread after a period of relatively few cases. For the moment, ArboMAP assumes that the transmission season occurs during the calendar year and essentally ceases  November through March. In settings where a transmission season crosses the December-January boundary, the code will require modification.
-* there is reason to believe that incidence responds to measurable environmental indices, almost certainly including temperature and probably some measure of moisture in the environment (e.g. precipitation or humidity)
-* cases of disease are assigned to districts (states, counties, etc.) and cases are not too rare - every modeled district should have at least one case over the period of study, as the model will assume a district is permanently immune if no cases have been observed there
-* some measure of pathogen in the environment is available; e.g. here we use the rate at which pools of mosquitoes test positive for the virus.
+* There are multiple years of infection data from years in which the pathogen can be considered endemic. Introductory years in which the pathogen is probably rapidly exploiting naive populations are likely not representative of transmission dynamics in subsequent years, and should be removed from the dataset.
+* The pathogen has distinct transmission and quiescent seasons, with an initial growth phase at the beginning of the transmission season when the pathogen is beginning to spread after a period with minimal to no transmission. In the current version, ArboMAP assumes that the transmission season occurs during a single calendar year and ceases during the boreal winter. In settings where a transmission season crosses the December-January boundary, the code will require modification.
+* There is reason to believe that incidence responds to measurable environmental indices, typically including temperature and probably some measure of moisture in the environment (e.g. precipitation or humidity)
+* Cases of disease are assigned to districts (e.g., counties) and cases are not too rare - the best situation is where every modeled district has had at least one case over the period of study.
+* Some measure of pathogen in the environment is available; e.g. here we use the rate at which pools of mosquitoes test positive for the virus.
 
-In what follows we will occasionally use the language of our West Nile virus studies (mosquitoes, counties, etc.) but the modeling approach does not rely on those details and any appropriate data set can be substituted.
+ArboMAP is designed to facilitate statewide forecasting of West Nile virus risk at the county level, and this guide is primarily focused on this implementation. However, with some modification the code could be used with different geographic units (for example, zip codes or states) and at different spatial extents (for example, an individual county of the entire United States).
 
 The ArboMAP user guide consists of four main sections. The first section describes how to install the necessary software needed to run the system. The second section describes the steps that need to be taken every year before the beginning of the WNV season to prepare for forecasting. The third section description the steps that need to be taken each time a new forecast is generated. The final section describes the outputs produces by ArboMAP and explains how to interpret the forecast charts and maps.
 
-# What you need to know about WNV and modeling
+## What you need to know about WNV and modeling
 
-West Nile virus (WNV) in South Dakota is our example in this document. WNV circulates primarily among mosquitoes and birds, but occasionally spills over into human or other hosts. In humans, the majority (~80%) of infections show no symptoms and are not diagnosed except perhaps accidentally during blood donation. Some small proportion of individuals will develop symptoms such as headache, fever, and rash, but in about 1 out of every 100 infected individuals, the disease becomes neuroinvasive and can cause debilitating illness and death.
+West Nile virus (WNV) in South Dakota is our example in this document. WNV circulates primarily among mosquitoes and birds, but occasionally spills over into human or other hosts. In humans, the majority (~80%) of infections show no symptoms and are not diagnosed except perhaps accidentally during blood donation. Some small proportion of individuals will develop symptoms such as headache, fever, and rash, but in about one out of every 100 infected individuals, the disease becomes neuroinvasive and can cause debilitating illness and death.
 
 WNV was first introduced to the US in 1999 on the east coast, after which it spread in a westward-moving wave across the US. The early years produced thousands of cases as WNV invaded new regions. Birds were immunologically naive, so the virus decimated entire avian populations and spilled over into humans in an outbreak that lasted several years in some states.
 
-In South Dakota, there were more than a thousand diagnosed cases in 2002-2003, which implies that many more were actually infected, since most infected individuals do not show symptoms and are never diagnosed. After a number of years of active transmission, case numbers declined and it looked like the disease might vanish from circulation after 2011, in which there were only two cases reported.
+In South Dakota, there were more than a thousand diagnosed cases in 2002-2003 (Wimberly et al. 2012), which implies that many more were actually infected, since most infected individuals do not show symptoms and are never diagnosed. After a number of years of active transmission, case numbers declined and it looked like the disease might vanish from circulation after 2011, in which there were only two cases reported.
 
-However, in 2012 there was another outbreak, with hundreds of cases in South Dakota. Because of these massive fluctuations in annual case counts, there is a need to predict the magnitude and locations of WNV in advance to support proactive mosquito control and disease prevention activities. Thus, a key scientific question is whether there are there any environmental or entomological indicators that could tell us, in advance, how bad a year is likely to be.
+However, in 2012 there was another outbreak, with hundreds of cases in South Dakota (Wimberly et al. 2013). Because of these massive fluctuations in annual case counts, there is a need to predict the magnitude and locations of WNV in advance to support proactive mosquito control and disease prevention activities. Thus, a key scientific question is whether there are there any environmental or entomological indicators that could tell us, in advance, how bad a year is likely to be.
 
-In fact, yes. Work by Dr. Michael Wimberly's research group has shown that a relatively simple statistical model, relying on weather and mosquito infection data, can be used to predict the risk of infection on a district-week basis. For more background, you will want to consult relevant journal articles, which are listed at the end of this document. In particular, the paper by Davis et al. (2018 in Acta Tropica) provides details about the underlying statistical model.
+Multiple studies conducted in South Dakota have confirmed that vector mosquitoes and human WNV cases are sensitive to fluctuations in environmental variables, particularly temperature (Chuang et al. 2011, 2012a, 2012b; Hess et al. 2018; Wimberly et al. 2008, 2014). Our research has shown that relatively simple statistical model, relying on weather and mosquito infection data, can be used to predict the risk of infection on a district-week basis (Davis et al. 2017, 2018). For more background, you will want to consult relevant journal articles, which are listed at the end of this document. 
 
 # Setting up for the initial run
 
@@ -43,15 +44,15 @@ In fact, yes. Work by Dr. Michael Wimberly's research group has shown that a rel
 
 ArboMAP comes packaged with example human, mosquito, and weather data. The weather data are real, but the human and mosquito data were generated randomly according to model estimates from our WNV study in South Dakota. Hence, the data "look like" real human and mosquito data, but are synthetic and *should not be used* for any actual scientific study. They are included merely to make sure that all software is installed and settings are correct; you will probably want to run the system first with these synthetic data before trying your own data.
 
-## Some accounts you'll need
+## Some data you'll need
 
-You will need some measure of pathogen in the environment; obtaining these data is usually a substantial undertaking requiring multiple locations and participants, so this will probably be stored in some central database requiring a login. Here, we use a website to which participants around the state added their mosquito infection data.
+ArboMAP uses data on mosquito infection rates as predictors in the model. We assume that such data are acquired through mosquito surveillance programs implemented at the state, county, and or municipal level, and that users of ArboMAP will have access to these data. For example, during the initial implementation of ArboMAP in SD, we accessed the data through a web-based data portal to which which participants around the state had uploaded their mosquito infection data. Information is required about the county where each mosquito pool was collected, the date that it was collected, and whether it tested positive or negative for WNV.
 
-You will need some measure of the environment so that relationships between disease and environment can be modeled. Here we use the gridMET dataset, downloaded from Google Earth Engine (GEE). GEE is a cloud-based platform for processing satellite remote sensing images and other geospatial datasets. Instead of downloading the data and processing it yourself, GEE uses cloud-based computers and algorithms to do in half an hour what might take a standard desktop computer a week to calculate.
+You will need weather data so that relationships between disease and environment can be modeled. To forecast WNV in the United States, ArboMAP uses the gridMET dataset, which provide daily gridded data on meterological variables generated through fusion of the NLDAS and PRISM datasets. We provided a web-based application that can be used to download these data for free from Google Earth Engine (GEE). GEE is a cloud-based platform for processing satellite remote sensing images and other geospatial datasets. The application allows users to select a state and time range, automatically processes the meterological data, and provides daily, county-level summaries in a comma-delimited text format that can be imported into ArboMAP.
 
 To access GEE, you will first need a gmail account at **[mail.google.com](https://mail.google.com)**, so that you can access Google Drive documents at **[drive.google.com](https://drive.google.com)**. Next, visit GEE at **[earthengine.google.com](https://earthengine.google.com/)** and click on \"Sign Up\" to request an account. You receive confirmation at your gmail address, and any downloads of weather data will be stored in the Google Drive of the account.
 
-Finally, you will need outcome data, usually human cases. These data are probably best obtained by data-sharing agreements with a health department. Up-to-date case counts are not necessary - ArboMAP models the current year based on all previous years, and does not rely on case counts in the current year, which are in any case usually misleadingly low. The location of residence (or transmission) and the date of onset of symptoms (or diagnosis or detection) are required. The date of onset is rounded to week in this analysis and the location should be a larger district (e.g. county) rather than a specific address.
+Finally, you will need outcome data, usually human cases. As with the mosquito data, we assume that the users of ArboMAP will have access to these data. ArboMAP models the current year based on all previous years, and does not rely on case counts in the current year because these cases are typically reported with time lags of weeks to months. The county of residence (or transmission) and a date (typically the onset of symptoms) are required for each case. 
 
 ## Some software you'll need
 
@@ -75,33 +76,53 @@ An alternative is to choose the Net Installer from the \"All Downloads\" page, a
 
 ## Setting up the directory structure
 
-ArboMAP requires a variety of files to run, and the following directory structure is the easiest way to organize everything that's necessary. If you download the repository and compile the main ArboMAP code in RStudio with Ctrl+Shift+K, you will draw from data sources already in place and will not need to modify the contents of these directories.
+ArboMAP requires a variety of files to run, and the following directory structure is the easiest way to organize everything that's necessary. If you download the repository and run the main ArboMAP code in RStudio, you will draw from data sources already in place and will not need to modify the contents of these directories. By default, ArboMAP will expect the following folders to be subfolders of the home directory of your RStudio project.
+
+* **human case data**: Contains the file with human case data
+* **mosquito data**: Contains the file with mosquito data
+* **strata**: Contains the file with spatial strata for the mosquito data
+* **weather data**: Contains the files with weather data
+* **pictures for setup document**: Contains images necessary to compute the user guide, but not required to run the main ArboMAP
 
 ## Files and settings
 
-The ArboMAP User's Guide.Rmd file, which you will open in RStudio, contains a preface (shown below) with settings that tells the program where to find the various pieces of data used to make predictions. Errors in these filenames are a common reason that the code will refuse to run.
+The ArboMAP-Main-Code.Rmd file, which you will open in RStudio, contains a preface (shown below) with settings that tells the program where to find the various pieces of data used to make predictions. Errors in these filenames are a common reason that the code will refuse to run.
 
-* `statetomodel` is the two-letter abbreviation for the state you wish to model; e.g. "SD" for South Dakota
-* `modelformulas` is a list of named generalized additive models that ArboMAP can run. These are flexible and the advanced user is invited to change the formulas to investigate different models, but note that the program does not currently support 3-/higher-dimensional smooths.
-* `modelnames` is the list of models that ArboMAP will actually run.
-* The three `believableyears` variables tell ArboMAP which data to trust. For example, `humanbelievableyears = c(2012, 2015:2017)` would tell ArboMAP to trust human data in 2012, 2015, 2016, 2017. Suppose for example that in your setting there were no cases in 2015 but that the year was listed in `humanbelievableyears`. This would tell ArboMAP that all those zeros were real zeros. Similarly, if your human data file contains data from 2011, it will be discarded before modeling.
-* `humandatafile` contains the human WNV cases
-* `maxhumandesiredyear` and `minhumandesireddate` tell ArboMAP which years in which to generate estimates for the data. These will be based on all believable data above, and mosquito/environmental data are extrapolated where appropriate.
-* `humancasealpha` tells ArboMAP to discard the earliest/latest alpha% of the human cases in all years. This prevents bad data (e.g. infections reported in December but actually contracted in July) from causing numerical difficulties in the analysis.
-* `weekinquestion` tells the program which week you'd like to obtain predictions for. Weeks in this program begin on Sunday and run until the next Saturday, and the weekinquestion date will automatically be rounded to the previous Sunday. For example, if 2018-07-16 happens to be a Monday, then the week examined is 2018-07-15 (Sunday) through 2018-07-21 (Saturday).
-* `weatherpathstr` indicates the directory where all the weather data CSV files are stored
-* `weathersummaryfile` is the name of the file that the program will create to summarize all the CSV files. Since it's possible you've downloaded a year many times (especially the current year), the program has to create a summary file and stores it with the rest of the weather data. Other than this extra file and all the CSV files, there should be nothing else in this directory.
-* `mosqfile` contains the mosquito testing data
-* `compyear1` and `compyear2` indicate which two years in the past we'd like to compare the current year to in one of the graphics.
-* `var1name` and `var2name` indicate which two weather variables you'd like to use as predictors in the model. By default, these are set to mean daily temperature from the gridMET set (tmeanc) and the vapor pressure deficit (vpd).
+* `state_name` is the name of the state being modeled. It is included in the title of the report generated by ArboMAP.
+* `state_code` is the two-letter code of the state being modeled. 
+* `forecast_date` tells the program which week you'd like to obtain predictions for. Weeks in this program begin on Sunday and run until the next Saturday, and the `forecast_date` date will automatically be rounded to the previous Sunday. For example, if 2018-07-16 happens to be a Monday, then the week examined is 2018-07-15 (Sunday) through 2018-07-21 (Saturday).
+* `data_path` is the path to the main folder that contains the data subfolders. But default the value is set to ".\\", which references the working directory of the current R project. However, this value can be changed if the user wants to work with different datasets stored in different locations.
+* `human_file` is the name of the file that contains human case data.
+* `mosquito_file` contains the mosquito testing data.
+* `stratification_file` specifies the allocation of counties to strata for the spatially stratified version of the mosquito infection rate model.
+* `predictor_v1` and `predictor_v2` are the names of the two meteorological predictor variables.
+* `mosquito_model` is a code for the type of mosquito infection rate model to be used: MIGR = Mosquito infection growth rate, stratified MIGR = spatially stratified version of MIGR, MII = Mosquito infection intercept (constant term from the mosquito infection growth rate equation, AUC = area under the mosquito infection growth curve, simpleratio = percent positive mosquito pools).
+* `min_human_year` is the earliest year of available human case data.
+* `max_human_year` is the most recent year of available human case data (usually the year before the current forecast year).
+* `min_mosquito_year` is the earliest year of available mosquito infection data.
+* `max_mosquito_year` is the most recent year of available mosquito infection data (should be the current year during which the the forecast is being made).
+* `min_weather_year` is the earliest year of available weather data.
+* `max_weather_year` is the most recent year of available weather data (should be the current year during which the forecast is being made).
+* `min_desired_year` is the earliest year to include when fitting the model (typically the first year when human data and either mosquito or weather data are available).
+* `max_desired_year` is the most recent year to include when fitting the model (typically the current year when generating forecasts).
+* `case_trim_alpha` tells ArboMAP to discard the earliest/latest alpha% of the human cases in all years. This prevents bad data (e.g. infections reported in December but actually contracted in July) from causing numerical difficulties in the analysis.
+* `compyear1` and `compyear2` indicate which two years in the past  to compare the current year to in some of the charts generated by ArboMAP.
 
 ## Choosing your models
 
-The `modelformulas` object contains a list of formulas used to model the data. Currently, the naming convention describes whether cubic (cub) or thin-plate (tp) splines are used. Then, the distributed lags are either fixed (fx) or seasonally-varying (sv). Then, we either use anomalized (anom) or non-anomalized (nonanom) environmental data.
+ArboMAP predicts WNV cases using "big additive models" run with the `bam()` function from the mgcv library. Predictor variables include weather variables with effects modeled as distributed lags, and mosquito infection rates modeled using one of several techniques. There are a variety of other modeling options:
 
-So, for example, the "cub-sv-nonanom" model is the model we used for our most recent publications. The "tp-sv-anom" model takes advantage of improvements in the mgcv library to use thin-plate splines to model distributed lags which vary over the season, over anomalized weather data. The tp-sv-anom model currently has the best fit out of all the listed models on our historical data, but this may not be the case for all users. Typically for new users, we will recommend the simple "cub-fx-nonanom" model, which is most numerically stable and unlikely to fail, and the "tp-sv-anom" model for what is likely to be the best fit, but requires more computational power and may fail if the data do not tell a clear story.
+* Models can be based on 1) untransformed weather data, or 2) weather anomalies, calculated as the difference between each daily value and its long-term daily expectation, combined with a cyclical seasonal trend. 
 
-The user has the option to run all listed models simultaneously by writing `modelnames <- names(modelformulas)` instead of `modelnames <- c("cub-sv-nonanom", "tp-sv-anom")` or some other list of models. This is not advisable unless the user is on a decently-powerful computer with a number of cores available for processing. We use the parallel processing of the mgcv::bam to fit models quickly, and ArboMAP should not be run on a busy computer or a laptop on battery power. Running the two default models takes approximately five minutes on an older desktop, and is much faster on a server with many available cores. If the run-time becomes excessive, choosing simpler models should help, but running individual models in separate instances of ArboMAP is unlikely to produce any benefit.
+* Distributed lags can be 1) a single, fixed set of distributed lags, or 2) seasonally varying so that the lag functions can change over the course of the WNv season.
+
+* Smoothed functions can be modeled using 1) cubic splines, or 2) thin-plate splines.
+
+Models to be used in an ArboMAP run are specified in a "models.txt" file that must be present in the working directly of the RStudio project. Each line in this file contains two comma-separated strings. The first contains a code name for the model and the second contains the specification of the R model formula. In the file provided with ArboMAP, the naming convention describes whether cubic (cub) or thin-plate (tp) splines are used. Then, the distributed lags are either fixed (fx) or seasonally-varying (sv). Then, we either use anomalized (anom) or non-anomalized (nonanom) environmental data.
+
+In general, we expect that models based on thin-plate splines will be more stable and perform better than models based on cubic splines. However, this may not always be the case, and fitting models based on thin-plate splines typically takes longer. We have found that models based on weather anomalies tend to outperform those based on transformed weather variables, though again this is not necessarily always the case. Models with seasonally-varying coefficients can be more effective when environmental sensitivies are different early in the season (when virus amplification is occurring in bird populations) versus later in the season (when infected mosquitoes are biting humans). However, the seasonally varying models are more complex, take more time to fit, and may be more likely to overfit to the training dataset.
+
+The report generated by ArboMAP provides fit statistical for each model included in the run. One potential strategy is to start with runs that include all the models. Then, a smaller subset of the best-fitting models can be selected to use for routine forecasting.
 
 ## Obtaining data at the beginning of the season
 
@@ -203,7 +224,7 @@ Follow exactly the process described above, but only download data for the curre
 
 ### \ \ \ \ \ Updating the mosquito data
 
-Use the process described above to log in to the SDMIS website. This time, however, only download the active view, and replace \"active_testing.csv\" with the new file. During the season, the \"archive_testing.csv\" file will not change, since the historical data should not be revised.
+When new mosquito testing data are available, they need to be added to the existing mosquito data file, which must be updated and replaced in the appropriate data folder. In situations where mosquito data are managed in a database system, this can typically be accomplished via a new database query. Otherwise, the new mosquito observations will need to be appended to the mosquito data file.
 
 ## Setting up the Rmd file
 
@@ -211,7 +232,14 @@ You will be given a file called \"ArboMAP.Rmd\", which should be placed in \"D:/
 
 ### \ \ \ \ \ Running the code
 
-**Open the Rmd file in RStudio, change the weekinquestion, and press ctrl+shift+K.** This will tell RStudio to compile the PDF. It should not take very long - on a slow laptop, modeling takes around 10 minutes at most. If it takes substantially longer than this, it is likely that there is an error somewhere in the data. At the end, you will see a PDF in the same directory as the Rmd file, and a number of graphics will be stored in the directory you requested.
+Once you have all the necessary data and everything is set up and formatted correctly, all you need to do is 1) open the ArboMAP.Rmd script, 2) make any necessary changes to the model parameters, and 3) execute the model run. There are two different ways to modify the model parameters. The first is to directly overwrite the parameters in the first section of the .Rmd file. To save the modified parameters, you will need to first either overwrite the existing .Rmd file or save it using a new file name. The second way to modify the parameters is to select the Knit with Parameters option from the Knit pull-down menu in RStudio. This will bring up a menu that displays all of the default parameter settings. The user can then choose to modify some of these parameters and click the Knit button in the pop-up menu. ArboMAP is then run using the modified parameters, but no changes are made to the underlying .Rmd file.
+
+Both of these approaches to modifying the parameters can be combined to generate a modeling workflow. For example, when implementing ArboMAP in a new locations using new data, it is helpful to create a new "master" version of the .Rmd script that contains all of the appropriate defaults for the implementation. Then, when using ArboMAP operationally to generate forecasts, Knit with Parameters can be used to change the forecast date and run ArboMAP without having to modify the .Rmd file.
+
+The time required to run ArboMAP depends on the number and type of models being used. Running a single model usually takes just a few minutes, whereas running multiple models using thin-plate splines could take 20 minutes or longer. At the end, a PDF will be generated in the same directory as the Rmd file. This PDF will always have the same name as the .Rmd script file with a .pdf extension. It will be automatically overwritten in future ArboMAP runs, so it should be saved elsewhere with a unique file name.
+
+Need to add new graphics for knit with parameters.
+
 
 ## Interpreting the output
 
@@ -223,7 +251,7 @@ Each forecasting run will generate a report containing a number of graphics to i
 
 The model of WNV also summarizes the mosquito infection growth rate (MIGR) for multiple strata within the state. Every winter, the virus goes into hiding. In the early season, WNV begins replicating and spreading among birds and mosquitoes. The MIGR is a measure of how quickly that's occuring. Below we show the estimates of the MIGR over time per year. If the point is above 0, then mosquito infections are growing in pools more quickly than in the average year, and more human WNV should be expected. 
 
-### \ \ \ \ \ Censoring chart
+### \ \ \ \ \ Human data
 
 It will typically be the case that there are long stretches of time in which there are no human infections. Trying to model these makes most algorithms unstable - if you try to model too many 0s, you are likely to see odd results in your model fit statistics, AIC, etc. Hence, we only model cases within a certain time period - in the default, synthetic data, this is between weeks 24 and 42 of the year. This range can be tightened or relaxed by adjusting the `humancasealpha` parameter in the settings, which retains 100(1-alpha)% of the cases to model.
 
@@ -235,6 +263,10 @@ Next are the model outputs. For each week of a year, the model estimates what pr
 
 Next are model outputs for the year you're estimating and the two years you've selected for comparison. The solid, vertical line indicates the week of the year for which predictions are produced.
 
+### \ \ \ \ \ Model fit statistics
+
+A table of fit statistical is provided for the calibration of each model. Statistics include the Akaike Information Criterion (AIC) and the area under the receiver operating characteristic curve (AUC).
+
 ### \ \ \ \ \ Positives-to-cases chart
 
 ArboMAP models positive district-weeks, which are either 0 if there were no cases in that district in that week, or 1 if there was at least one case. We can attempt to convert this to total case counts, by fitting a smooth curve (red, dotted) to the relationship between positive district-weeks and total case counts in a year (each dot). Predictions are summarized in the table below.
@@ -245,7 +277,7 @@ Next are the absolute probabilities of each district reporting at least one huma
 
 ### \ \ \ \ \ Current-week WNV relative risk map
 
-Next are the relative probabilities. A district in the early season may have low risk because the virus is not yet circulating, but is that lower or higher than usual, for that district, during that week of the year? Brookings County on May 15th 2018 will have low risk, but that risk may be higher than usual when compared to Brookings on May 15th in 2004-2017? If a district is red, this means that risk is predicted to be substantially higher than average in that district, during the week in question. If blue, then lower. If yellow, then average. It is important to remember that red and blue do not mean high or low absolute risk. They mean high*er* or low*er than usual*. A district that is lower than usual can still have many cases in a week; e.g. Brown County in early August can be lower than usual, but will still likely report cases.
+Next are the relative probabilities. A district in the early season may have low risk because the virus is not yet circulating, but is that lower or higher than usual, for that district, during that week of the year? For example, Brookings County SD on May 15th 2018 will have low risk, but is that risk higher than usual when compared to Brookings on May 15th in 2004-2017? If a district is red, this means that risk is predicted to be substantially higher than average in that district, during the week in question. If blue, then lower. If yellow, then average. It is important to remember that red and blue do not mean high or low absolute risk. They mean high*er* or low*er than usual*. A district that is lower than usual can still have many cases in a week; e.g. Brown County SD in early August can be lower than usual, but will still likely report cases.
 
 The predictions of all models are averaged to produce this map.
 
@@ -283,13 +315,15 @@ This is usually because of bad mosquito infection data. You will want to careful
 
 # Relevant scientific papers
 
+* Chuang, T. M. B. Hildreth, M. B., D. L. VanRoekel, and M. C. Wimberly. 2011. Weather and land cover influences on mosquito populations in Sioux Falls, South Dakota. Journal of Medical Entomology 48: 669-679. 
+* Chuang, T., G. M Henebry, J. S. Kimball, D.L. VanRoekel-Patton, M. B. Hildreth, and M. C. Wimberly. 2012a. Satellite microwave remote sensing for environment modeling of mosquito population dynamics. Remote Sensing of Environment 125: 147-156.
+* Chuang, T., C. W. Hockett, L. Kightlinger, and M. C. Wimberly. 2012b. Landscape-level spatial patterns of West Nile virus risk in the northern Great Plains. American Journal of Tropical Medicine and Hygiene 86: 724-731.
+* Chuang T., and M. C. Wimberly. 2012. Remote Sensing of Climatic Anomalies and West Nile Virus 
 * Davis, J. K., G. P. Vincent, M. B. Hildreth, L. Kightlinger, and M. C. Wimberly. 2018. Improving the prediction of arbovirus outbreaks: a comparison of climate-driven models for West Nile virus in an endemic region of the United States. Acta Tropica 185: 242-250.
 * Davis J. K., Vincent G. P., Hildreth M. B., Kightlinger L., Carlson C., and M. C. Wimberly. 2017. Integrating Environmental Monitoring and Mosquito Surveillance to Predict Vector-borne Disease: Prospective Forecasts of a West Nile Virus Outbreak. PLoS Currents Outbreaks. 2017 May 23. Edition 1. doi: 10.1371/currents.outbreaks.90e80717c4e67e1a830f17feeaaf85de.
-* Wimberly, M. C., A. Lamsal, P. Giacomo, and T. Chuang. 2014. Regional variation of climatic influences on West Nile virus outbreaks in the United States. American Journal of Tropical Medicine and Hygiene 91: 677-684. 
-* Wimberly, M. C., P. Giacomo, L. Kightlinger, and M. B. Hildreth. 2013. Spatio-temporal epidemiology of human West Nile virus disease in South Dakota. International Journal of Environmental Research and Public Health 10: 5584-5602.
-* Chuang, T., C. W. Hockett, L. Kightlinger, and M. C. Wimberly. 2012. Landscape-level spatial patterns of West Nile virus risk in the northern Great Plains. American Journal of Tropical Medicine and Hygiene 86: 724-731.
-* Chuang, T., G. M Henebry, J. S. Kimball, D.L. VanRoekel-Patton, M. B. Hildreth, and M. C. Wimberly. 2012. Satellite microwave remote sensing for environment modeling of mosquito population dynamics. Remote Sensing of Environment 125: 147-156.
-* Chuang T., and M. C. Wimberly. 2012. Remote Sensing of Climatic Anomalies and West Nile Virus 
-* Chuang, T. M. B. Hildreth, M. B., D. L. VanRoekel, and M. C. Wimberly. 2011. Weather and land cover influences on mosquito populations in Sioux Falls, South Dakota. Journal of Medical Entomology 48: 669-679. 
-* Wey, C. L., J. Griesse, L. Kightlinger, and M. C. Wimberly. 2009. Geographic variability in geocoding success for West Nile virus cases in South Dakota, USA. Health & Place 15: 1108-1114.
+* Hess, A., J. K. Davis, and M. C. Wimberly. 2018. Identifying environmental risk factors and mapping the distribution of West Nile virus in an endemic region of North America. GeoHealth 2:
 * Wimberly, M. C., M. B. Hildreth, S. P. Boyte, E. Lindquist, and L. Kightlinger. 2008. Ecological niche of the 2003 West Nile virus epidemic in the northern Great Plains of the United States. PLoS One 3: e3744.
+* Wimberly, M. C., P. Giacomo, L. Kightlinger, and M. B. Hildreth. 2013. Spatio-temporal epidemiology of human West Nile virus disease in South Dakota. International Journal of Environmental Research and Public Health 10: 5584-5602.
+* Wimberly, M. C., A. Lamsal, P. Giacomo, and T. Chuang. 2014. Regional variation of climatic influences on West Nile virus outbreaks in the United States. American Journal of Tropical Medicine and Hygiene 91: 677-684. 
+
+

@@ -1,12 +1,35 @@
 ---
+params:
+  state_name: "Oklahoma"
+  state_code: "OK"
+  forecast_date: "2018-07-22"
+  data_path: ".\\"
+  human_file: "ok human case data.csv"
+  mosquito_file: "OKmosqdata_02_12_2021.csv"
+  stratification_file: NA
+  predictor_v1: "tmeanc"
+  predictor_v2: "vpd"
+  mosquito_model: "AUC"
+  min_human_year: 2004
+  max_human_year: 2017
+  min_mosquito_year: 2012
+  max_mosquito_year: 2018
+  min_weather_year: 2000
+  max_weather_year: 2018
+  min_desired_year: 2004
+  max_desired_year: 2018
+  case_trim_alpha: 0.02
+  comp_year_vis1: 2012
+  comp_year_vis2: 2017
+
 title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
-author: "Summary of Model Outputs (v3.0)   \nJustin K. Davis and Michael C. Wimberly  \n(justinkdavis@ou.edu, mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
+author: "Summary of Model Outputs (v3.1) for `r params$state_name`, `r params$forecast_date`  \nJustin K. Davis and Michael C. Wimberly  \n(justinkdavis@ou.edu, mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
 date: "Updated `r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
 ---
   
 ```{r setup, include=FALSE}
-rm(list=ls())
+#rm(list=ls()) Can't do this or it will clear the params as well.
 knitr::opts_chunk$set(echo = TRUE)
 # define some helpful functions
 '%!in%' <- function(x,y)!('%in%'(x,y))
@@ -47,7 +70,8 @@ gg_color_hue <- function(n) {
 ```
 
 ```{r libraries, include=FALSE}
-packages <- c("reshape2", "ggplot2", "gridExtra",
+packages <- c("reshape2", "readr", "dplyr", 
+              "ggplot2", "gridExtra", "shiny",
               "lme4","pracma","dplyr","maptools",
               "raster","spdep","mgcv","sp","rgdal",
               "GISTools","data.table","splines","maps",
@@ -64,39 +88,44 @@ for (package in packages) {
 
 ```{r setoptions, include=FALSE, echo=FALSE}
 # state to model
-statetomodel <- "SD"
+statetomodel <- params$state_code
 
+# Note - I think this line of code can now be deleted MCW 31MAY2021
 # do we have a stratification file?
-stratafile <- "./strata/example SD strata.csv"
+#stratafile <- "./strata/example SD strata.csv"
 
 # where are the data located?
-humandatafile <- "./human case data/simulated human case data.csv"
+humandatafile <- "./human case data/ok human case data.csv"
 
 # model formulas
-modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat + s(lag, by=var1, bs='cr') + s(lag, by=var2, bs='cr')",
-                   "cub-fx-anom"   = "anycases ~ 0 + district + MIRsummarystat + s(lag, by=anom_var1, bs='cr') + s(lag, by=anom_var2, bs='cr') + s(doy, bs='cr')",
-                   "cub-sv-nonanom"= "anycases ~ 0 + district + MIRsummarystat + te(lag, doymat, by=var1, bs='cr') + te(lag, doymat, by=var2, bs='cr')",
-                   "cub-sv-anom"   = "anycases ~ 0 + district + MIRsummarystat + te(lag, doymat, by=anom_var1, bs='cr') + te(lag, doymat, by=anom_var2, bs='cr') + s(doy, bs='cr')",
-                   "tp-fx-nonanom" = "anycases ~ 0 + district + MIRsummarystat + s(lag, by=var1, bs='tp') + s(lag, by=var2, bs='tp')",
-                   "tp-fx-anom"    = "anycases ~ 0 + district + MIRsummarystat + s(lag, by=anom_var1, bs='tp') + s(lag, by=anom_var2, bs='tp') + s(doy, bs='tp')",
-                   "tp-sv-nonanom" = "anycases ~ 0 + district + MIRsummarystat + te(lag, doymat, by=var1, bs='tp') + te(lag, doymat, by=var2, bs='tp')",
-                   "tp-sv-anom"    = "anycases ~ 0 + district + MIRsummarystat + te(lag, doymat, by=anom_var1, bs='tp') + te(lag, doymat, by=anom_var2, bs='tp') + s(doy, bs='tp')")
+#modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat + s(lag, #by=var1, bs='cr') + s(lag, by=var2, bs='cr')",
+#                   "cub-fx-anom"   = "anycases ~ 0 + district + MIRsummarystat + s(lag, #by=anom_var1, bs='cr') + s(lag, by=anom_var2, bs='cr') + s(doy, bs='cr')",
+#                   "cub-sv-nonanom"= "anycases ~ 0 + district + MIRsummarystat + te(lag, #doymat, by=var1, bs='cr') + te(lag, doymat, by=var2, bs='cr')",
+#                   "cub-sv-anom"   = "anycases ~ 0 + district + MIRsummarystat + te(lag, #doymat, by=anom_var1, bs='cr') + te(lag, doymat, by=anom_var2, bs='cr') + s(doy, bs='cr')",
+#                   "tp-fx-nonanom" = "anycases ~ 0 + district + MIRsummarystat + s(lag, #by=var1, bs='tp') + s(lag, by=var2, bs='tp')",
+#                   "tp-fx-anom"    = "anycases ~ 0 + district + MIRsummarystat + s(lag, #by=anom_var1, bs='tp') + s(lag, by=anom_var2, bs='tp') + s(doy, bs='tp')",
+#                   "tp-sv-nonanom" = "anycases ~ 0 + district + MIRsummarystat + te(lag, #doymat, by=var1, bs='tp') + te(lag, doymat, by=var2, bs='tp')",
+#                   "tp-sv-anom"    = "anycases ~ 0 + district + MIRsummarystat + te(lag, #doymat, by=anom_var1, bs='tp') + te(lag, doymat, by=anom_var2, bs='tp') + s(doy, bs='tp')")
 
 # run some subset of the models
-modelnames <- c("cub-fx-nonanom")
+
+model_in <- readr::read_csv("models.txt", col_names = FALSE)
+modelformulas <- dplyr::pull(model_in, 2, name = 1)
+modelnames <- names(modelformulas)
+#modelnames <- c("cub-fx-nonanom")
 
 # where are the human data located?
-humandatafile <- "./human case data/simulated human case data.csv"
+humandatafile <- paste0(params$data_path, "human case data\\", params$human_file)
 
 # should we impute human cases in districts where there aren't enough to
 # support the estimate of a district-specific intercept? i.e. should we
 # put a floor on estimated risk?
-imputemissingdistricts <- TRUE
+imputemissingdistricts <- FALSE
 
 # set up dates to constrain the human, mosquito, and weather data
-humanbelievableyears    <- c(2004:2018)
-mosquitobelievableyears <- c(2012:2018)
-envbelievableyears      <- 2000:2018
+humanbelievableyears    <- c(params$min_human_year:params$max_human_year)
+mosquitobelievableyears <- c(params$min_mosquito_year:params$max_mosquito_year)
+envbelievableyears      <- c(params$min_weather_year:params$max_weather_year)
 
 # derive boundaries from the given sets
 minhumanbelieveyear <- min(humanbelievableyears)
@@ -107,31 +136,31 @@ minenvbelieveyear <- min(envbelievableyears)
 maxenvbelieveyear <- max(envbelievableyears)
 
 # set up the desired human years
-minhumandesiredyear <- 2004
-maxhumandesiredyear <- 2018
+minhumandesiredyear <- params$min_desired_year
+maxhumandesiredyear <- params$max_desired_year
 
 # cull some proportion of the outlying human cases
-humancasealpha <- 0.02
+humancasealpha <- params$case_trim_alpha
 
 # which week are we producing the graphs for?
-weekinquestion <- as.Date("2018-08-15", "%Y-%m-%d")
+weekinquestion <- as.Date(params$forecast_date, "%Y-%m-%d")
 
 # where are the weather csv files stored?
-weatherpathstr <- "./Weather data/"
+weatherpathstr <- paste0(params$data_path, "weather data\\")
 
 # what is the name of the summary file to be created?
-weathersummaryfile <- "weather data summary file.csv"
+weathersummaryfile <- "weathersummary.txt"
 
 # which variables do you want to use?
 # vpd, rmean, pr
-var1name <- "tmeanc"
-var2name <- "vpd"
+var1name <- params$predictor_v1
+var2name <- params$predictor_v2
 
 # where are the mosquito test files located?
-mosqfile <- "./mosquito data/simulated mosquito tests.csv"
+mosqfile <- paste0(params$data_path, "mosquito data\\", params$mosquito_file)
 
 # declare which summary statistic will be used to create the MIRsummarystat
-mosqsummarystyle <- "stratifiedMIGR"
+mosqsummarystyle <- params$mosquito_model
 if (!(mosqsummarystyle %in% c("simpleratio",
                               "MIGR",
                               "stratifiedMIGR",
@@ -149,8 +178,8 @@ resamplemosquitodata <- FALSE
 resamplemosquitodatafile <- "./mosquito data/simulated mosquito tests.csv"
 
 # to which two other years do we want to compare the current year's predictions?
-compyear1 <- 2012
-compyear2 <- 2017
+compyear1 <- params$comp_year_vis1
+compyear2 <- params$comp_year_vis2
 
 # probably don't want to modify what follows, but you have some options if you're comfortable
 # makes sure we round to the previous Sunday, so that this week is included
@@ -175,15 +204,13 @@ laglen   <- 181
 
 # Data used for predictions
 
-## Believable data
+ArboMAP is set to use weather data from the years `r envbelievableyears`. If weather are data are necessary outside of this range (e.g. predicting into the far future) then the program will use daily averages from observed years to fill in times where data are not available. A year appearing in this list does not mean that those data are actually available to ArboMAP - solely that the program will permit their use if they are present. These data need to be actually present in the weather directory, but observations will be discarded if ArboMAP has not been instructed to use those years.
 
-ArboMAP is set to believe weather data from the years `r envbelievableyears`. If weather are data are necessary outside of this range (e.g. predicting into the far future) then the program will use daily averages from observed years to fill in times where data are not available. A year appearing in this list does not mean that those data are actually available to ArboMAP - solely that the program will permit their use if they are present. These data need to be actually present in the weather directory, but observations will be discarded if ArboMAP has not been instructed to believe those years.
+ArboMAP is set to use mosquito infection data from the years `r mosquitobelievableyears`. Years without mosquito data are assumed to have average mosquito infection rates. Just because a year is present in this list does not imply that those data have actually been made available to ArboMAP - just that ArboMAP will use those data if they are available. Even if there were no positive pools in a given year, if there were any pools tested then the data will be useful; zero infection rates do predict low-risk years and should be used.
 
-ArboMAP is set to believe mosquito infection data from the years `r mosquitobelievableyears`. Years without mosquito data are assumed to have average mosquito infection rates. Just because a year is present in this list does not imply that those data have actually been made available to ArboMAP - just that ArboMAP will use those data if they are available. Even if there were no positive pools in a given year, if there were any pools tested then the data will be useful; zero infection rates do predict low-risk years and should be believed.
+ArboMAP is set to use human infection data from the years `r humanbelievableyears`. This list **should not** include the year in which human cases are being predicted; e.g., if you are predicting for 2020, then 2020 should not be in this list. If, however, you are running historical estimates (as opposed to future predictions), then it may be reasonable to let ArboMAP use these data. Even if there were no cases in a year, if zero was the actual reported number of cases, then the human case data for that year should be used.
 
-ArboMAP is set to believe human infection data from the years `r humanbelievableyears`. This list **should not** include the year in which human cases are being predicted; e.g. if you are predicting for 2020, then 2020 should not be in this list. If, however, you are running historical estimates (as opposed to future predictions), then it is reasonable to let ArboMAP trust these data. Even if there were no cases in a year, if zero was the actual reported number of cases, then the year should be believed.
-
-If you believe human data in a year and either 1) do not believe the mosquito data from that year or 2) are not able to obtain an estimated mosquito infection growth rate for that year (e.g. too few mosquito pools reported), then ArboMAP will substitute the mosquito data with a single constant for risk that year. This allows us to estimate relationships with environmental data even when mosquito data are not available, but it means the fit in that year will be more accurate than would have been permitted by the use of mosquito infection data.
+If you use human data in a year and either 1) do not use the mosquito data from that year or 2) are not able to obtain an estimated mosquito infection growth rate for that year (e.g. too few mosquito pools reported), then ArboMAP will substitute the mosquito data with a single constant for risk that year. This allows us to estimate relationships with environmental data even when mosquito data are not available, but it means the fit in that year will be more accurate than would have been permitted by the use of mosquito infection data.
 
 \newpage
 
@@ -338,7 +365,7 @@ diagnostic_weatherdistricts <- unique(weather$district)
 weather <- weather[weather$district %in% unique(district_shapes$district),]
 ```
 
-## Vector infection data
+## Mosquito data
 
 ```{r mosquitodataread, echo=FALSE} 
 # if we need to resample the data, then do it right now
@@ -578,6 +605,8 @@ if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
   wnv$dminus <- wnv$doy - mean(wnv$doy, na.rm=TRUE)
   
   # read stratum file
+  stratafile <- paste0(params$data_path, "spatial stratification\\",
+                               params$stratification_file)
   strata <- read.csv(stratafile)
   strata <- strata[c("district","strata")]
   strata$district <- simplifynames(strata$district)
@@ -842,8 +871,6 @@ The predictive model of human cases was calibrated using `r totcase` historical 
 
 # Model results
 
-## Statewide trends
-
 The graphs below show observed statewide risk (black) and estimated risk (red) up to `r maxhumandesireddatestr` `r maxhumandesireddate`. Observed risk should be completely zero during the last year - these data are not used in the model, and will only be updated once final human case data are received at the end of the year.
 
 ```{r humandata2, echo=TRUE, warnings=FALSE, include=FALSE}
@@ -1057,7 +1084,7 @@ if (!(mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII"))) {
 fullcasemat$MIRsummarystat[is.na(fullcasemat$MIRsummarystat)] <- 0
 ```
 
-hArboMAP is performing a exact fit for data in years: `r ynctext`. An exact fit occurs whenever there are human data in a year (the year is in `humanbelievableyears`) but no corresponding mosquito data (the year is not in `mosquitobelievableyears`) or for some reason the risk factor due to mosquitoes could not be estimated. We do not want to ignore human data if no mosquito data are available, since we can still examine the relationship with environmental covariates.
+ArboMAP is performing a exact fit for data in years: `r ynctext`. An exact fit occurs whenever there are human data in a year (the year is in `humanbelievableyears`) but no corresponding mosquito data (the year is not in `mosquitobelievableyears`) or for some reason the risk factor due to mosquitoes could not be estimated. We do not want to ignore human data if no mosquito data are available, since we can still examine the relationship with environmental covariates.
 
 ```{r humanreg, echo=FALSE, include=FALSE}
 # set up list to contain models
@@ -1163,8 +1190,10 @@ tempdf3 <- tempdf[tempdf$weekstartdate <= weekinquestion,]
 
 tempdf2$cenobs <- tempdf2$pred
 tempdf2$cenobs[tempdf2$weekstartdate > weekinquestion] <- NA
-
 ```
+
+## Multi-year WNV forecasting chart
+
 ```{r fig.width=7, fig.height=4, echo=FALSE, warnings=FALSE}
 # set up manual colors and linetypes
 mycolors <- gg_color_hue(length(unique(tempdf$model)))
@@ -1191,6 +1220,11 @@ thisplot <- ggplot() + geom_line(data=tempdf, aes(x=newdate, y=obs, group=model)
   theme(panel.grid.minor = element_blank(), panel.background = element_blank(),
         legend.key = element_blank(), text=element_text(size=10))
 plot(thisplot)
+```
+
+## Current-year WNV forecasting chart
+
+```{r fig.width=7, fig.height=4, echo=FALSE, warnings=FALSE}
 thisplot2 <- ggplot(data=tempdf2) +
   geom_line(aes(x=weekstartdate, y=cenobs, group=model, color=model), show.legend=FALSE) +
   geom_line(aes(x=weekstartdate, y=pred, group=model, color=model, linetype=model)) +
@@ -1210,7 +1244,7 @@ thisplot2 <- ggplot(data=tempdf2) +
 plot(thisplot2)
 ```
 
-Model fit statistics are shown below.
+## Model fit statistics
 
 ```{r, echo=FALSE, include=TRUE}
 modelevals <- modelevals[c("model", "aic", "auc")]
@@ -1218,7 +1252,7 @@ modelevals <- modelevals[order(modelevals$aic),]
 kable(modelevals)
 ```
 
-Estimates for the week in question are shown below.
+## Predictions of positive districts for the current week
 
 ```{r curyearplot, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 
@@ -1254,6 +1288,8 @@ tempdf2$est <- paste(round_any(100*tempdf2$est, 0.1), "%", sep="")
 kable(tempdf2[c("model", "est", "totalestimated")],
       col.names=c("model", "prop. positive", "districts positive"))
 ```
+
+## Positives-to-cases chart
 
 ```{r echo=FALSE, width=7, height=8}
 preds$year <- as.numeric(format(preds$weekstartdate, "%Y"))
@@ -1301,7 +1337,7 @@ kable(thisyear[c("model", "totest", "totcases")],
       col.names=c("model", "est. positives", "total est. cases"))
 ```
 
-## Results for `r weekinquestionSun` to `r format(weekinquestionSat, "%m-%d")`
+## Current-week WNV absolute risk map
 
 We visualize the raw estimated risk for `r weekinquestion` below. If a district is darkest blue, then we estimate that there should be no human cases reported for this district, during this week. If a district is brightest red, we are certain that there will be at least one human case reported for this district, during this week.
 
@@ -1350,6 +1386,7 @@ for (curmodel in unique(thisweek$model)) {
 ```
 
 
+
 ```{r miscscaves, include=FALSE, echo=FALSE}
 # tempdf1 <- dplyr::summarise(group_by(fullcasemat, year),
 #                             var1      =mean(var1[1,], na.rm=TRUE),
@@ -1365,9 +1402,27 @@ for (curmodel in unique(thisweek$model)) {
 # write.csv(tempdf1, file="total vs mosquito.csv")
 ```
 
+## Current-week WNV relative risk map
+
 This map indicates whether probabilities reported in the previous map are higher (red) than average, lower (blue) than average, or right about normal (yellow) compared to the same week in previous years.
 
 ```{r riskcalcs, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
+
+###################################
+forecast_date <- weekinquestionSun
+forecast_year <- as.numeric(format(forecast_date, "%Y"))
+forecast_week  <- as.numeric(format(forecast_date, "%U"))
+outfile_name <- paste(params$state_code, forecast_year, forecast_week, sep="_")
+outfile_name <- paste0(outfile_name, ".csv")
+
+outdata <- data.frame(forecast_date,
+                      forecast_year,
+                      forecast_week, 
+                      preds)
+
+write.csv(outdata, outfile_name)
+###################################
+
 preds <- group_by(preds, district, weekstartdate)
 tempdf <- dplyr::summarize(preds, pred = mean(pred, na.rm=TRUE),
                            .groups="keep")
@@ -1540,3 +1595,15 @@ There are `r length(diagnostic_mosquitodistricts)` districts in the mosquito WNV
 
 There are `r length(diagnostic_weatherdistricts)` districts in the mosquito WNV data. If these data were downloaded with the GEE app, they should match the shapefile districts exactly. Weather districts not found in the district shapefile: `r weathernotinshapefile`.
 
+## Run Parameters
+
+Location of input data:  
+`r normalizePath(params$data_path, winslash = "/")`
+
+```{r printparams, include=TRUE, echo=FALSE}
+param_table <- data.frame(names(params), unlist(params))
+names(param_table) <- c("Parameter", "Value")
+kable(param_table[c(1:3, 5:nrow(param_table)),], 
+      caption = "Table of Rmd script parameters",
+      row.names = FALSE)
+```
