@@ -1,15 +1,15 @@
 ---
 params:
-  state_name: "Oklahoma"
-  state_code: "OK"
-  forecast_date: "2018-07-22"
+  state_name: "South Dakota"
+  state_code: "SD"
+  forecast_date: "2018-08-15"
   data_path: ".\\"
-  human_file: "ok human case data.csv"
-  mosquito_file: "OKmosqdata_02_12_2021.csv"
-  stratification_file: NA
+  human_file: "simulated human case data.csv"
+  mosquito_file: "simulated mosquito tests.csv"
+  stratification_file: "example SD strata.csv"
   predictor_v1: "tmeanc"
   predictor_v2: "vpd"
-  mosquito_model: "AUC"
+  mosquito_model: "stratifiedMIGR"
   min_human_year: 2004
   max_human_year: 2017
   min_mosquito_year: 2012
@@ -605,7 +605,7 @@ if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
   wnv$dminus <- wnv$doy - mean(wnv$doy, na.rm=TRUE)
   
   # read stratum file
-  stratafile <- paste0(params$data_path, "spatial stratification\\",
+  stratafile <- paste0(params$data_path, "strata\\",
                                params$stratification_file)
   strata <- read.csv(stratafile)
   strata <- strata[c("district","strata")]
