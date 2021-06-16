@@ -3,7 +3,6 @@ params:
   state_name: "South Dakota"
   state_code: "SD"
   forecast_date: "2018-08-15"
-  data_path: ".\\"
   human_file: "simulated human case data.csv"
   mosquito_file: "simulated mosquito tests.csv"
   stratification_file: "example SD strata.csv"
@@ -21,6 +20,9 @@ params:
   case_trim_alpha: 0.02
   comp_year_vis1: 2012
   comp_year_vis2: 2017
+  resample_mosquito: FALSE
+  resample_file: NA
+  data_path: "."
 
 title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
 author: "Summary of Model Outputs (v3.1) for `r params$state_name`, `r params$forecast_date`  \nJustin K. Davis and Michael C. Wimberly  \n(justinkdavis@ou.edu, mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
@@ -95,7 +97,7 @@ statetomodel <- params$state_code
 #stratafile <- "./strata/example SD strata.csv"
 
 # where are the data located?
-humandatafile <- "./human case data/ok human case data.csv"
+#humandatafile <- "./human case data/ok human case data.csv"
 
 # model formulas
 #modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat + s(lag, #by=var1, bs='cr') + s(lag, by=var2, bs='cr')",
@@ -115,7 +117,7 @@ modelnames <- names(modelformulas)
 #modelnames <- c("cub-fx-nonanom")
 
 # where are the human data located?
-humandatafile <- paste0(params$data_path, "human case data\\", params$human_file)
+humandatafile <- file.path(params$data_path, "human case data", params$human_file)
 
 # should we impute human cases in districts where there aren't enough to
 # support the estimate of a district-specific intercept? i.e. should we
@@ -146,7 +148,7 @@ humancasealpha <- params$case_trim_alpha
 weekinquestion <- as.Date(params$forecast_date, "%Y-%m-%d")
 
 # where are the weather csv files stored?
-weatherpathstr <- paste0(params$data_path, "weather data\\")
+weatherpathstr <- file.path(params$data_path, "weather data")
 
 # what is the name of the summary file to be created?
 weathersummaryfile <- "weathersummary.txt"
@@ -157,7 +159,7 @@ var1name <- params$predictor_v1
 var2name <- params$predictor_v2
 
 # where are the mosquito test files located?
-mosqfile <- paste0(params$data_path, "mosquito data\\", params$mosquito_file)
+mosqfile <- file.path(params$data_path, "mosquito data", params$mosquito_file)
 
 # declare which summary statistic will be used to create the MIRsummarystat
 mosqsummarystyle <- params$mosquito_model
@@ -174,8 +176,8 @@ if (!(mosqsummarystyle %in% c("simpleratio",
 
 # if we have simpleratio data, do we need to resample so that one of the other
 # methods of summary can be used? If we do want to resample, which data do we use?
-resamplemosquitodata <- FALSE
-resamplemosquitodatafile <- "./mosquito data/simulated mosquito tests.csv"
+resamplemosquitodata <- params$resample_mosquito
+resamplemosquitodatafile <- file.path(params$data_path, "mosquito data", params$resample_file)
 
 # to which two other years do we want to compare the current year's predictions?
 compyear1 <- params$comp_year_vis1
@@ -231,8 +233,8 @@ weather <- data.frame()
 for (i in 1:length(weatherlist)) {
   
   if (weatherlist[[i]] != weathersummaryfile) {
-    
-    tempdf <- read.csv(paste(weatherpathstr, weatherlist[[i]], sep="")) 
+    tempdf <- read.csv(file.path(weatherpathstr, weatherlist[[i]]))
+    #tempdf <- read.csv(paste(weatherpathstr, weatherlist[[i]], sep="")) 
     # get rid of the variables we aren't using
     tempdf <- tempdf[,weathernames]
     weather <- bind_rows(weather, tempdf)  
@@ -605,7 +607,7 @@ if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
   wnv$dminus <- wnv$doy - mean(wnv$doy, na.rm=TRUE)
   
   # read stratum file
-  stratafile <- paste0(params$data_path, "strata\\",
+  stratafile <- file.path(params$data_path, "strata",
                                params$stratification_file)
   strata <- read.csv(stratafile)
   strata <- strata[c("district","strata")]
@@ -1603,7 +1605,7 @@ Location of input data:
 ```{r printparams, include=TRUE, echo=FALSE}
 param_table <- data.frame(names(params), unlist(params))
 names(param_table) <- c("Parameter", "Value")
-kable(param_table[c(1:3, 5:nrow(param_table)),], 
+kable(param_table[1:nrow(param_table)-1,], 
       caption = "Table of Rmd script parameters",
       row.names = FALSE)
 ```
