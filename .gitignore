@@ -2,14 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-ArboMAP.zip
-gridMet
-ArboMAP paper
-2012.png
-2013.png
-firstreg.RData
-fullcasemat.RData
-outputdf backup
-outputdf.RData
-outputdf.csv
-predictions
+
+dev/*
+
