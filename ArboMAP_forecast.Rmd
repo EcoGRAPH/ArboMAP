@@ -1,28 +1,42 @@
 ---
 params:
+  forecast_date: "2018-08-15"
+  #state
   state_name: "South Dakota"
   state_code: "SD"
-  forecast_date: "2018-08-15"
-  human_file: "simulated human case data.csv"
-  mosquito_file: "simulated mosquito tests.csv"
-  stratification_file: "example SD strata.csv"
+  #predictors and mosquito settings
   predictor_v1: "tmeanc"
   predictor_v2: "vpd"
-  mosquito_model: "stratifiedMIGR"
+  mosquito_model: "AUC"
+  ##data range settings
+  #which years of human data to use
   min_human_year: 2004
   max_human_year: 2017
+  #which years of mosquito data to use
   min_mosquito_year: 2012
   max_mosquito_year: 2018
+  #which years of weather data to use
   min_weather_year: 2000
   max_weather_year: 2018
+  #which years to include in modeling results
   min_desired_year: 2004
   max_desired_year: 2018
-  case_trim_alpha: 0.02
+  #which years to show as comparison years in graphs
   comp_year_vis1: 2012
   comp_year_vis2: 2017
+  #input data file locations
+  human_file: !r file.path("data_human", "simulated human case data.csv")
+  mosquito_file: !r file.path("data_mosquito", "simulated mosquito tests.csv")
+  stratification_file: !r file.path("data_strata", "example SD strata.csv")
+  #model_file: !r file.path("data_models", "models.txt")
+  #TESTING<<>>
+  model_file: !r file.path("dev", "models_tpfx.txt")
+  weather_folder: "data_weather"
+  #additional settings
+  case_trim_alpha: 0.02
   resample_mosquito: FALSE
   resample_file: NA
-  data_path: "."
+  dev_settings: ""
 
 title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
 author: "Summary of Model Outputs (v3.1) for `r params$state_name`, `r params$forecast_date`  \nJustin K. Davis and Michael C. Wimberly  \n(mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
@@ -31,7 +45,6 @@ output: pdf_document
 ---
   
 ```{r setup, include=FALSE}
-#rm(list=ls()) Can't do this or it will clear the params as well.
 knitr::opts_chunk$set(echo = TRUE)
 # define some helpful functions
 '%!in%' <- function(x,y)!('%in%'(x,y))
@@ -92,32 +105,11 @@ for (package in packages) {
 # state to model
 statetomodel <- params$state_code
 
-# Note - I think this line of code can now be deleted MCW 31MAY2021
-# do we have a stratification file?
-#stratafile <- "./strata/example SD strata.csv"
 
-# where are the data located?
-#humandatafile <- "./human case data/ok human case data.csv"
-
-# model formulas
-#modelformulas <- c("cub-fx-nonanom"= "anycases ~ 0 + district + MIRsummarystat + s(lag, #by=var1, bs='cr') + s(lag, by=var2, bs='cr')",
-#                   "cub-fx-anom"   = "anycases ~ 0 + district + MIRsummarystat + s(lag, #by=anom_var1, bs='cr') + s(lag, by=anom_var2, bs='cr') + s(doy, bs='cr')",
-#                   "cub-sv-nonanom"= "anycases ~ 0 + district + MIRsummarystat + te(lag, #doymat, by=var1, bs='cr') + te(lag, doymat, by=var2, bs='cr')",
-#                   "cub-sv-anom"   = "anycases ~ 0 + district + MIRsummarystat + te(lag, #doymat, by=anom_var1, bs='cr') + te(lag, doymat, by=anom_var2, bs='cr') + s(doy, bs='cr')",
-#                   "tp-fx-nonanom" = "anycases ~ 0 + district + MIRsummarystat + s(lag, #by=var1, bs='tp') + s(lag, by=var2, bs='tp')",
-#                   "tp-fx-anom"    = "anycases ~ 0 + district + MIRsummarystat + s(lag, #by=anom_var1, bs='tp') + s(lag, by=anom_var2, bs='tp') + s(doy, bs='tp')",
-#                   "tp-sv-nonanom" = "anycases ~ 0 + district + MIRsummarystat + te(lag, #doymat, by=var1, bs='tp') + te(lag, doymat, by=var2, bs='tp')",
-#                   "tp-sv-anom"    = "anycases ~ 0 + district + MIRsummarystat + te(lag, #doymat, by=anom_var1, bs='tp') + te(lag, doymat, by=anom_var2, bs='tp') + s(doy, bs='tp')")
-
-# run some subset of the models
-
-model_in <- readr::read_csv("models.txt", col_names = FALSE)
+# pull in models to run
+model_in <- readr::read_csv(params$model_file, col_names = FALSE)
 modelformulas <- dplyr::pull(model_in, 2, name = 1)
 modelnames <- names(modelformulas)
-#modelnames <- c("cub-fx-nonanom")
-
-# where are the human data located?
-humandatafile <- file.path(params$data_path, "human case data", params$human_file)
 
 # should we impute human cases in districts where there aren't enough to
 # support the estimate of a district-specific intercept? i.e. should we
@@ -147,19 +139,14 @@ humancasealpha <- params$case_trim_alpha
 # which week are we producing the graphs for?
 weekinquestion <- as.Date(params$forecast_date, "%Y-%m-%d")
 
-# where are the weather csv files stored?
-weatherpathstr <- file.path(params$data_path, "weather data")
-
-# what is the name of the summary file to be created?
+#<<>>
+## what is the name of the summary file to be created?
 weathersummaryfile <- "weathersummary.txt"
 
 # which variables do you want to use?
 # vpd, rmean, pr
 var1name <- params$predictor_v1
 var2name <- params$predictor_v2
-
-# where are the mosquito test files located?
-mosqfile <- file.path(params$data_path, "mosquito data", params$mosquito_file)
 
 # declare which summary statistic will be used to create the MIRsummarystat
 mosqsummarystyle <- params$mosquito_model
@@ -170,14 +157,13 @@ if (!(mosqsummarystyle %in% c("simpleratio",
                               "stratifiedMII",
                               "AUC"))) {
   
-  mosqsummarystyle <- "simpleratio"
+  mosqsummarystyle <- "AUC"
   
 }
 
 # if we have simpleratio data, do we need to resample so that one of the other
-# methods of summary can be used? If we do want to resample, which data do we use?
+# methods of summary can be used? 
 resamplemosquitodata <- params$resample_mosquito
-resamplemosquitodatafile <- file.path(params$data_path, "mosquito data", params$resample_file)
 
 # to which two other years do we want to compare the current year's predictions?
 compyear1 <- params$comp_year_vis1
@@ -201,7 +187,7 @@ minhumandesireddate <- minhumandesireddate - (as.numeric(strftime(minhumandesire
 minhumandesireddatestr <- strftime(minhumandesireddate, '%A')
 
 # set up lag length for environmental data
-laglen   <- 181
+laglen <- 181
 ```
 
 # Data used for predictions
@@ -228,13 +214,14 @@ diagnostic_shapefiledistricts <- unique(district_shapes$district)
 weathernames <- c("district", "doy", "year", var1name, var2name)
 
 # load and concat files
-weatherlist <- list.files(path=weatherpathstr, pattern="(.csv)", recursive=FALSE)
+weatherlist <- list.files(path = params$weather_folder, pattern = "(.csv)", 
+                          recursive = FALSE, full.names = TRUE)
 weather <- data.frame()
 for (i in 1:length(weatherlist)) {
   
+  #<<>>weathersummaryfile
   if (weatherlist[[i]] != weathersummaryfile) {
-    tempdf <- read.csv(file.path(weatherpathstr, weatherlist[[i]]))
-    #tempdf <- read.csv(paste(weatherpathstr, weatherlist[[i]], sep="")) 
+    tempdf <- read_csv(file.path(weatherlist[[i]]))
     # get rid of the variables we aren't using
     tempdf <- tempdf[,weathernames]
     weather <- bind_rows(weather, tempdf)  
@@ -374,10 +361,10 @@ weather <- weather[weather$district %in% unique(district_shapes$district),]
 if (resamplemosquitodata) {
   
   # read in the flat file
-  tempdf <- read.csv(mosqfile, stringsAsFactors=FALSE)
+  tempdf <- readr::read_csv(params$mosquito_file)
   
   # read and format the resampling file
-  wnvresamplefile <- read.csv(resamplemosquitodatafile)
+  wnvresamplefile <- read_csv(params$resample_file)
   wnvresamplefile$col_date <- as.Date(wnvresamplefile$col_date, "%m/%d/%Y")
   wnvresamplefile$doy      <- as.numeric(format(wnvresamplefile$col_date, "%j"))
   
@@ -423,7 +410,7 @@ if (resamplemosquitodata) {
   
 } else {
   
-  wnv <- read.csv(mosqfile, stringsAsFactors=FALSE)
+  wnv <- readr::read_csv(params$mosquito_file)
   
   wnv$col_date <- as.Date(wnv$col_date, "%m/%d/%Y")
   wnv$year <- as.numeric(format(wnv$col_date, "%Y"))
@@ -439,7 +426,8 @@ wnv <- wnv[wnv$year %in% mosquitobelievableyears,]
 if (mosqsummarystyle %in% c("simpleratio")) {
   
   wnv$col_year <- as.numeric(format(wnv$col_date, "%Y"))
-  
+  wnv$doy      <- as.numeric(format(wnv$col_date, "%j"))
+
   nrow1 <- NA
   nrow2 <- NA
   nrow3 <- NA
@@ -514,9 +502,11 @@ There are `r nrow2` samples in the vector testing database. For `r max(wnv$year,
 if (mosqsummarystyle == "simpleratio") {
   
   wnv$year <- wnv$col_year
-  randeffs <- as.data.frame(dplyr::summarise(wnv, year),
-                            totpos = sum(wnv_result, na.rm=true),
-                            tottest = n())
+  randeffs <- wnv %>% 
+    group_by(year) %>% 
+    dplyr::summarise(totpos = sum(wnv_result, na.rm=TRUE),
+                     tottest = n()) %>% 
+    as.data.frame()
   
   randeffs$MIRsummarystat <- randeffs$totpos / randeffs$tottest
   randeffs$year <- as.numeric(as.character(randeffs$year))
@@ -607,9 +597,7 @@ if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
   wnv$dminus <- wnv$doy - mean(wnv$doy, na.rm=TRUE)
   
   # read stratum file
-  stratafile <- file.path(params$data_path, "strata",
-                               params$stratification_file)
-  strata <- read.csv(stratafile)
+  strata <- readr::read_csv(params$stratification_file)
   strata <- strata[c("district","strata")]
   strata$district <- simplifynames(strata$district)
  
@@ -692,7 +680,7 @@ if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
 ```{r humandata, include=FALSE, echo=TRUE}
 
 # import data
-human <- read.csv(humandatafile)
+human <- readr::read_csv(params$human_file)
 begrow <- nrow(human)
 human$chardate <- as.character(levels(human$date))[as.numeric(human$date)]
 human$date <- as.Date(human$date, "%m/%d/%Y")
@@ -1599,8 +1587,6 @@ There are `r length(diagnostic_weatherdistricts)` districts in the mosquito WNV 
 
 ## Run Parameters
 
-Location of input data:  
-`r normalizePath(params$data_path, winslash = "/")`
 
 ```{r printparams, include=TRUE, echo=FALSE}
 param_table <- data.frame(names(params), unlist(params))
