@@ -1,58 +1,100 @@
 ---
 params:
+  ## week to run forecast for
   forecast_date: "2018-08-15"
-  #state
+  ## state
   state_name: "South Dakota"
   state_code: "SD"
-  #predictors and mosquito settings
-  predictor_v1: "tmeanc"
-  predictor_v2: "vpd"
+  ## predictors 
+  predictor_var1: "tmeanc"
+  predictor_var2: "vpd"
+  ## mosquito settings
   mosquito_model: "AUC"
-  ##data range settings
+  mosquito_doy_start: 140
+  mosquito_doy_end: 214
+  ## input data file locations
+  file_human: !r file.path("data_human", "simulated human case data.csv")
+  file_mosquito: !r file.path("data_mosquito", "simulated mosquito tests.csv")
+    #if no strata, set to ""
+  file_stratification: !r file.path("data_strata", "example SD strata.csv")
+    #if do not have sf object of counties saved as an RDS file, 
+      #temporarily set to "create" once, and it will make the appropriate state file. Must have internet access.
+    #if do not want to cache, 
+      #set to "always_download" and it will download tigris shapefile each time. Must have internet acces.
+  file_district_sf: !r file.path("data_spatial", "sd_counties.RDS")
+  #dev, limited models <<>>
+  #file_models: !r file.path("data_models", "models.txt")
+  file_models: !r file.path("dev", "models_tpfx.txt")
+  folder_weather: "data_weather"
+  ## data range settings
   #which years of human data to use
-  min_human_year: 2004
-  max_human_year: 2017
+  year_human_start: 2004
+  year_human_end: 2017
   #which years of mosquito data to use
-  min_mosquito_year: 2012
-  max_mosquito_year: 2018
+  year_mosquito_start: 2012
+  year_mosquito_end: 2018
   #which years of weather data to use
-  min_weather_year: 2000
-  max_weather_year: 2018
+  year_weather_start: 2000
+  year_weather_end: 2018
   #which years to include in modeling results
-  min_desired_year: 2004
-  max_desired_year: 2018
+  year_modeling_start: 2004
+  year_modeling_end: 2018
   #which years to show as comparison years in graphs
-  comp_year_vis1: 2012
-  comp_year_vis2: 2017
-  #input data file locations
-  human_file: !r file.path("data_human", "simulated human case data.csv")
-  mosquito_file: !r file.path("data_mosquito", "simulated mosquito tests.csv")
-  stratification_file: !r file.path("data_strata", "example SD strata.csv")
-  #model_file: !r file.path("data_models", "models.txt")
-  #TESTING<<>>
-  model_file: !r file.path("dev", "models_tpfx.txt")
-  weather_folder: "data_weather"
-  #additional settings
+  year_compare_vis1: 2012
+  year_compare_vis2: 2017
+  ## additional settings
+  # length (days) of weather data to include in lags
+  lag_length: 121
+  # remove temporal outliers from human cases
   case_trim_alpha: 0.02
+  # resampling mosquito <<>>
   resample_mosquito: FALSE
   resample_file: NA
-  dev_settings: ""
+  # developer settings
+  dev_settings: !r list()
 
 title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
-author: "Summary of Model Outputs (v3.1) for `r params$state_name`, `r params$forecast_date`  \nJustin K. Davis and Michael C. Wimberly  \n(mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
+author: "Summary of Model Outputs (v3.1) for `r params$state_name`, `r params$forecast_date`  \nDawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly  \n(mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
 date: "Updated `r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
 ---
   
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-# define some helpful functions
-'%!in%' <- function(x,y)!('%in%'(x,y))
-round_any = function(x, accuracy, f=round){f(x/accuracy) * accuracy}
+```{r knitr_setup, include=FALSE}
 options(warn=-1)
 ```
 
-```{r createfunctions, include=FALSE}
+```{r libraries, include=FALSE}
+
+#make sure pacman is installed
+if (!require("pacman")) install.packages("pacman"); library(pacman)
+
+#load packages, install if not installed
+pacman::p_load(
+  #data processing. 
+  dplyr, readr, tidyselect, 
+  #modeling
+  mgcv, splines,
+  #spatial, maps and graphs
+  tigris, sf, ggplot2,
+  #report generation and interface
+  knitr, shiny)
+
+#Must use recent version of readr
+if (packageVersion("readr") < 2.1){
+  install.packages("readr")
+}
+
+```
+
+```{r functions, include=FALSE}
+
+# define some helpful functions
+# <<>> confirm all are used
+
+'%!in%' <- function(x,y)!('%in%'(x,y))
+
+round_any = function(x, accuracy, f=round){f(x/accuracy) * accuracy}
+
 simplifynames <- function(priornames=NULL) {
   
   # convert to lower case
@@ -78,1520 +120,450 @@ simplifynames <- function(priornames=NULL) {
   return(priornames)
   
 }
-gg_color_hue <- function(n) {
-  hues = seq(15, 375, length = n + 1)
-  hcl(h = hues, l = 65, c = 100)[1:n]
-}
+
+
 ```
 
-```{r libraries, include=FALSE}
-packages <- c("reshape2", "readr", "dplyr", 
-              "ggplot2", "gridExtra", "shiny",
-              "lme4","pracma","dplyr","maptools",
-              "raster","spdep","mgcv","sp","rgdal",
-              "GISTools","data.table","splines","maps",
-              "broom","mapproj", "Hmisc", "parallel",
-              "rccmisc", "pROC", "ResourceSelection",
-              "knitr", "tigris")
-for (package in packages) {
-  if (!require(package, character.only=T, quietly=T)) {
-    install.packages(package, repos = "http://cran.us.r-project.org")
-    library(package, character.only=T)
+
+```{r dev_parameters, include=FALSE}
+#input is named list
+
+#parameters available:
+# 
+
+  # save_model: TRUE/FALSE: Will create a list of saved model objects (using rest of input params)
+  # model_cached: must be named list of model objects, named from modeling file to pattern match
+  # model_cached_file: "no cached" <<>>????
+
+  # human_data: tbl of human case data (overrides file_human)
+  # mosquito_data: tbl of mosquito pool data (overrides file_mosquito)
+  # stratification_data: tbl of strata (overrides file_stratification)
+  # weather_data: tbl of weather data (overrides folder_weather & processing)
+  # district_sf: sf object of counties/districts for state (overrides file_district_sf)
+
+  # models_to_run: model formulas to run (overrides file_models)
+
+  # reg_function: "GAM" (hook for future possibility)
+
+#Set up data objects (will use as tests for file loading in following section)
+data_human <- NA
+data_mosquito <- NA
+data_strata <- NA
+data_weather <- NA
+data_sf_orig <- NA
+model_formulas <- NA
+
+#<<>> do overrides. if (length(params$dev_settings > 0). chk epidemiar dev settings
+
+```
+
+
+
+
+```{r data_load, include=FALSE}
+#Loads data from file locations given in parameters
+  #Note: does NOT do any data checks
+
+if (is.na(data_human)){
+  data_human <- readr::read_csv(params$file_human, 
+                                show_col_types = FALSE)
+}
+
+if (is.na(data_mosquito)){
+  data_mosquito <- readr::read_csv(params$file_mosquito, 
+                                   show_col_types = FALSE)
+}
+
+if (is.na(data_strata)){
+  #if given a strata file, which is optional
+  if (!params$file_stratification == ""){
+    data_strata <- readr::read_csv(params$file_stratification, 
+                                   show_col_types = FALSE)
   }
 }
-```
 
-```{r setoptions, include=FALSE, echo=FALSE}
-# state to model
-statetomodel <- params$state_code
-
-
-# pull in models to run
-model_in <- readr::read_csv(params$model_file, col_names = FALSE)
-modelformulas <- dplyr::pull(model_in, 2, name = 1)
-modelnames <- names(modelformulas)
-
-# should we impute human cases in districts where there aren't enough to
-# support the estimate of a district-specific intercept? i.e. should we
-# put a floor on estimated risk?
-imputemissingdistricts <- FALSE
-
-# set up dates to constrain the human, mosquito, and weather data
-humanbelievableyears    <- c(params$min_human_year:params$max_human_year)
-mosquitobelievableyears <- c(params$min_mosquito_year:params$max_mosquito_year)
-envbelievableyears      <- c(params$min_weather_year:params$max_weather_year)
-
-# derive boundaries from the given sets
-minhumanbelieveyear <- min(humanbelievableyears)
-maxhumanbelieveyear <- max(humanbelievableyears)
-minmosqbelieveyear  <- min(mosquitobelievableyears)
-maxmosqbelieveyear  <- max(mosquitobelievableyears)
-minenvbelieveyear <- min(envbelievableyears)
-maxenvbelieveyear <- max(envbelievableyears)
-
-# set up the desired human years
-minhumandesiredyear <- params$min_desired_year
-maxhumandesiredyear <- params$max_desired_year
-
-# cull some proportion of the outlying human cases
-humancasealpha <- params$case_trim_alpha
-
-# which week are we producing the graphs for?
-weekinquestion <- as.Date(params$forecast_date, "%Y-%m-%d")
-
-#<<>>
-## what is the name of the summary file to be created?
-weathersummaryfile <- "weathersummary.txt"
-
-# which variables do you want to use?
-# vpd, rmean, pr
-var1name <- params$predictor_v1
-var2name <- params$predictor_v2
-
-# declare which summary statistic will be used to create the MIRsummarystat
-mosqsummarystyle <- params$mosquito_model
-if (!(mosqsummarystyle %in% c("simpleratio",
-                              "MIGR",
-                              "stratifiedMIGR",
-                              "MII",
-                              "stratifiedMII",
-                              "AUC"))) {
+if (is.na(data_sf_orig)){
   
-  mosqsummarystyle <- "AUC"
-  
-}
+  if (params$file_district_sf == "create"){
+    #if user set to "create" then we will download tigris shapefile and save for future use
+    
+    #download tigris, internet required
+    data_sf_orig <- tigris::counties(state = params$state_code, cb = TRUE)
+    #save out for use next time
+    #make folder if does not exist (if exists, just shows warning, suppressed)
+    dir.create("data_spatial", showWarnings = FALSE)
+    saveRDS(data_sf_orig, file.path("data_spatial", paste0(params$state_code, "_counties.RDS")))
 
-# if we have simpleratio data, do we need to resample so that one of the other
-# methods of summary can be used? 
-resamplemosquitodata <- params$resample_mosquito
+  } else if (params$file_district_sf == "always_download"){
+    #if "always_download" then we will download tigris shapefile each time (no save), internet required
+    
+    data_sf_orig <- tigris::counties(state = params$state_code, cb = TRUE)
 
-# to which two other years do we want to compare the current year's predictions?
-compyear1 <- params$comp_year_vis1
-compyear2 <- params$comp_year_vis2
-
-# probably don't want to modify what follows, but you have some options if you're comfortable
-# makes sure we round to the previous Sunday, so that this week is included
-weekinquestionSun <- weekinquestion - (as.numeric(strftime(weekinquestion, '%u')) %% 7)
-weekinquestionSat <- weekinquestionSun + 6
-weekinquestionSunstr <- strftime(weekinquestionSun, '%A')
-weekinquestionSatstr <- strftime(weekinquestionSat, '%A')
-
-# figure out which is the last Sunday in the max desired year
-maxhumandesireddate <- as.Date(paste(maxhumandesiredyear, "-12-31", sep=""))
-maxhumandesireddate <- maxhumandesireddate - (as.numeric(strftime(maxhumandesireddate, '%u')) %% 7)
-maxhumandesireddatestr <- strftime(maxhumandesireddate, '%A')
-
-# figure out which is the first Sunday in the min desired human year
-minhumandesireddate <- as.Date(paste(minhumandesiredyear, "-01-01", sep=""))
-minhumandesireddate <- minhumandesireddate - (as.numeric(strftime(minhumandesireddate, '%u')) %% 7)
-minhumandesireddatestr <- strftime(minhumandesireddate, '%A')
-
-# set up lag length for environmental data
-laglen <- 181
-```
-
-# Data used for predictions
-
-ArboMAP is set to use weather data from the years `r envbelievableyears`. If weather are data are necessary outside of this range (e.g. predicting into the far future) then the program will use daily averages from observed years to fill in times where data are not available. A year appearing in this list does not mean that those data are actually available to ArboMAP - solely that the program will permit their use if they are present. These data need to be actually present in the weather directory, but observations will be discarded if ArboMAP has not been instructed to use those years.
-
-ArboMAP is set to use mosquito infection data from the years `r mosquitobelievableyears`. Years without mosquito data are assumed to have average mosquito infection rates. Just because a year is present in this list does not imply that those data have actually been made available to ArboMAP - just that ArboMAP will use those data if they are available. Even if there were no positive pools in a given year, if there were any pools tested then the data will be useful; zero infection rates do predict low-risk years and should be used.
-
-ArboMAP is set to use human infection data from the years `r humanbelievableyears`. This list **should not** include the year in which human cases are being predicted; e.g., if you are predicting for 2020, then 2020 should not be in this list. If, however, you are running historical estimates (as opposed to future predictions), then it may be reasonable to let ArboMAP use these data. Even if there were no cases in a year, if zero was the actual reported number of cases, then the human case data for that year should be used.
-
-If you use human data in a year and either 1) do not use the mosquito data from that year or 2) are not able to obtain an estimated mosquito infection growth rate for that year (e.g. too few mosquito pools reported), then ArboMAP will substitute the mosquito data with a single constant for risk that year. This allows us to estimate relationships with environmental data even when mosquito data are not available, but it means the fit in that year will be more accurate than would have been permitted by the use of mosquito infection data.
-
-\newpage
-
-## Weather data
-
-```{r weatherdataload, include=FALSE, echo=TRUE}
-# load tigris files here so we have an early list of the permissible district names
-district_shapes <- counties(state=statetomodel, cb=TRUE)
-# simplify name
-district_shapes$district <- simplifynames(district_shapes$NAME)
-diagnostic_shapefiledistricts <- unique(district_shapes$district)
-
-weathernames <- c("district", "doy", "year", var1name, var2name)
-
-# load and concat files
-weatherlist <- list.files(path = params$weather_folder, pattern = "(.csv)", 
-                          recursive = FALSE, full.names = TRUE)
-weather <- data.frame()
-for (i in 1:length(weatherlist)) {
-  
-  #<<>>weathersummaryfile
-  if (weatherlist[[i]] != weathersummaryfile) {
-    tempdf <- read_csv(file.path(weatherlist[[i]]))
-    # get rid of the variables we aren't using
-    tempdf <- tempdf[,weathernames]
-    weather <- bind_rows(weather, tempdf)  
+  } else {
+    #read in file from params
+    
+    data_sf_orig <- readRDS(params$file_district_sf)
     
   }
-  
+}#end is.na
+
+
+
+if (is.na(model_formulas)){
+  models_raw <- readr::read_csv(params$file_models, 
+                                show_col_types = FALSE, quote = "\"")
+  #create named list from tbl
+  model_formulas <- models_raw %>% 
+    dplyr::pull(2, name = 1)
+  #just the model names for later use
+  model_names <- names(model_formulas)
 }
-weather$date <- as.Date(paste(weather$year,
-                              weather$doy,
-                              sep="-"),
-                        "%Y-%j")
 
-# cull if we don't believe certain weather dates
-weather <- weather[as.numeric(format(weather$date, "%Y")) %in% envbelievableyears,]
+# Weather data
+# Raw read in with prep for taking most recent value for day
+# See data_weather_latest block for that processing
 
-# get rid of duplicated rows
-weather$districtdate <- paste(weather$district, weather$date)
-weather <- distinct(weather, districtdate, .keep_all=TRUE)
+# Reading in of data & file modified time
+#get list of csv files (NOT in subfolders)
+env_csv_files_raw <- list.files(path = params$folder_weather, 
+                                pattern="*.csv$",
+                                full.names = TRUE, recursive = FALSE)
+
+#keep the names of only csv files that are not empty
+  #not likely relevant here, however does no harm to check
+file_condition <- sapply(env_csv_files_raw, function(x) {length(readr::count_fields(x, readr::tokenizer_csv())) > 1})
+env_csv_files <- env_csv_files_raw[file_condition]
+  
+#read in all data files, and add the time the file was last modified
+data_env_raw <- env_csv_files %>% 
+  lapply(function(x) {
+    readr::read_csv(x, show_col_types = FALSE) %>% 
+      #add last modified time
+    mutate(file_time = file.info(x)$mtime)}) %>% 
+  #bind list items into one dataset
+  bind_rows()
+
+
+```
+
+```{r data_id_fields, echo=FALSE} 
+
+#ID fields:
+# If FIPS field is in all, will use fips (FULL 5 character version)
+# Else use original district/county name matching
+# Accepted field names here, there will be preferred, 
+# but this gives some flexibility 
+# Processing happens after read in, will create "arbo_ID" used afterwards
+# Processing includes wrangling fips to match across all files
+# Each list in DESCENDING order of priority
+#   will only take the field that appears first
+field_fips_accepted <- c("fips", "FIPS", "fips_code", "FIPS_CODE")
+field_names_accepted <- c("district", "county")
+
+
+#ID Functions
+confirm_id_fields <- function(fld_vector){
+  #Does any of the accepted fields (of a particular type)
+  # exist in all 4 datasets
+  
+  my_count <- sum(
+    any(fld_vector %in% names(data_human)),
+    any(fld_vector %in% names(data_mosquito)),
+    any(fld_vector %in% names(data_strata)),
+    any(fld_vector %in% names(data_env_raw))
+    )
+  
+  #true/false
+  use_fld <- my_count == 4L
+}
+
+create_id_field <- function(my_tbl, fld_vector){
+  #the field names in the dataset that match the accepted names
+  # [[1]] takes the first
+  field_to_copy <- intersect(fld_vector, names(my_tbl))[[1]]
+
+  updated_tbl <- my_tbl %>% 
+    mutate(arbo_ID = !!ggplot2::sym(field_to_copy))
+}
+
+standarize_fips <- function(my_tbl, fips_vector = field_fips_accepted){
+  
+  # Create new field arbo_ID which will be used for matching now on
+  arbo_tbl <- create_id_field(my_tbl, fips_vector)
+  
+  # convert to standard 5 character (2 state + 3 county) format
+  # if length 5, confirm/convert to character
+  # if length 4, then full but read as number and state has leading 0
+  #   convert to character, pad 0 in front
+  # if length 3, confirm/convert to character, add state code
+  # if length 2, then county code but read as number and county has leading 0
+  #   convert to character, pad 0 in front to 3,
+  #   then add state code
+  
+  #grab state code from shp 
+  state_code <- data_sf_orig$STATEFP %>% unique()
+  
+  #<<>>
+
+}
+
+standarize_names <- function(my_tbl, names_vector = field_names_accepted){
+  
+  #Create new field arbo_ID which will be used for matching now on
+  arbo_tbl <- create_id_field(my_tbl, names_vector)
+
+  #Use original name simplification
+  arbo_tbl <- arbo_tbl %>% 
+    mutate(arbo_ID = simplifynames(arbo_ID))
+}
+
+
+# Set up arbo_ID 
+if (confirm_id_fields(field_fips_accepted)){
+  # use fips as arbo_ID
+
+  data_human <- standarize_fips(data_human)
+  data_mosquito <- standarize_fips(data_mosquito)
+  data_strata <- standarize_fips(data_strata)
+  data_env_raw <- standarize_fips(data_env_raw)
+  
+  #  data_sf_orig will be dealt with separately, as it is standard format
+  #census shape: GEOID is 5 char FIPS code
+  data_sf_orig <- data_sf_orig %>% 
+    mutate(arbo_ID = GEOID)
+  
+} else if (confirm_id_fields(field_names_accepted)){
+  # use county names as arbo_ID
+
+  data_human <- standarize_names(data_human)
+  data_mosquito <- standarize_names(data_mosquito)
+  data_strata <- standarize_names(data_strata)
+  data_env_raw <- standarize_names(data_env_raw)
+
+  #  data_sf_orig will be dealt with separately, as it is standard format
+  #census shape: NAME is county name
+  data_sf_orig <- data_sf_orig %>% 
+    mutate(arbo_ID = simplifynames(NAME))
+
+}#end arbo_ID setup
+
+
+
+```
+
+
+
+```{r data_weather_latest, echo=FALSE} 
+
+# As we will likely have data from the same day in multiple files,
+# we want to take only the LATEST value
+# (post ID set up section to remove extraneous fields before processing)
+
+data_env <- data_env_raw %>% 
+  #trim to just needed data
+  select("arbo_ID", "doy", "year", "file_time", 
+         params$predictor_var1, params$predictor_var2) %>% 
+  #create date field from year and doy
+  mutate(date_obs = as.Date(paste(year, doy, sep = "-"),
+                            "%Y-%j")) %>% 
+  # Group by county and date, 
+  group_by(arbo_ID, date_obs) %>% 
+  # sort by modified time DESC, 
+  arrange(desc(file_time)) %>% 
+  # slice(1) to get first/latest (or only if not duplicated)
+  slice(1) %>% 
+  #drop file time
+  dplyr::select(-file_time) %>%
+  #ungroup to finish
+  dplyr::ungroup()
+
+#Note: This does not check for missing days
+
+```
+
+
+
+
+```{r data_dates, echo=FALSE} 
+
+# Dates in data
+
+#try reading as previously set format
+# if not, use as.Date() fairly intelligent guessing
+# "date_obs" will become the date field!!
+#<<>>
+
+#wnv$col_date <- as.Date(wnv$col_date, "%m/%d/%Y")
+
+
+## Filter data by year parameters
+#<<>>
+  # #which years of human data to use
+  # year_human_start: 2004
+  # year_human_end: 2017
+  # #which years of mosquito data to use
+  # year_mosquito_start: 2012
+  # year_mosquito_end: 2018
+  # #which years of weather data to use
+  # year_weather_start: 2000
+  # year_weather_end: 2018
+  # #which years to include in modeling results
+  # year_modeling_start: 2004
+  # year_modeling_end: 2018
+
+
+
+## Dates for forecasts and functions
+
+#week of forecast, given by user
+week_user <- as.Date(params$forecast_date, "%Y-%m-%d")
+
+#<<>> DEV keeping old date processing for the moment until conversion to epiweeks
+
+  # makes sure we round to the previous Sunday, so that this week is included
+  TBC_weekinquestionSun <- week_user - (as.numeric(strftime(week_user, '%u')) %% 7)
+  TBC_weekinquestionSat <- TBC_weekinquestionSun + 6
+  TBC_weekinquestionSunstr <- strftime(TBC_weekinquestionSun, '%A')
+  TBC_weekinquestionSatstr <- strftime(TBC_weekinquestionSat, '%A')
+  
+  # figure out which is the last Sunday in the max desired year
+  TBC_maxhumandesireddate <- as.Date(paste(params$year_modeling_end, "-12-31", sep=""))
+  TBC_maxhumandesireddate <- TBC_maxhumandesireddate - (as.numeric(strftime(TBC_maxhumandesireddate, '%u')) %% 7)
+  TBC_maxhumandesireddatestr <- strftime(TBC_maxhumandesireddate, '%A')
+  
+  # figure out which is the first Sunday in the min desired human year
+  TBC_minhumandesireddate <- as.Date(paste(params$year_modeling_start, "-01-01", sep=""))
+  TBC_minhumandesireddate <- TBC_minhumandesireddate - (as.numeric(strftime(TBC_minhumandesireddate, '%u')) %% 7)
+  TBC_minhumandesireddatestr <- strftime(TBC_minhumandesireddate, '%A')
+
+
+
+  
+
+
+  
+
+```
+
+
+
+```{r data_human_process, echo=FALSE} 
+
+
+```
+
+```{r data_weather_process, echo=FALSE} 
+
 
 # be certain district is a factor before modeling
-weather$district <- factor(weather$district)
+#weather$district <- factor(weather$district)
 
-# create the anomalized weather
-for (curcol in c(var1name, var2name)) {
-  
-  weather$tempvar <- weather[,curcol]
-  tempmod <- bam(tempvar ~ district + s(doy, bs="cc", by=district), data=weather, discrete=TRUE)
-  # replace any missing
-  temppred <- predict(tempmod, newdata=weather)
-  weather[is.na(weather[,curcol]), curcol] <- temppred[is.na(weather[,curcol])]
-  
-  # calculate the anomaly in a different way
-  weather[,paste("anom_", curcol, sep="")] <- weather[,curcol] - temppred
-  weather[is.na(weather[,paste("anom_", curcol, sep="")]),paste("anom_", curcol, sep="")] <- 0
-  
-}
-weather$tempvar <- NULL
-temppred <- NULL
 
-# plot normals and this year
-weather$var1 <- weather[,which(colnames(weather) == var1name)]
-weather$var2 <- weather[,which(colnames(weather) == var2name)]
-weather$anom_var1 <- weather[,which(colnames(weather) == paste("anom_", var1name, sep=""))]
-weather$anom_var2 <- weather[,which(colnames(weather) == paste("anom_", var2name, sep=""))]
-weather <- group_by(weather,
-                    doy)
-doymet <- dplyr::summarise(weather,
-                           med_var1 = quantile(var1, probs=0.50, na.rm=TRUE),
-                           med_var2 = quantile(var2, probs=0.50, na.rm=TRUE),
-                           max_var1 = max(var1, na.rm=TRUE),
-                           max_var2 = max(var2, na.rm=TRUE),
-                           min_var1 = min(var1, na.rm=TRUE),
-                           min_var2 = min(var2, na.rm=TRUE),
-                           anom_med_var1 = quantile(anom_var1, probs=0.50, na.rm=TRUE),
-                           anom_med_var2 = quantile(anom_var2, probs=0.50, na.rm=TRUE),
-                           anom_max_var1 = max(anom_var1, na.rm=TRUE),
-                           anom_max_var2 = max(anom_var2, na.rm=TRUE),
-                           anom_min_var1 = min(anom_var1, na.rm=TRUE),
-                           anom_min_var2 = min(anom_var2, na.rm=TRUE),
-                           .groups="keep")
-weather <- ungroup(weather)
-
-thisyear <- max(weather$year, na.rm=TRUE)
-thisyear <- subset(weather, year == thisyear)
-thisyear <- group_by(thisyear, doy)
-thisyear <- dplyr::summarize(thisyear,
-                             med_var1 = quantile(var1, probs=0.50, na.rm=TRUE),
-                             med_var2 = quantile(var2, probs=0.50, na.rm=TRUE),
-                             max_var1 = max(var1, na.rm=TRUE),
-                             max_var2 = max(var2, na.rm=TRUE),
-                             min_var1 = min(var1, na.rm=TRUE),
-                             min_var2 = min(var2, na.rm=TRUE),
-                             anom_med_var1 = quantile(anom_var1, probs=0.50, na.rm=TRUE),
-                             anom_med_var2 = quantile(anom_var2, probs=0.50, na.rm=TRUE),
-                             anom_max_var1 = max(anom_var1, na.rm=TRUE),
-                             anom_max_var2 = max(anom_var2, na.rm=TRUE),
-                             anom_min_var1 = min(anom_var1, na.rm=TRUE),
-                             anom_min_var2 = min(anom_var2, na.rm=TRUE),
-                             .groups="keep")
-
-weather$var1 <- NULL
-weather$var2 <- NULL
-weather$anom_var1 <- NULL
-weather$anom_var2 <- NULL
-
-tempdf <- left_join(doymet, thisyear, by="doy")
 ```
 
-Weather data from the gridMET data set range from `r min(weather$date, na.rm=TRUE)` to `r max(weather$date, na.rm=TRUE)`. Below are graphs of statewide daily averages of `r var1name` and `r var2name`. Observations for the current year are in red. Black is the medium from all other years, and the grey band indicates the max/min ever observed. Below this are the anomalized weather indices, from which the weekly averages have been subtracted to show deviations above/below the mean.
+```{r data_mosquito_process, echo=FALSE} 
+
+
+```
+
+```{r mosquito_infection_model, echo=FALSE} 
+
+
+```
+
+
+
+
+
+
+
+
 
 ```{r weatherplots, fig.width=7, fig.height=5, echo=FALSE}
-plot1 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=med_var1)) +
-  geom_ribbon(data=doymet, aes(x=doy, ymin=min_var1, ymax=max_var1), alpha=0.3) +
-  geom_line(data=thisyear, aes(x=doy, y=med_var1), color="red", size=1) +
-  xlab("Day of the year") + ylab(var1name) +
-  ggtitle(paste(var1name, 
-                max(weather$year, na.rm=TRUE),
-                sep=" "))
-plot2 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=med_var2)) +
-  geom_ribbon(data=doymet, aes(x=doy, ymin=min_var2, ymax=max_var2), alpha=0.3) +
-  geom_line(data=thisyear, aes(x=doy, y=med_var2), color="red", size=1) +
-  ggtitle(paste(var2name,
-                max(weather$year, na.rm=TRUE),
-                sep=" ")) +
-  xlab("Day of the year") + ylab(var2name)
-grid.arrange(plot1, plot2, nrow=2)
-
-plot3 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=anom_med_var1)) +
-  geom_ribbon(data=doymet, aes(x=doy, ymin=anom_min_var1, ymax=anom_max_var1), alpha=0.3) +
-  geom_line(data=thisyear, aes(x=doy, y=anom_med_var1), color="red", size=1) +
-  xlab("Day of the year") + ylab(var1name) +
-  ggtitle(paste("anomalized",
-                var1name, 
-                max(weather$year, na.rm=TRUE),
-                sep=" "))
-plot4 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=anom_med_var2)) +
-  geom_ribbon(data=doymet, aes(x=doy, ymin=anom_min_var2, ymax=anom_max_var2), alpha=0.3) +
-  geom_line(data=thisyear, aes(x=doy, y=anom_med_var2), color="red", size=1) +
-  ggtitle(paste("anomalized",
-                var2name,
-                max(weather$year, na.rm=TRUE),
-                sep=" ")) +
-  xlab("Day of the year") + ylab(var2name)
-grid.arrange(plot3, plot4, nrow=2)
-
-# simplify the district names
-weather$district <- simplifynames(weather$district)
-diagnostic_weatherdistricts <- unique(weather$district)
-# remove any districts which do not belong
-weather <- weather[weather$district %in% unique(district_shapes$district),]
 ```
 
-## Mosquito data
 
 ```{r mosquitodataread, echo=FALSE} 
-# if we need to resample the data, then do it right now
-if (resamplemosquitodata) {
-  
-  # read in the flat file
-  tempdf <- readr::read_csv(params$mosquito_file)
-  
-  # read and format the resampling file
-  wnvresamplefile <- read_csv(params$resample_file)
-  wnvresamplefile$col_date <- as.Date(wnvresamplefile$col_date, "%m/%d/%Y")
-  wnvresamplefile$doy      <- as.numeric(format(wnvresamplefile$col_date, "%j"))
-  
-  positivedoys <- wnvresamplefile$doy[wnvresamplefile$wnv_result == 1]
-  negativedoys <- wnvresamplefile$doy[wnvresamplefile$wnv_result == 0]
-  
-  # create and fill up the expanded file
-  wnv <- data.frame()
-  for (i in 1:nrow(tempdf)) {
-    
-    positives <- tempdf$positives[i]
-    negatives <- tempdf$total[i] - tempdf$positives[i]
-    
-    if (positives > 0) {
-      
-      tempdf1 <- data.frame(doy = sample(x=positivedoys,
-                                         size=positives,
-                                         replace=TRUE),
-                            year = tempdf$year[i],
-                            district = district_shapes$district[1],
-                            wnv_result = 1)
-      
-    } else { tempdf1 <- data.frame() }
-    
-    if (negatives > 0) {
-      
-      tempdf0 <- data.frame(doy = sample(x=negativedoys,
-                                         size=negatives,
-                                         replace=TRUE),
-                            year = tempdf$year[i],
-                            district = district_shapes$district[1],
-                            wnv_result = 0)
-      
-    } else { tempdf2 <- data.frame() }
-    
-    wnv <- bind_rows(wnv, tempdf1, tempdf0)
-    
-  }
-  
-  wnv$col_date <- as.Date(paste(wnv$year, wnv$doy, sep="-"),
-                          "%Y-%j")
-  
-  
-} else {
-  
-  wnv <- readr::read_csv(params$mosquito_file)
-  
-  wnv$col_date <- as.Date(wnv$col_date, "%m/%d/%Y")
-  wnv$year <- as.numeric(format(wnv$col_date, "%Y"))
-  
-}
 
-# cull mosquito data which are not in the correct years
-wnv <- wnv[wnv$year %in% mosquitobelievableyears,]
 ```
 
 
 ```{r mosquitodataprocess, echo=FALSE}
-if (mosqsummarystyle %in% c("simpleratio")) {
-  
-  wnv$col_year <- as.numeric(format(wnv$col_date, "%Y"))
-  wnv$doy      <- as.numeric(format(wnv$col_date, "%j"))
-
-  nrow1 <- NA
-  nrow2 <- NA
-  nrow3 <- NA
-  numpos <- NA
-  perpos <- NA
-  diagnostic_mosquitodistricts <- NA
-  
-  
-}
-if (mosqsummarystyle == "AUC") {
-  
-  wnv$col_year <- as.numeric(format(wnv$col_date, "%Y"))
-  wnv$doy      <- as.numeric(format(wnv$col_date, "%j"))
-  wnv <- wnv[which(!is.na(wnv$wnv_result)),]
-  wnv <- wnv[which(!is.na(wnv$doy)),]
-  
-  nrow1 <- NA
-  nrow2 <- NA
-  nrow3 <- NA
-  numpos <- NA
-  perpos <- NA
-  diagnostic_mosquitodistricts <- NA
-  
-}
-if (mosqsummarystyle %in% c("MIGR", "MII", "stratifiedMIGR", "stratifiedMII")) {
-  
-  # convert district to factor
-  wnv$district <- simplifynames(wnv$district)
-  diagnostic_mosquitodistricts <- unique(wnv$district)
-  # remove any which do not belong
-  wnv <- wnv[wnv$district %in% unique(district_shapes$district),]
-  wnv$district <- factor(wnv$district)
-  
-  # figure out how many rows we start with
-  nrow1 <- nrow(wnv)
-  
-  # create some variables we can use to filter
-  wnv$col_year <- as.numeric(format(wnv$col_date, "%Y"))
-  wnv$doy      <- as.numeric(format(wnv$col_date, "%j"))
-  wnv$weeknum  <- as.numeric(format(wnv$col_date, "%U"))
-  wnv$species <- NULL
-  wnv$district <- factor(wnv$district)
-  wnv$district <- droplevels(wnv$district)
-  
-  # get rid of those which don't have a result
-  wnv <- wnv[which(!is.na(wnv$wnv_result)),]
-  wnv <- wnv[which(!is.na(wnv$doy)),]
-  
-  # delete anything before a certain day
-  wnv <- wnv[which(wnv$doy >= 140),]
-  # delete anything after a certain day
-  wnv <- wnv[which(wnv$doy <= 214),]
-  
-  # after cleaning, how many do we have?
-  nrow2 <- nrow(wnv)
-  nrow3 <- nrow(wnv[wnv$year == max(wnv$year, na.rm=TRUE),])
-  
-  tempdf <- wnv[wnv$year == max(wnv$year, na.rm=TRUE),]
-  tempdf <- tempdf[!is.na(tempdf$wnv_result),]
-  wnvdenominator <- nrow(tempdf)
-  wnvnumerator <- nrow(tempdf[tempdf$wnv_result == 1,])
-  
-  numpos <- wnvnumerator
-  perpos <- 100*round(wnvnumerator/wnvdenominator, 3)
-  
-}
 ```
 
-There are `r nrow2` samples in the vector testing database. For `r max(wnv$year, na.rm=TRUE)`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. If an estimate does not appear in a year, it is likely because the `mosquitobelievableyears` variable in ArboMAP was not set to include it; i.e. ArboMAP was told to disregard mosquito infection data for this year. 
 
 ```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
-if (mosqsummarystyle == "simpleratio") {
-  
-  wnv$year <- wnv$col_year
-  randeffs <- wnv %>% 
-    group_by(year) %>% 
-    dplyr::summarise(totpos = sum(wnv_result, na.rm=TRUE),
-                     tottest = n()) %>% 
-    as.data.frame()
-  
-  randeffs$MIRsummarystat <- randeffs$totpos / randeffs$tottest
-  randeffs$year <- as.numeric(as.character(randeffs$year))
-  randeffs <- randeffs[c("year", "MIRsummarystat")]
-  
-}
-if (mosqsummarystyle == "AUC") {
-  
-  # create a variable that at least has a little chance of being orthogonal to 1.
-  wnv$dminus <- wnv$doy - mean(wnv$doy, na.rm=TRUE)
-  
-  # make sure all the observations have a year
-  wnv <- wnv[!is.na(wnv$year),]
-  wnv$year <- factor(wnv$year)
-  
-  # run a random effect model on orthogonalized data
-  infectglm <- glmer(wnv_result ~ poly(dminus,2) + (poly(dminus, 2)|year),
-                     family=binomial(),
-                     data=wnv)
-  
-  # create a data frame to store the calculations for the aucs
-  predframe <- expand.grid(year = unique(wnv$year),
-                           dminus = seq(from=min(wnv$dminus, na.rm=TRUE),
-                                        to  =max(wnv$dminus, na.rm=TRUE),
-                                        length.out=100))
-  predframe$pred <- predict(infectglm,
-                            newdata=predframe,
-                            type="response")
-  
-  # calculate the AUCs
-  randeffs <- as.data.frame(dplyr::summarise(group_by(predframe, year),
-                                             MIRsummarystat=sum(pred, na.rm=TRUE)))
-  randeffs$year <- as.numeric(as.character(randeffs$year))
-  
-}
-if (mosqsummarystyle %in% c("MIGR", "MII")) {
-  
-  # figure out how many distinct districts we have left
-  districtlist           <- data.frame(district=unique(wnv$district))
-  distinctdistricts      <- length(unique(wnv$district))
-  districtlist$districtnum <- seq(from=1, to=distinctdistricts, by=1)
-  wnv <- merge(x=wnv, y=districtlist,
-               by="district",
-               all=TRUE)
-  
-  # create a variable that at least has a little chance of being orthogonal to 1.
-  wnv$dminus <- wnv$doy - mean(wnv$doy, na.rm=TRUE)
-  
-  # make sure all the observations have a stratum and year
-  wnv <- wnv[!is.na(wnv$year),]
-  wnv$year <- factor(wnv$year)
-  
-  # run a random effect model on orthogonalized data
-  infectglm <- glmer(wnv_result ~ 1+dminus+
-                       (0+1|year) +
-                       (0+dminus|year),
-                     family=binomial(),
-                     data=wnv)
-  wnv$est <- predict(infectglm, newdata=wnv, type="response")
-  
-  if (mosqsummarystyle == "MIGR") {
-    
-    # predict random effects for all years
-    randeffs <- data.frame(year=as.numeric(rownames(random.effects(infectglm)$year)),
-                           MIRsummarystat=random.effects(infectglm)$year[,1])
-    
-  }
-  if (mosqsummarystyle == "MII") {
-    
-    # predict random effects for all years
-    randeffs <- data.frame(year=as.numeric(rownames(random.effects(infectglm)$year)),
-                           MIRsummarystat=random.effects(infectglm)$year[,2])
-    
-  }
-  
-}
-if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
-  
-  # figure out how many distinct districts we have left
-  districtlist           <- data.frame(district=unique(wnv$district))
-  distinctdistricts      <- length(unique(wnv$district))
-  districtlist$districtnum <- seq(from=1, to=distinctdistricts, by=1)
-  wnv <- merge(x=wnv, y=districtlist,
-               by="district",
-               all=TRUE)
-  
-  # create a variable that at least has a little chance of being orthogonal to 1.
-  wnv$dminus <- wnv$doy - mean(wnv$doy, na.rm=TRUE)
-  
-  # read stratum file
-  strata <- readr::read_csv(params$stratification_file)
-  strata <- strata[c("district","strata")]
-  strata$district <- simplifynames(strata$district)
- 
-  wnv <- left_join(wnv,
-                   strata,
-                   by="district")
-  
-  # make sure all the observations have a stratum and year
-  wnv <- wnv[!is.na(wnv$year),]
-  wnv <- wnv[!is.na(wnv$strata),]
-  wnv$stratumyear <- factor(paste(wnv$strata, wnv$year, sep="-"))
-    
-  # run a random effect model on orthogonalized data
-  infectglm <- glmer(wnv_result ~ 1+dminus+
-                       (0+1|stratumyear) +
-                       (0+dminus|stratumyear),
-                     family=binomial(),
-                     data=wnv)
-  wnv$est <- predict(infectglm, newdata=wnv, type="response")
-  
-  if (mosqsummarystyle == "stratifiedMIGR") {
-    
-    # predict random effects for all years
-    randeffs <- data.frame(stratumyear=rownames(random.effects(infectglm)$stratumyear),
-                           MIRsummarystat=random.effects(infectglm)$stratumyear[,1])
-    randeffs$year <- as.numeric(sapply(strsplit(randeffs$stratumyear, "-"), function(x) x[2]))
-    randeffs$stratum <- sapply(strsplit(randeffs$stratumyear, "-"), function(x) x[1])
-    
-  }
-  if (mosqsummarystyle == "stratifiedMII") {
-    
-    # predict random effects for all years
-    randeffs <- data.frame(stratumyear=rownames(random.effects(infectglm)$stratumyear),
-                           MIRsummarystat=random.effects(infectglm)$stratumyear[,2])
-    randeffs$year <- as.numeric(sapply(strsplit(randeffs$stratumyear, "-"), function(x) x[2]))
-    randeffs$stratum <- sapply(strsplit(randeffs$stratumyear, "-"), function(x) x[1])
-    
-  }
-  
-}
 ```
+
 ```{r fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
-if (mosqsummarystyle %in% c("MIGR", "MII", "AUC", "simpleratio")) {
-  
-  # center these statistics
-  randeffs$MIRsummarystat <- randeffs$MIRsummarystat - mean(randeffs$MIRsummarystat, na.rm=TRUE)
-  randeffs$MIRsummarystat[is.na(randeffs$MIRsummarystat)] <- 0
-  
-  # plot
-  thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=MIRsummarystat)) +
-    geom_abline(slope=0, intercept=0, linetype=2) +
-    scale_x_continuous(breaks=minmosqbelieveyear:maxmosqbelieveyear) +
-    theme(axis.text.x=element_text(angle=45, hjust=1),
-          panel.grid.minor=element_blank(),
-          panel.grid.major.y=element_blank())+
-    xlab("") + ylab("Relative risk due to\nvector infection rate")
-  plot(thisplot)
-  write.csv(randeffs, file="randeffs.csv")
-  
-}
-if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
-  
-  # center these statistics
-  randeffs$MIRsummarystat <- randeffs$MIRsummarystat - mean(randeffs$MIRsummarystat, na.rm=TRUE)
-  
-  # plot
-  thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=MIRsummarystat, group=stratum, color=stratum)) +
-    geom_abline(slope=0, intercept=0, linetype=2) +
-    scale_x_continuous(breaks=minmosqbelieveyear:maxmosqbelieveyear) +
-    theme(axis.text.x=element_text(angle=45, hjust=1),
-          panel.grid.minor=element_blank(),
-          panel.grid.major.y=element_blank())+
-    xlab("") + ylab("Relative risk due to\nvector infection rate")
-  plot(thisplot)
-  write.csv(randeffs, file="randeffs.csv")
-  
-}
 ```
 
 ```{r humandata, include=FALSE, echo=TRUE}
 
-# import data
-human <- readr::read_csv(params$human_file)
-begrow <- nrow(human)
-human$chardate <- as.character(levels(human$date))[as.numeric(human$date)]
-human$date <- as.Date(human$date, "%m/%d/%Y")
-human$creationyear <- as.numeric(format(human$date, "%Y"))
-human$creationmonth <- as.numeric(format(human$date, "%m"))
-# simplify district names
-human$district <- simplifynames(human$district)
-diagnostic_humandistricts <- unique(human$district)
-# remove any which do not belong
-human <- human[human$district %in% unique(district_shapes$district),]
-human$district <- factor(human$district)
-human$doy <- as.numeric(format(human$date, "%j"))
-
-# retain only those in the right date range
-human <- human[human$creationyear %in% humanbelievableyears,]
-
-# figure out which chunk of data we should be analyzing
-human$weeknum <- as.numeric(format(human$date, "%U"))
-minmaxweekquants <- quantile(human$weeknum, probs=c(humancasealpha/2, 1-humancasealpha/2), na.rm=TRUE)
-minhumanobsweek <- minmaxweekquants[1]
-maxhumanobsweek <- minmaxweekquants[2]
-
-# do we need to create data to put 
-if (imputemissingdistricts) {
-  
-  missingdistricts <- diagnostic_shapefiledistricts[!(diagnostic_shapefiledistricts
-                                                      %in% human$district)]
-  
-  tempdf <- data.frame(district=missingdistricts)
-  
-  whichtocopy <- sample(x=1:nrow(human),
-                        size=nrow(tempdf),
-                        replace=TRUE)
-  
-  tempdf$date <- human$date[whichtocopy]
-  tempdf$chardate <- human$chardate[whichtocopy]
-  tempdf$creationyear <- human$creationyear[whichtocopy]
-  tempdf$creationmonth <- human$creationmonth[whichtocopy]
-  tempdf$doy <- human$doy[whichtocopy]
-  tempdf$weeknum <- human$weeknum[whichtocopy]
-  
-  human <- bind_rows(human, tempdf)
-  
-}
-
-# create the full list of weeks
-minobservedhumandate <- min(human$date)
-
-# set up the data frame so that it ends at the maxdesiredhumandate 
-filledweeks <- seq(from=maxhumandesireddate, to=minhumandesireddate, by=-7)
-fullcasemat <- expand.grid(sort(unique(human$district)), filledweeks)
-names(fullcasemat) <- c("district", "weekstartdate")
-fullcasemat$anycases   <- rep(0, nrow(fullcasemat))
-fullcasemat$totalcases <- rep(0, nrow(fullcasemat))
-fullcasemat$observed <- 1*(as.numeric(format(fullcasemat$weekstartdate, "%Y")) %in% humanbelievableyears)
-
-# mark those district-weeks which are in the modeled set
-fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
-fullcasemat$modeled <- fullcasemat$observed * (fullcasemat$weeknum >= minhumanobsweek) * (fullcasemat$weeknum <= maxhumanobsweek)
-
-# count cases
-for (i in 1:nrow(fullcasemat)) {
-  
-  thisweekstartdate <- fullcasemat$weekstartdate[i]
-  thisdistrict      <- fullcasemat$district[i]
-  
-  tempcases <- human[which(human$district == thisdistrict),]
-  tempcases <- tempcases[which(tempcases$date >= thisweekstartdate),]
-  tempcases <- tempcases[which(tempcases$date <= (thisweekstartdate + 6)),]
-  
-  fullcasemat$anycases[i] <- 1*(nrow(tempcases) > 0)
-  if (nrow(tempcases) > 0) {
-    
-    fullcasemat$totalcases[i] <- nrow(tempcases)
-    
-  }
-  
-}
-
-totcase <- sum(fullcasemat$totalcases, na.rm=TRUE)
-anypos  <- sum(fullcasemat$anycases, na.rm=TRUE)
-
-# figure out what percentage of cases we'll likely have seen before the start of this week
-weekinquestionSundoy <- as.numeric(format(weekinquestionSun, "%j"))
-fullcasemat$doy      <- as.numeric(format(fullcasemat$weekstartdate, "%j"))
-
-tempdf <- fullcasemat[fullcasemat$doy < (weekinquestionSundoy+7),]
-observedbefore <- sum(tempdf$totalcases, na.rm=TRUE)
-observedtotal  <- sum(fullcasemat$totalcases, na.rm=TRUE)
-weekinquestionreformat <- format(weekinquestionSun, "%m-%d")
-observedfraction <- 100*round(observedbefore / observedtotal, 2)
 ```
 
-The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqbelieveyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqbelieveyear` is shown here by grouping observations nearby in time.
 
 ```{r mosqbymonth, include=TRUE, echo=FALSE, fig.width=6, fig.height=3}
-if (!(mosqsummarystyle %in% c("stratifiedMIGR",
-                            "stratifiedMII"))) {
-
-  mosqmopreds <- expand.grid(year=minmosqbelieveyear:maxmosqbelieveyear,
-                             doy=seq(from=min(wnv$doy, na.rm=TRUE),
-                                     to  =max(wnv$doy, na.rm=TRUE), by=1))
-  mosqmopreds$dminus <- mosqmopreds$doy - mean(wnv$doy, na.rm=TRUE)
-  mosqmopreds$preds <- predict(infectglm, newdata=mosqmopreds, type="response", allow.new.levels=TRUE)
-  
-  mosqmopreds <- group_by(mosqmopreds, dminus, year)
-  mosqmopreds <- dplyr::summarize(mosqmopreds,
-                                  preds=mean(preds, na.rm=TRUE),
-                                  doy=mean(doy, na.rm=TRUE),
-                                  .groups="keep")
-  thisyear1   <- mosqmopreds[mosqmopreds$year == maxmosqbelieveyear,]
-  comparison1 <- mosqmopreds[mosqmopreds$year == compyear1,]
-  comparison2 <- mosqmopreds[mosqmopreds$year == compyear2,]
-  
-  thisyeardot <- wnv[wnv$year == maxmosqbelieveyear,]
-  
-  if (sum(!is.na(thisyeardot$doy)) > 20) {
-    
-    thisyeardot$rounddoy <- cut2(thisyeardot$doy, g=6)
-    thisyeardot <- group_by(thisyeardot, rounddoy)
-    thisyeardot <- dplyr::summarize(thisyeardot,
-                                    meanpos = mean(wnv_result, na.rm=TRUE),
-                                    meandoy = mean(doy, na.rm=TRUE),
-                                    .groups="keep")
-    thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
-                                                     color="grey", alpha=0.5) +
-      geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
-      geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
-      geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
-      geom_point(data=thisyeardot, aes(x=meandoy, y=meanpos), color="red") +
-      xlab("day of the year") + ylab("Vector pool positive rate") +
-      theme(panel.grid.major = element_blank(),
-            panel.grid.minor = element_blank(),
-            panel.background = element_blank(),
-            axis.line = element_line(colour = "black"))
-    
-  } else {
-    
-    thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
-                                                     color="grey", alpha=0.5) +
-      geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
-      geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
-      geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
-      xlab("day of the year") + ylab("Vector pool positive rate") +
-      theme(panel.grid.major = element_blank(),
-            panel.grid.minor = element_blank(),
-            panel.background = element_blank(),
-            axis.line = element_line(colour = "black"))
-    
-  }
-  plot(thisplot)
-  
-}
 ```
 
-## Human data
-
-In the graph below, positive districts by week are shown over all years. Only weeks within the two dashed lines (excluding `r 100*humancasealpha`% total of the earliest and latest cases) are used in modeling for numerical stability.
 
 ```{r humandatasummary, echo=FALSE, include=TRUE, fig.width=7, fig.height=3.5}
-fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
-fullcasemat <- group_by(fullcasemat, weeknum)
-sumanyhumancases <- dplyr::summarise(fullcasemat, totany = sum(anycases, na.rm=TRUE),
-                                     .groups="keep")
-fullcasemat <- ungroup(fullcasemat)
-
-ggplot(sumanyhumancases) + geom_line(aes(x=weeknum, y=totany)) +
-  ggtitle("positive districts by week, any year") +
-  xlab("week number") + ylab("total districts positive") +
-  geom_vline(xintercept=minhumanobsweek, linetype=2) +
-  geom_vline(xintercept=maxhumanobsweek, linetype=2) +
-  scale_x_continuous(breaks=seq(from=min(sumanyhumancases$weeknum),
-                                to=max(sumanyhumancases$weeknum),
-                                by=2))
 ```
 
-The predictive model of human cases was calibrated using `r totcase` historical cases, not including any cases from `r maxhumandesiredyear`. No cases from `r maxhumandesiredyear` are used to make predictions; the estimates for this year are based solely on weather and vector data. Typically, `r observedfraction`% of a year's cases occur before the end of this week in any given year.
-
-# Model results
-
-The graphs below show observed statewide risk (black) and estimated risk (red) up to `r maxhumandesireddatestr` `r maxhumandesireddate`. Observed risk should be completely zero during the last year - these data are not used in the model, and will only be updated once final human case data are received at the end of the year.
 
 ```{r humandata2, echo=TRUE, warnings=FALSE, include=FALSE}
-# select which variables we're going to use
-weather <- data.frame(weather)
-weather$var1 <- weather[,which(colnames(weather) == var1name)]
-weather$var2 <- weather[,which(colnames(weather) == var2name)]
-
-weather$anom_var1 <- weather[,which(colnames(weather) == paste("anom_", var1name, sep=""))]
-weather$anom_var2 <- weather[,which(colnames(weather) == paste("anom_", var2name, sep=""))]
-
-weather <- weather[c("district", "date", "var1", "var2", "anom_var1", "anom_var2")]
-weather$district <- simplifynames(weather$district)
-# fill in missing and future climatological data
-totalweather <- expand.grid(district=unique(weather$district),
-                            date=seq(from=as.Date(paste(minhumandesiredyear-1, "-01-01", sep=""),
-                                                  "%Y-%m-%d"),
-                                     to=  as.Date(paste(maxhumandesiredyear, "-12-31", sep=""),
-                                                  "%Y-%m-%d"),
-                                     by=1))
-weather <- merge(x=totalweather, y=weather,
-                 by.x=c("district","date"),
-                 by.y=c("district","date"),
-                 all.x=TRUE)
-weather$doy <- as.numeric(format(weather$date, "%j"))
-
-weather <- group_by(weather, district, doy)
-districtdoymean <- dplyr::summarize(weather,
-                                    meanvar1=mean(var1, na.rm=TRUE),
-                                    meanvar2=mean(var2, na.rm=TRUE),
-                                    .groups="keep")
-weather <- ungroup(weather)                           
-
-weather <- left_join(weather, districtdoymean,
-                     by=c("district","doy"))
-
-# replace missing with reasonable values
-weather$var1[is.na(weather$var1)] <- weather$meanvar1[is.na(weather$var1)]
-weather$var2[is.na(weather$var2)] <- weather$meanvar2[is.na(weather$var2)]
-weather$anom_var1[is.na(weather$anom_var1)] <- 0
-weather$anom_var2[is.na(weather$anom_var2)] <- 0
-
-# garbage collection
-rm(districtdoymean)
-weather$meanvar1 <- NULL
-weather$meanvar2 <- NULL
-gc()
-
-# we need the districts to be in lower case to merge with the gridMET data
-fullcasemat$district <- simplifynames(fullcasemat$district)
-
-datalagger <- expand.grid(unique(fullcasemat$district),
-                          unique(fullcasemat$weekstartdate),
-                          seq(from=0, to=laglen-1, by=1))
-names(datalagger) <- c("district","date","lag")
-datalagger$laggeddate <- datalagger$date-datalagger$lag
-
-datalagger <- left_join(datalagger, weather,
-                        by=c("district"="district",
-                             "laggeddate"="date"))
-
-# garbage collection
-rm(weather)
-gc()
-
-# pivot
-mean1data <- dcast(datalagger, district + date ~ lag, value.var="var1")
-names(mean1data) <- paste("var1_",names(mean1data),sep="")
-mean2data <- dcast(datalagger, district + date ~ lag, value.var="var2")
-names(mean2data) <- paste("var2_",names(mean2data),sep="")
-
-anom_mean1data <- dcast(datalagger, district + date ~ lag, value.var="anom_var1")
-names(anom_mean1data) <- paste("anom_var1_",names(anom_mean1data),sep="")
-anom_mean2data <- dcast(datalagger, district + date ~ lag, value.var="anom_var2")
-names(anom_mean2data) <- paste("anom_var2_",names(anom_mean2data),sep="")
-
-# garbage collection
-rm(datalagger)
-gc()
-
-# and put all this lagged info back into the total case matrix
-fullcasemat <- merge(x=fullcasemat, y=mean1data,
-                     by.x=c("district", "weekstartdate"),
-                     by.y=c("var1_district","var1_date"),
-                     all.x=TRUE)
-fullcasemat <- merge(x=fullcasemat, y=mean2data,
-                     by.x=c("district", "weekstartdate"),
-                     by.y=c("var2_district","var2_date"),
-                     all.x=TRUE)
-
-# turn these into matrices
-fullcasemat$var1 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
-                                                pattern="var1_",
-                                                fixed=TRUE)])
-fullcasemat$var2 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
-                                                pattern="var2_",
-                                                fixed=TRUE)])
-fullcasemat <- merge(x=fullcasemat, y=anom_mean1data,
-                     by.x=c("district", "weekstartdate"),
-                     by.y=c("anom_var1_district","anom_var1_date"),
-                     all.x=TRUE)
-fullcasemat <- merge(x=fullcasemat, y=anom_mean2data,
-                     by.x=c("district", "weekstartdate"),
-                     by.y=c("anom_var2_district","anom_var2_date"),
-                     all.x=TRUE)
-
-# turn these into matrices too
-fullcasemat$anom_var1 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
-                                                     pattern="anom_var1_",
-                                                     fixed=TRUE)])
-fullcasemat$anom_var2 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
-                                                     pattern="anom_var2_",
-                                                     fixed=TRUE)])
-
-fullcasemat[,grep(x=colnames(fullcasemat), pattern="var1_", fixed=TRUE)] <- NULL
-fullcasemat[,grep(x=colnames(fullcasemat), pattern="var2_", fixed=TRUE)] <- NULL
-fullcasemat[,grep(x=colnames(fullcasemat), pattern="anom_var1_", fixed=TRUE)] <- NULL
-fullcasemat[,grep(x=colnames(fullcasemat), pattern="anom_var2_", fixed=TRUE)] <- NULL
-
-# create lag matrix
-fullcasemat$lag <- fullcasemat$var1
-for (curcol in 1:dim(fullcasemat$lag)[2]) {
-  
-  fullcasemat$lag[,curcol] <- (curcol-1)
-  
-}
-
-# create terms for seasonally-varying distributed lag
-fullcasemat$doymat <- fullcasemat$lag
-fullcasemat$doymat[,] <- fullcasemat$doy
-
-fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
-
-# do we have strata?
-if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
-  
-  fullcasemat <- left_join(fullcasemat, strata, by="district")
-  fullcasemat$stratumyear <- paste(fullcasemat$strata,
-                                   fullcasemat$year,
-                                   sep="-")
-    
-}
-
-# garbage collection
-rm(mean1data)
-rm(mean2data)
-gc()
-
-# # include the mosquito summary statistic
-# names(randeffs) <- c("year","MIRsummarystat")
-
-# figure out which need imputed MIGR, etc.
-if (!(mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII"))) {
-  
-  yearfiller <- data.frame(year = unique(fullcasemat$year))
-  yearfiller <- left_join(yearfiller, randeffs, by="year")
-  yearfiller$shouldimpute <- is.na(yearfiller$MIRsummarystat) & (yearfiller$year %in% humanbelievableyears)
-  
-} else {
-  
-  yearfiller <- expand.grid(year = unique(fullcasemat$year),
-                            stratum = unique(strata$strata))
-  yearfiller$stratumyear <- paste(yearfiller$stratum,
-                                  yearfiller$year,
-                                  sep="-")
-  yearfiller <- left_join(yearfiller,
-                          randeffs[c("stratumyear", "MIRsummarystat")],
-                          by="stratumyear")
-  yearfiller$shouldimpute <- is.na(yearfiller$MIRsummarystat) & (yearfiller$year %in% humanbelievableyears)
-  
-}
-
-# replace missing with zeros (i.e. average risk)
-yearfiller$MIRsummarystat[is.na(yearfiller$MIRsummarystat)] <- 0
-
-# figure out which years need an exactfit column
-yearsneedingcolumns <- yearfiller$year[which(yearfiller$shouldimpute)]
-if (length(yearsneedingcolumns) > 0) {
-  
-  for (curyear in yearsneedingcolumns) {
-    
-    fullcasemat[paste("exactfit_", curyear, sep="")] <- 1*(fullcasemat$year == curyear)
-    
-  }
-  
-}
-if (length(yearsneedingcolumns) == 0) {
-  
-  ynctext <- "none"
-  
-} else {
-  
-  ynctext <- yearsneedingcolumns
-  
-}
-
-# add these mosquito data to the fullcasemat
-if (!(mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII"))) {
-  
-  fullcasemat <- left_join(fullcasemat, yearfiller, by="year")
-
-} else {
-  
-  fullcasemat <- left_join(fullcasemat,
-                           yearfiller[c("stratumyear",
-                                        "MIRsummarystat",
-                                        "shouldimpute")],
-                           by="stratumyear")
-  
-}
-fullcasemat$MIRsummarystat[is.na(fullcasemat$MIRsummarystat)] <- 0
 ```
 
-ArboMAP is performing a exact fit for data in years: `r ynctext`. An exact fit occurs whenever there are human data in a year (the year is in `humanbelievableyears`) but no corresponding mosquito data (the year is not in `mosquitobelievableyears`) or for some reason the risk factor due to mosquitoes could not be estimated. We do not want to ignore human data if no mosquito data are available, since we can still examine the relationship with environmental covariates.
 
 ```{r humanreg, echo=FALSE, include=FALSE}
-# set up list to contain models
-modelplots <- list()
-
-# make sure district is a factor before modeling
-fullcasemat$district <- factor(fullcasemat$district)
-
-# get list of models and run them
-preds <- data.frame()
-modelevals <- data.frame()
-curmodel <- modelnames[1]
-for (curmodel in modelnames) {
-  
-  # get the formula
-  thisformula <- modelformulas[c(curmodel)]
-  
-  # add any exact fits
-  exactfitlist <- colnames(fullcasemat)[grep(x=colnames(fullcasemat),
-                                             pattern="exactfit_",
-                                             fixed=TRUE)]
-  if (length(exactfitlist) > 0) {
-    
-    exactfitlist <- paste(exactfitlist, collapse = " + ")
-    thisformula <- paste(thisformula, exactfitlist, sep= " + ")
-    
-  }
-  myform <- as.formula(thisformula)
-  
-  # main human risk model
-  cl <- makeCluster(detectCores(logical=FALSE)-1)
-  firstreg  <- bam(formula=myform,
-                   family=binomial(), data=fullcasemat,
-                   subset=modeled==1,
-                   cluster=cl)
-  stopCluster(cl)
-  
-  # add model plots to the list
-  modelplots[[curmodel]] <- plot(firstreg, select=1)
-  
-  # predict on this model
-  fullcasemat$pred <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
-  
-  # censor predictions outside of the observed range
-  fullcasemat$pred[fullcasemat$weeknum < minhumanobsweek] <- 0
-  fullcasemat$pred[fullcasemat$weeknum > maxhumanobsweek] <- 0
-  
-  # get data frame of predictions from this model
-  tempdf <- data.frame(weekstartdate = fullcasemat$weekstartdate,
-                       district = fullcasemat$district,
-                       anycases = fullcasemat$anycases,
-                       totalcases = fullcasemat$totalcases,
-                       observed = fullcasemat$observed,
-                       modeled = fullcasemat$modeled,
-                       pred = fullcasemat$pred,
-                       model = curmodel)
-  preds <- bind_rows(preds, tempdf)
-  
-  # evaluate this model fit
-  tempdf <- fullcasemat[fullcasemat$modeled == 1,]
-  tempdf <- data.frame(auc = round_any(roc(response = tempdf$anycases,
-                                           predictor = tempdf$pred,
-                                           na.rm=TRUE,
-                                           auc=TRUE)$auc, 0.01),
-                       aic = round_any(AIC(firstreg)[1], 0.01),
-                       model = curmodel)
-  modelevals <- bind_rows(modelevals, tempdf)
-  
-}
 
 ```
 
 ```{r humanregplot, echo=FALSE}
-preds$weeknum <- as.numeric(format(preds$weekstartdate, "%U"))
-
-# figure out in which weeks we actually have cases, for the purpose of graphing
-tempdf <- preds[preds$weeknum >= (minhumanobsweek-1),]
-tempdf <- tempdf[tempdf$weeknum <= (maxhumanobsweek+1),]
-
-tempdf <- group_by(tempdf, weekstartdate, model)
-tempdf <- dplyr::summarize(tempdf,
-                           obs=mean(anycases, na.rm=TRUE),
-                           est=mean(pred, na.rm=TRUE),
-                           week=mean(weeknum, na.rm=TRUE),
-                           .groups="keep")
-
-tempdf$newwe <- (tempdf$week - minhumanobsweek) / (maxhumanobsweek - minhumanobsweek + 1)
-tempdf$year <- as.numeric(format(tempdf$weekstartdate, "%Y"))
-tempdf$newdate <- tempdf$year + tempdf$newwe
-
-# plot just this year
-preds$year <- as.numeric(format(preds$weekstartdate, "%Y"))
-tempdf2 <- preds[preds$year == as.numeric(format(weekinquestion, "%Y")),]
-tempdf2 <- group_by(tempdf2, weekstartdate, model)
-tempdf2 <- dplyr::summarize(tempdf2,
-                            pred=mean(pred, na.rm=TRUE),
-                            .groups="keep")
-tempdf2$weeknum <- as.numeric(format(tempdf2$weekstartdate, "%U"))
-tempdf2 <- tempdf2[tempdf2$weeknum >= minhumanobsweek,]
-tempdf2 <- tempdf2[tempdf2$weeknum <= maxhumanobsweek,]
-
-tempdf3 <- tempdf[tempdf$weekstartdate <= weekinquestion,]
-
-tempdf2$cenobs <- tempdf2$pred
-tempdf2$cenobs[tempdf2$weekstartdate > weekinquestion] <- NA
 ```
 
-## Multi-year WNV forecasting chart
 
 ```{r fig.width=7, fig.height=4, echo=FALSE, warnings=FALSE}
-# set up manual colors and linetypes
-mycolors <- gg_color_hue(length(unique(tempdf$model)))
-names(mycolors) <- unique(tempdf$model)
-mylinetypes <- seq(from=2,
-                   to=length(unique(tempdf$model))+1,
-                   by=1)
-mylinetypes <- factor(mylinetypes)
-names(mylinetypes) <- unique(tempdf$model)
-
-thisplot <- ggplot() + geom_line(data=tempdf, aes(x=newdate, y=obs, group=model)) +
-  geom_line(data=tempdf, aes(x=newdate, y=est, group=model, color=model, linetype=model)) +
-  geom_line(data=tempdf3, aes(x=newdate, y=est, group=model, color=model), linetype=1, show.legend=FALSE) +
-  scale_color_manual(values = mycolors) +
-  scale_linetype_manual(values = mylinetypes) +
-  ggtitle("Statewide model predictions") +
-  xlab("") + ylab("") +
-  scale_x_continuous(breaks=seq(from=minhumandesiredyear+0.5,to=(maxhumandesiredyear+0.5),by=1),
-                     labels=seq(from=minhumandesiredyear, to=maxhumandesiredyear, by=1),
-                     limits=c((minhumandesiredyear),(maxhumandesiredyear+1))) +
-  ylab("Proportion of districts positive") +
-  theme(panel.grid.minor.x=element_blank()) +
-  theme(legend.position="bottom") +
-  theme(panel.grid.minor = element_blank(), panel.background = element_blank(),
-        legend.key = element_blank(), text=element_text(size=10))
-plot(thisplot)
 ```
 
-## Current-year WNV forecasting chart
 
 ```{r fig.width=7, fig.height=4, echo=FALSE, warnings=FALSE}
-thisplot2 <- ggplot(data=tempdf2) +
-  geom_line(aes(x=weekstartdate, y=cenobs, group=model, color=model), show.legend=FALSE) +
-  geom_line(aes(x=weekstartdate, y=pred, group=model, color=model, linetype=model)) +
-  scale_color_manual("", values = mycolors) +
-  scale_linetype_manual("", values = mylinetypes) +
-  ggtitle(paste("Statewide model predictions in ", as.numeric(format(weekinquestion, "%Y")), sep="")) +
-  xlab("") + ylab("") +
-  geom_vline(xintercept=weekinquestion) + 
-  ylab("Proportion of districts positive") +
-  theme(panel.grid.minor.x=element_blank()) +
-  theme(axis.text.x = element_text(hjust=-0.225)) +
-  theme(legend.position="bottom") +
-  guides(color=guide_legend(), linetype=guide_legend()) +
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(),
-        legend.key = element_blank()) +
-  labs(color="model", linetype="model")
-plot(thisplot2)
 ```
 
-## Model fit statistics
 
 ```{r, echo=FALSE, include=TRUE}
-modelevals <- modelevals[c("model", "aic", "auc")]
-modelevals <- modelevals[order(modelevals$aic),]
-kable(modelevals)
 ```
 
-## Predictions of positive districts for the current week
 
 ```{r curyearplot, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-
-tempdf <- preds
-tempdf <- group_by(tempdf, weekstartdate, model)
-tempdf <- dplyr::summarize(tempdf,
-                           obs=mean(anycases, na.rm=TRUE),
-                           est=mean(pred, na.rm=TRUE),
-                           .groups="keep")
-tempdf$year <- as.numeric(format(tempdf$weekstartdate, "%Y"))
-tempdf$month <- as.numeric(format(tempdf$weekstartdate, "%m"))
-tempdf$weeknum <- as.numeric(format(tempdf$weekstartdate, "%U"))
-
-tempdf <- tempdf[tempdf$weeknum >= minhumanobsweek,]
-tempdf <- tempdf[tempdf$weeknum <= maxhumanobsweek,]
-
-thisyear <- tempdf[tempdf$year == maxhumandesiredyear,]
-
-# tempdf <- bind_rows(thisyear,
-#                     comparison1,
-#                     comparison2)
-
-# tempdf$est[tempdf$year == compyear1] <- tempdf$obs[tempdf$year == compyear1]
-# tempdf$est[tempdf$year == compyear2] <- tempdf$obs[tempdf$year == compyear2]
-tempdf$year <- factor(tempdf$year)
-
-tempdf2 <- thisyear[thisyear$weekstartdate >= weekinquestionSun,]
-tempdf2 <- tempdf2[1:length(modelnames),]
-
-tempdf2$totalestimated <- round_any(tempdf2$est * length(district_shapes), 0.1)
-tempdf2$est <- paste(round_any(100*tempdf2$est, 0.1), "%", sep="")
-
-kable(tempdf2[c("model", "est", "totalestimated")],
-      col.names=c("model", "prop. positive", "districts positive"))
 ```
 
-## Positives-to-cases chart
 
 ```{r echo=FALSE, width=7, height=8}
-preds$year <- as.numeric(format(preds$weekstartdate, "%Y"))
-
-preds <- group_by(preds, year, model)
-yearlies <- dplyr::summarise(preds,
-                             totpos = sum(anycases, na.rm=TRUE),
-                             totest = sum(pred,     na.rm=TRUE),
-                             totcases = sum(totalcases, na.rm=TRUE),
-                             .groups="keep")
-
-yearlies$weight <- 1
-
-thisyear <- yearlies[yearlies$year == maxhumandesiredyear,]
-prevyears <- yearlies[yearlies$year < maxhumandesiredyear,]
-
-thisyear$totpos <- thisyear$totest
-prevyears <- bind_rows(prevyears, expand.grid(totpos=0,
-                                              totcases=0,
-                                              weight=100,
-                                              model=unique(prevyears$model)))
-# make sure model is a factor 
-prevyears$model <- factor(prevyears$model)
-
-# figure out relationship between positivity and total cases
-relationship <- lm(totcases ~ poly(totpos, 2), weights=weight, data=prevyears)
-
-predframe <- expand.grid(totpos = seq(from=0,
-                                      to=max(prevyears$totpos, na.rm=TRUE),
-                                      length.out=50),
-                         model=unique(prevyears$model))
-predframe$totcases <- predict(relationship, newdata = predframe)
-thisyear$totcases <- predict(relationship, newdata = thisyear)
-
-ggplot() + geom_line(data=predframe, aes(x=totpos, y=totcases), color="red", linetype=2) +
-  geom_abline(slope=1, intercept=0, color="grey", linetype=2) +
-  geom_point(data=thisyear, aes(x=totpos, y=totcases), color="red", size=5) +
-  geom_point(data=yearlies, aes(x=totpos, y=totcases)) +
-  xlab("positive county-weeks in a year") + ylab("total cases that year") +
-  facet_wrap(~model, ncol=2)
-
-thisyear$totest <- round_any(thisyear$totest, 0.1)
-thisyear$totcases <- round_any(thisyear$totcases, 0.1)
-kable(thisyear[c("model", "totest", "totcases")],
-      col.names=c("model", "est. positives", "total est. cases"))
 ```
 
-## Current-week WNV absolute risk map
-
-We visualize the raw estimated risk for `r weekinquestion` below. If a district is darkest blue, then we estimate that there should be no human cases reported for this district, during this week. If a district is brightest red, we are certain that there will be at least one human case reported for this district, during this week.
 
 ```{r shapefile, include=TRUE, echo=FALSE, warnings=FALSE}
-district_shapes <- counties(state=statetomodel, cb=TRUE)
-district_shapes$district <- simplifynames(district_shapes$NAME)
-# district_shapes$id <- district_shapes$NAME
-# projected_districts.df <- broom::tidy(district_shapes)
-# projected_districts.df <- left_join(projected_districts.df, district_shapes@data, by="id")
-# projected_districts.df$district <- simplifynames(projected_districts.df$NAME)
-
-# get this week's predictions
-thisweek <- preds[preds$weekstartdate >= weekinquestion,]
-thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
-thisweek <- thisweek[c("model", "district", "pred")]
-
-tempdf2 <- data.frame()
-for (curmodel in unique(thisweek$model)) {
-  
-  tempdf <- district_shapes
-  tempdf <- left_join(tempdf, thisweek, by="district")
-  tempdf$pred[is.na(tempdf$pred)] <- min(tempdf$pred, na.rm=TRUE)
-  tempdf$model <- curmodel
-  
-  thisplot <- ggplot(tempdf) +
-    geom_sf(aes(fill=pred)) + xlab("") + ylab("") +
-    theme(legend.position="bottom") +
-    scale_fill_distiller(palette = "Spectral", limits = c(0,1),
-                         breaks = c(0,1),
-                         labels = c("Will definitely not\nreport any cases",
-                                    "Will definitely\nreport some cases"),
-                         name = "") +
-    ggtitle(paste("Estimate for week beginning ",
-                  weekinquestionSun,
-                  " (", curmodel, ")",
-                  sep="")) +
-    theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
-          axis.ticks = element_blank(), axis.text.x = element_blank(),
-          axis.text.y = element_blank(), axis.title.x=element_blank(),
-          axis.title.y = element_blank(),
-          legend.position="bottom",
-          legend.key.width=unit(1, "cm"),
-          legend.key.height=unit(0.25,"cm"))
-  plot(thisplot)
-}
 ```
 
 
 
 ```{r miscscaves, include=FALSE, echo=FALSE}
-# tempdf1 <- dplyr::summarise(group_by(fullcasemat, year),
-#                             var1      =mean(var1[1,], na.rm=TRUE),
-#                             var2      =mean(var2[2,], na.rm=TRUE),
-#                             totalcases=sum(totalcases, na.rm=TRUE),
-#                             totalpcws =sum(anycases, na.rm=TRUE),
-#                             totalest  =sum(pred, na.rm=TRUE),
-#                             mosquito  =mean(MIRsummarystat, na.rm=TRUE))
-# thisplot1 <- ggplot(tempdf1) + geom_point(aes(x=mosquito, y=totalcases)) +
-#   xlab("modeleded mosquito infection rate (relative)") +
-#   ylab("total cases that year")
-# ggsave(plot=thisplot1, filename="total vs mosquito.png", height=6, width=6, units="in")
-# write.csv(tempdf1, file="total vs mosquito.csv")
 ```
 
-## Current-week WNV relative risk map
-
-This map indicates whether probabilities reported in the previous map are higher (red) than average, lower (blue) than average, or right about normal (yellow) compared to the same week in previous years.
 
 ```{r riskcalcs, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 
-###################################
-forecast_date <- weekinquestionSun
-forecast_year <- as.numeric(format(forecast_date, "%Y"))
-forecast_week  <- as.numeric(format(forecast_date, "%U"))
-outfile_name <- paste(params$state_code, forecast_year, forecast_week, sep="_")
-outfile_name <- paste0(outfile_name, ".csv")
-
-outdata <- data.frame(forecast_date,
-                      forecast_year,
-                      forecast_week, 
-                      preds)
-
-write.csv(outdata, outfile_name)
-###################################
-
-preds <- group_by(preds, district, weekstartdate)
-tempdf <- dplyr::summarize(preds, pred = mean(pred, na.rm=TRUE),
-                           .groups="keep")
-fullcasemat$pred <- NULL
-fullcasemat$var1 <- NULL
-fullcasemat$var2 <- NULL
-fullcasemat$anom_var1 <- NULL
-fullcasemat$anom_var2 <- NULL
-fullcasemat$doymat <- NULL
-fullcasemat$lag <- NULL
-fullcasemat <- left_join(fullcasemat, tempdf, by=c("district", "weekstartdate"))
-
-thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
-thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
-thisweek <- thisweek[c("district", "pred", "doy")]
-
-approxdoy <- thisweek$doy[1]
-
-fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
-
-doypreds <- data.frame()
-for (curyear in unique(fullcasemat$year)) {
-  
-  for (curdistrict in unique(fullcasemat$district)) {
-    
-    thisdf <- fullcasemat[fullcasemat$year == curyear,]
-    thisdf <- thisdf[thisdf$district == curdistrict,]
-    
-    if(sum(!is.na(thisdf$pred)) > 1) {
-      
-      tempdf <- data.frame(district = curdistrict,
-                           year = curyear,
-                           pred = approx(x=thisdf$doy,
-                                         y=thisdf$pred,
-                                         xout=approxdoy)$y)
-      
-      doypreds <- bind_rows(doypreds, tempdf)
-      
-    }
-    
-  }
-  
-}
-
-doypreds2 <- data.frame()
-for (curdistrict in unique(doypreds$district)) {
-  
-  tempdf <- doypreds[doypreds$district == curdistrict,]
-  tempdf$percentile <- rank(tempdf$pred, ties.method="random") / length(tempdf$pred)
-  
-  doypreds2 <- bind_rows(doypreds2, tempdf)
-  
-}
-doypreds <- doypreds2
-rm(doypreds2)
-
-riskalpha <- 0.25
-doypreds$riskcategory <- " About average    "
-doypreds$riskcategory[doypreds$percentile <= riskalpha/2] <- " Lower than usual    "
-doypreds$riskcategory[doypreds$percentile >= 1-(riskalpha/2)] <- " Higher than usual    "
-doypredscurrent <- doypreds[doypreds$year == as.numeric(format(weekinquestion, "%Y")),]
-
-projected_districts.df <- left_join(district_shapes, doypredscurrent,
-                                    by="district")
-projected_districts.df$riskcategory[is.na(projected_districts.df$riskcategory)] <- " Not able to model    "
-thisplotrisk <- ggplot(projected_districts.df) +
-  geom_sf(aes(fill=riskcategory)) +
-  ggtitle("") +
-  theme(text=element_text(size=15)) +
-  theme(plot.title=element_text(size=15),
-        legend.key=element_rect(fill="white")) +
-  theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
-        axis.ticks = element_blank(), axis.text.x = element_blank(),
-        axis.text.y = element_blank(), axis.title.x=element_blank(),
-        axis.title.y = element_blank(),
-        legend.position="bottom",
-        legend.key.width=unit(1, "cm"),
-        legend.key.height=unit(0.5,"cm")) +
-  theme(legend.direction="vertical") +
-  scale_fill_manual(name=paste("Risk for ", weekinquestionSun, " to ",
-                               format(weekinquestionSat, "%m-%d"), sep=""),
-                    values=c(" Lower than usual    "="lightblue",
-                             " About average    "="yellow",
-                             " Higher than usual    "="red",
-                             " Not able to model    "="grey"))
-
-
-plot(thisplotrisk)
 ```
 
-## Estimated dependence functions
-
-Because the user can write model formulas from scratch, we are not able to assume anything about the regression model. Therefore, plotting the model is difficult when you don't know what components the model has. In what follows, every 1-/2-D plot from the chosen models are shown. These will have names assigned by the gam function, which should be comprehensible if the user built the model.
 
 ```{r modelplots, include=TRUE, echo=FALSE, fig.width=7, fig.height=4}
-curmodel <- modelnames[1]
-for (curmodel in modelnames) {
-  
-  thisplot <- modelplots[[curmodel]]
-  #plotholder <- list()
-  for (curplot in 1:length(thisplot)) {
-  
-    thissubplot <- thisplot[[curplot]]
-
-    # is this a 1d plot?
-    if (is.null(thissubplot$main)) {
-      
-      tempdf <- data.frame(x=thissubplot$x,
-                           y=thissubplot$fit)
-      
-      mygg <- ggplot(tempdf) + geom_line(aes(x=x, y=y)) +
-        geom_hline(yintercept=0, linetype=2) +
-        xlab(thissubplot$xlab) + ylab(thissubplot$ylab) +
-        ggtitle(paste("model: ", curmodel, ", term: ", thissubplot$ylab, sep=""))
-      
-      #plotholder[[thissubplot$ylab]] <- mygg
-      
-    }
-    
-    # is this a 2d plot?
-    if (!is.null(thissubplot$main)) {
-      
-      tempdf <- expand.grid(x=thissubplot$x,
-                            y=thissubplot$y)
-      tempdf$fit <- thissubplot$fit
-      
-      # select a subset of y to plot as lines
-      ychosen <- quantile(thissubplot$y, probs=c(0.3, 0.5, 0.7), type=3)
-      tempdf <- tempdf[tempdf$y %in% ychosen,]
-      tempdf$doy <- factor(round_any(tempdf$y, 1))
-      
-      mygg <- ggplot(tempdf) + geom_line(aes(x=x, y=fit, group=doy, color=doy, linetype=doy)) +
-        geom_hline(yintercept=0, linetype=2) +
-        xlab(thissubplot$xlab) + ylab("fit") +
-        ggtitle(paste("model: ", curmodel, ", term: ", thissubplot$main, sep=""))
-
-      #plotholder[[thissubplot$main]] <- mygg
-      
-    }
-   
-    plot(mygg)
-     
-  }
-  
-}
 ```
 
-\newpage
-
-## District names
-
-It is possible that district names in the human, mosquito, or weather data might disagree with the names found in the district shapefile. We have chosen the shapefile to unify all of the various data sources, so the human, mosquito, and weather data files should be updated to match these. Typically, check the TIGER shapefiles or census for standardized names.
 
 ```{r diagnostics, include=FALSE, echo=FALSE}
-humannotinshapefile <- diagnostic_humandistricts[!(diagnostic_humandistricts %in% diagnostic_shapefiledistricts)]
-if (length(humannotinshapefile) == 0) { humannotinshapefile <- "none" }
-
-mosquitonotinshapefile <- diagnostic_mosquitodistricts[!(diagnostic_mosquitodistricts %in% diagnostic_shapefiledistricts)]
-if (length(mosquitonotinshapefile) == 0) { mosquitonotinshapefile <- "none" }
-
-weathernotinshapefile <- diagnostic_weatherdistricts[!(diagnostic_weatherdistricts %in% diagnostic_shapefiledistricts)]
-if (length(weathernotinshapefile) == 0) { weathernotinshapefile <- "none" }
 ```
-
-There are `r length(diagnostic_shapefiledistricts)` districts in the shapefile. This is the maximum number of districts ArboMAP will recognize in the human, mosquito, or weather data.
-
-There are `r length(diagnostic_humandistricts)` districts in the human WNV data. If some districts never reported cases, this number may be less than the number of districts in the shapefile. If there are more, there are likely misspellings in the human data file. Human districts not found in the district shapefile: `r humannotinshapefile`.
-
-There are `r length(diagnostic_mosquitodistricts)` districts in the mosquito WNV data. If some districts never reported mosquito data, this number may be less than the number of districts in the shapefile. Mosquito districts not found in the district shapefile: `r mosquitonotinshapefile`.
-
-There are `r length(diagnostic_weatherdistricts)` districts in the mosquito WNV data. If these data were downloaded with the GEE app, they should match the shapefile districts exactly. Weather districts not found in the district shapefile: `r weathernotinshapefile`.
-
-## Run Parameters
 
 
 ```{r printparams, include=TRUE, echo=FALSE}
-param_table <- data.frame(names(params), unlist(params))
-names(param_table) <- c("Parameter", "Value")
-kable(param_table[1:nrow(param_table)-1,], 
-      caption = "Table of Rmd script parameters",
-      row.names = FALSE)
 ```
