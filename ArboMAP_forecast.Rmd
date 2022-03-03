@@ -71,7 +71,7 @@ if (!require("pacman")) install.packages("pacman"); library(pacman)
 #load packages, install if not installed
 pacman::p_load(
   #data processing. 
-  dplyr, readr, tidyselect, 
+  dplyr, readr, tidyselect, rlang, zoo,
   #modeling
   mgcv, splines,
   #spatial, maps and graphs
@@ -84,43 +84,9 @@ if (packageVersion("readr") < 2.1){
   install.packages("readr")
 }
 
-```
-
-```{r functions, include=FALSE}
-
-# define some helpful functions
-# <<>> confirm all are used
-
-'%!in%' <- function(x,y)!('%in%'(x,y))
-
-round_any = function(x, accuracy, f=round){f(x/accuracy) * accuracy}
-
-simplifynames <- function(priornames=NULL) {
-  
-  # convert to lower case
-  priornames <- tolower(priornames)
-  
-  # remove spaces
-  priornames <- gsub(pattern=" ", replacement="", x=priornames, fixed=TRUE)
-  
-  # remove other offending placename modifiers
-  priornames <- gsub(pattern="county", replacement="", x=priornames, fixed=TRUE)
-  priornames <- gsub(pattern="parish", replacement="", x=priornames, fixed=TRUE)
-  priornames <- gsub(pattern="par.", replacement="", x=priornames, fixed=TRUE)
-  priornames <- gsub(pattern="(zone)", replacement="", x=priornames, fixed=TRUE)
-  priornames <- gsub(pattern="lower", replacement="", x=priornames, fixed=TRUE)
-  priornames <- gsub(pattern="upper", replacement="", x=priornames, fixed=TRUE)
-  priornames <- gsub(pattern="southern", replacement="", x=priornames, fixed=TRUE)
-  priornames <- gsub(pattern="northern", replacement="", x=priornames, fixed=TRUE)
-  priornames <- gsub(pattern="saint", replacement="", x=priornames, fixed=TRUE)
-  priornames <- gsub(pattern="st", replacement="", x=priornames, fixed=TRUE)
-  priornames <- gsub(pattern=".", replacement="", x=priornames, fixed=TRUE)
-  
-  # return names
-  return(priornames)
-  
-}
-
+#Single use functions are found in their section 
+# for convenience when reviewing/editing code
+# Most are found in the 'data_id_fields' section
 
 ```
 
@@ -145,7 +111,8 @@ simplifynames <- function(priornames=NULL) {
 
   # reg_function: "GAM" (hook for future possibility)
 
-#Set up data objects (will use as tests for file loading in following section)
+#Set up data objects 
+# will use as tests for (possible) file loading in following data_load section
 data_human <- NA
 data_mosquito <- NA
 data_strata <- NA
@@ -283,6 +250,7 @@ create_id_field <- function(my_tbl, fld_vector){
   field_to_copy <- intersect(fld_vector, names(my_tbl))[[1]]
 
   updated_tbl <- my_tbl %>% 
+    #some rlang and ggplot2 functions to handle string to field name
     mutate(arbo_ID = !!ggplot2::sym(field_to_copy))
 }
 
@@ -307,6 +275,35 @@ standarize_fips <- function(my_tbl, fips_vector = field_fips_accepted){
 
 }
 
+simplifynames <- function(priornames=NULL) {
+  
+  #ORIGINAL name matching 
+  
+  # convert to lower case
+  priornames <- tolower(priornames)
+  
+  # remove spaces
+  priornames <- gsub(pattern=" ", replacement="", x=priornames, fixed=TRUE)
+  
+  # remove other offending placename modifiers
+  priornames <- gsub(pattern="county", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="parish", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="par.", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="(zone)", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="lower", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="upper", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="southern", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="northern", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="saint", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="st", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern=".", replacement="", x=priornames, fixed=TRUE)
+  
+  # return names
+  return(priornames)
+  
+}
+
+
 standarize_names <- function(my_tbl, names_vector = field_names_accepted){
   
   #Create new field arbo_ID which will be used for matching now on
@@ -316,6 +313,7 @@ standarize_names <- function(my_tbl, names_vector = field_names_accepted){
   arbo_tbl <- arbo_tbl %>% 
     mutate(arbo_ID = simplifynames(arbo_ID))
 }
+
 
 
 # Set up arbo_ID 
@@ -378,6 +376,8 @@ data_env <- data_env_raw %>%
   dplyr::ungroup()
 
 #Note: This does not check for missing days
+# If adding, adapt code from function corral_environmental()
+#  in data_corrals.R in epidemia_runspace (internal repo, Github)
 
 ```
 
@@ -387,13 +387,46 @@ data_env <- data_env_raw %>%
 ```{r data_dates, echo=FALSE} 
 
 # Dates in data
+# "date_obs" will become the standard date field name
 
-#try reading as previously set format
-# if not, use as.Date() fairly intelligent guessing
-# "date_obs" will become the date field!!
-#<<>>
+# Note: tryCatch not helpful b/c of as.Date return values 
+# > as.Date("2019-6-4")
+# [1] "2019-06-04"
+# > as.Date("2019-6-4", "%m/%d/%Y")
+# [1] NA
+# > as.Date("6/4/2019")
+# [1] "0006-04-20"
+# also note that tryCatch doesn't work inside mutate plain
+# need rowwise or other solution
+# So below solution is not quite as robust as it could be, 
+#  but it should be pretty good
 
-#wnv$col_date <- as.Date(wnv$col_date, "%m/%d/%Y")
+data_human <- data_human %>% 
+  #try old specified format first
+  #gives NA when given dates like "2019-6-4"
+  mutate(date_obs = as.Date(date, format = "%m/%d/%Y"),
+         #test for NA and let as.Date guess this time
+         #MUST use ifelse, not if_else b/c that evaluates all
+         # and as.Date will throw error if given the old format without pattern
+         # however ifelse strips date format, so must cast it afterwards
+         # note: zoo package used for default origin for as.Date()
+         date_obs = as.Date(ifelse(is.na(date_obs), 
+                                    as.Date(date), 
+                                    date_obs)))
+
+
+data_mosquito <- data_mosquito %>% 
+  #try old specified format first
+  #gives NA when given dates like "2019-6-4"
+  mutate(date_obs = as.Date(col_date, format = "%m/%d/%Y"),
+         #test for NA and let as.Date guess this time
+         #MUST use ifelse, not if_else b/c that evaluates all
+         # and as.Date will throw error if given the old format without pattern
+         # however ifelse strips date format, so must cast it afterwards
+         # note: zoo package used for default origin for as.Date()
+         date_obs = as.Date(ifelse(is.na(date_obs), 
+                                    as.Date(col_date), 
+                                    date_obs)))
 
 
 ## Filter data by year parameters
@@ -410,6 +443,8 @@ data_env <- data_env_raw %>%
   # #which years to include in modeling results
   # year_modeling_start: 2004
   # year_modeling_end: 2018
+
+
 
 
 
@@ -447,24 +482,13 @@ week_user <- as.Date(params$forecast_date, "%Y-%m-%d")
 
 
 
-```{r data_human_process, echo=FALSE} 
 
+```{r mosquito_resampling, echo=FALSE} 
 
-```
-
-```{r data_weather_process, echo=FALSE} 
-
-
-# be certain district is a factor before modeling
-#weather$district <- factor(weather$district)
-
+#big IF block, optional
 
 ```
 
-```{r data_mosquito_process, echo=FALSE} 
-
-
-```
 
 ```{r mosquito_infection_model, echo=FALSE} 
 
@@ -473,6 +497,14 @@ week_user <- as.Date(params$forecast_date, "%Y-%m-%d")
 
 
 
+```{r data_weather_anomalization, echo=FALSE} 
+
+
+# be certain district is a factor before modeling
+#weather$district <- factor(weather$district)
+
+
+```
 
 
 
