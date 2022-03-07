@@ -49,7 +49,7 @@ params:
   case_trim_alpha: 0.02
   # resampling mosquito <<>>
   resample_mosquito: FALSE
-  resample_file: NA
+  resample_file: ""
   # developer settings
   dev_settings: !r list()
 
@@ -120,7 +120,7 @@ data_weather <- NA
 data_sf_orig <- NA
 model_formulas <- NA
 
-#<<>> do overrides. if (length(params$dev_settings > 0). chk epidemiar dev settings
+#<<>> do overrides. if (length(params$dev_settings > 0). chk epidemiar dev settings DEV
 
 ```
 
@@ -271,7 +271,7 @@ standarize_fips <- function(my_tbl, fips_vector = field_fips_accepted){
   #grab state code from shp 
   state_code <- data_sf_orig$STATEFP %>% unique()
   
-  #<<>>
+  #<<>> DEV
 
 }
 
@@ -382,8 +382,6 @@ data_env <- data_env_raw %>%
 ```
 
 
-
-
 ```{r data_dates, echo=FALSE} 
 
 # Dates in data
@@ -430,21 +428,34 @@ data_mosquito <- data_mosquito %>%
 
 
 ## Filter data by year parameters
-#<<>>
-  # #which years of human data to use
-  # year_human_start: 2004
-  # year_human_end: 2017
-  # #which years of mosquito data to use
-  # year_mosquito_start: 2012
-  # year_mosquito_end: 2018
-  # #which years of weather data to use
-  # year_weather_start: 2000
-  # year_weather_end: 2018
-  # #which years to include in modeling results
-  # year_modeling_start: 2004
-  # year_modeling_end: 2018
+# More data may be present in the files than what we want to use 
+#   e.g. incomplete year data
+# Note: Calendar year is used for filtering
+# <<>> EPIDATE DEV check if switch is correct
 
+data_human <- data_human %>% 
+  #temporary year field for filtering
+  mutate(year_obs = lubridate::year(date_obs)) %>% 
+  #filter year range from parameter input
+  filter(year_obs >= params$year_human_start & 
+           year_obs <= params$year_human_end) %>% 
+  #remove extra field
+  select(-year_obs)
 
+data_mosquito <- data_mosquito %>% 
+  #temporary year field for filtering
+  mutate(year_obs = lubridate::year(date_obs)) %>% 
+  #filter year range from parameter input
+  filter(year_obs >= params$year_mosquito_start & 
+           year_obs <= params$year_mosquito_end) %>% 
+  #remove extra field
+  select(-year_obs)
+
+data_env <- data_env %>% 
+  #already has year field from GEE <<>> DEV document in user's guide data requirements
+  #filter year range from parameter input
+  filter(year >= params$year_weather_start & 
+           year <= params$year_weather_end) 
 
 
 
@@ -453,7 +464,7 @@ data_mosquito <- data_mosquito %>%
 #week of forecast, given by user
 week_user <- as.Date(params$forecast_date, "%Y-%m-%d")
 
-#<<>> DEV keeping old date processing for the moment until conversion to epiweeks
+#<<>> EPIDATE DEV keeping old date processing for the moment until conversion to epiweeks  
 
   # makes sure we round to the previous Sunday, so that this week is included
   TBC_weekinquestionSun <- week_user - (as.numeric(strftime(week_user, '%u')) %% 7)
