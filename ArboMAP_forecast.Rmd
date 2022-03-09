@@ -9,18 +9,18 @@ params:
   predictor_var1: "tmeanc"
   predictor_var2: "vpd"
   ## mosquito settings
-  mosquito_model: "AUC"
+  mosquito_model: "stratifiedMII" # "simpleratio", "AUC", "MIGR", "MII", "stratifiedMIGR", "stratifiedMII"
   mosquito_doy_start: 140
   mosquito_doy_end: 214
   ## input data file locations
   file_human: !r file.path("data_human", "simulated human case data.csv")
   file_mosquito: !r file.path("data_mosquito", "simulated mosquito tests.csv")
     #if no strata, set to ""
-  file_stratification: !r file.path("data_strata", "example SD strata.csv")
+  file_strata: !r file.path("data_strata", "example SD strata.csv")
     #if do not have sf object of counties saved as an RDS file, 
       #temporarily set to "create" once, and it will make the appropriate state file. Must have internet access.
     #if do not want to cache, 
-      #set to "always_download" and it will download tigris shapefile each time. Must have internet acces.
+      #set to "always_download" and it will download tigris shapefile each time. Must have internet access.
   file_district_sf: !r file.path("data_spatial", "sd_counties.RDS")
   #dev, limited models <<>>
   #file_models: !r file.path("data_models", "models.txt")
@@ -43,13 +43,12 @@ params:
   year_compare_vis1: 2012
   year_compare_vis2: 2017
   ## additional settings
+  # create appendix at end with more details and graphs 
+  create_appendix: TRUE
   # length (days) of weather data to include in lags
   lag_length: 121
   # remove temporal outliers from human cases
   case_trim_alpha: 0.02
-  # resampling mosquito <<>>
-  resample_mosquito: FALSE
-  resample_file: ""
   # developer settings
   dev_settings: !r list()
 
@@ -58,7 +57,7 @@ author: "Summary of Model Outputs (v3.1) for `r params$state_name`, `r params$fo
 date: "Updated `r format(Sys.time(), '%B %d, %Y')`"
 output: pdf_document
 ---
-  
+
 ```{r knitr_setup, include=FALSE}
 options(warn=-1)
 ```
@@ -70,8 +69,10 @@ if (!require("pacman")) install.packages("pacman"); library(pacman)
 
 #load packages, install if not installed
 pacman::p_load(
-  #data processing. 
-  dplyr, readr, tidyselect, rlang, zoo,
+  #data processing, tidyverse related 
+  dplyr, readr, tidyselect, rlang, tibble, stringr, 
+  #add'l data processing
+  zoo, 
   #modeling
   mgcv, splines,
   #spatial, maps and graphs
@@ -95,32 +96,44 @@ if (packageVersion("readr") < 2.1){
 #input is named list
 
 #parameters available:
-# 
 
-  # save_model: TRUE/FALSE: Will create a list of saved model objects (using rest of input params)
-  # model_cached: must be named list of model objects, named from modeling file to pattern match
-  # model_cached_file: "no cached" <<>>????
+# save_model: TRUE/FALSE: Will create a list of saved model objects (using rest of input params)
+# model_cached: must be named list of model objects, named from modeling file to pattern match
+# model_cached_file: "no cached" <<>>????
 
-  # human_data: tbl of human case data (overrides file_human)
-  # mosquito_data: tbl of mosquito pool data (overrides file_mosquito)
-  # stratification_data: tbl of strata (overrides file_stratification)
-  # weather_data: tbl of weather data (overrides folder_weather & processing)
-  # district_sf: sf object of counties/districts for state (overrides file_district_sf)
+# human_data: tbl of human case data (overrides file_human)
+# mosquito_data: tbl of mosquito pool data (overrides file_mosquito)
+# stratification_data: tbl of strata (overrides file_stratification)
+# weather_data: tbl of weather data (overrides folder_weather & processing)
+# district_sf: sf object of counties/districts for state (overrides file_district_sf)
 
-  # models_to_run: model formulas to run (overrides file_models)
+# models_to_run: model formulas to run (overrides file_models)
 
-  # reg_function: "GAM" (hook for future possibility)
+# reg_function: "GAM" (hook for future possibility)
+
+# resampling mosquito data before mosquito model
+# NOTE: resampling code is mostly left as v3, 
+#       and is likely inoperable unless field names are different 
+#       in mosquito file that needs resampling.
+#resample_mosquito: TRUE/FALSE
+#resample_file: path and file
+
 
 #Set up data objects 
 # will use as tests for (possible) file loading in following data_load section
-data_human <- NA
-data_mosquito <- NA
-data_strata <- NA
-data_weather <- NA
-data_sf_orig <- NA
-model_formulas <- NA
+data_human <- NULL
+data_mosquito <- NULL
+data_strata <- NULL
+data_weather <- NULL
+data_sf_orig <- NULL
+model_formulas <- NULL
 
 #<<>> do overrides. if (length(params$dev_settings > 0). chk epidemiar dev settings DEV
+
+#set defaults hard until dev settings <<>>
+
+resample_mosquito <- FALSE
+reg_function <- "GAM"
 
 ```
 
@@ -129,27 +142,27 @@ model_formulas <- NA
 
 ```{r data_load, include=FALSE}
 #Loads data from file locations given in parameters
-  #Note: does NOT do any data checks
+#Note: does NOT do any data checks
 
-if (is.na(data_human)){
+if (is.null(data_human)){
   data_human <- readr::read_csv(params$file_human, 
                                 show_col_types = FALSE)
 }
 
-if (is.na(data_mosquito)){
+if (is.null(data_mosquito)){
   data_mosquito <- readr::read_csv(params$file_mosquito, 
                                    show_col_types = FALSE)
 }
 
-if (is.na(data_strata)){
+if (is.null(data_strata)){
   #if given a strata file, which is optional
-  if (!params$file_stratification == ""){
-    data_strata <- readr::read_csv(params$file_stratification, 
+  if (!params$file_strata == ""){
+    data_strata <- readr::read_csv(params$file_strata, 
                                    show_col_types = FALSE)
   }
 }
 
-if (is.na(data_sf_orig)){
+if (is.null(data_sf_orig)){
   
   if (params$file_district_sf == "create"){
     #if user set to "create" then we will download tigris shapefile and save for future use
@@ -160,23 +173,23 @@ if (is.na(data_sf_orig)){
     #make folder if does not exist (if exists, just shows warning, suppressed)
     dir.create("data_spatial", showWarnings = FALSE)
     saveRDS(data_sf_orig, file.path("data_spatial", paste0(params$state_code, "_counties.RDS")))
-
+    
   } else if (params$file_district_sf == "always_download"){
     #if "always_download" then we will download tigris shapefile each time (no save), internet required
     
     data_sf_orig <- tigris::counties(state = params$state_code, cb = TRUE)
-
+    
   } else {
     #read in file from params
     
     data_sf_orig <- readRDS(params$file_district_sf)
     
   }
-}#end is.na
+}#end is.null
 
 
 
-if (is.na(model_formulas)){
+if (is.null(model_formulas)){
   models_raw <- readr::read_csv(params$file_models, 
                                 show_col_types = FALSE, quote = "\"")
   #create named list from tbl
@@ -197,18 +210,18 @@ env_csv_files_raw <- list.files(path = params$folder_weather,
                                 full.names = TRUE, recursive = FALSE)
 
 #keep the names of only csv files that are not empty
-  #not likely relevant here, however does no harm to check
+#not likely relevant here, however does no harm to check
 file_condition <- sapply(env_csv_files_raw, function(x) {length(readr::count_fields(x, readr::tokenizer_csv())) > 1})
 env_csv_files <- env_csv_files_raw[file_condition]
-  
+
 #read in all data files, and add the time the file was last modified
 data_env_raw <- env_csv_files %>% 
   lapply(function(x) {
     readr::read_csv(x, show_col_types = FALSE) %>% 
       #add last modified time
-    mutate(file_time = file.info(x)$mtime)}) %>% 
+      dplyr::mutate(file_time = file.info(x)$mtime)}) %>% 
   #bind list items into one dataset
-  bind_rows()
+  dplyr::bind_rows()
 
 
 ```
@@ -231,27 +244,48 @@ field_names_accepted <- c("district", "county")
 #ID Functions
 confirm_id_fields <- function(fld_vector){
   #Does any of the accepted fields (of a particular type)
-  # exist in all 4 datasets
+  # exist in all 3 or 4 datasets
+  # strata is OPTIONAL
   
-  my_count <- sum(
-    any(fld_vector %in% names(data_human)),
-    any(fld_vector %in% names(data_mosquito)),
-    any(fld_vector %in% names(data_strata)),
-    any(fld_vector %in% names(data_env_raw))
+  if (!is.null(data_strata)){
+    #4 datasets
+    
+    my_count <- sum(
+      any(fld_vector %in% names(data_human)),
+      any(fld_vector %in% names(data_mosquito)),
+      any(fld_vector %in% names(data_env_raw)),
+      any(fld_vector %in% names(data_strata))
     )
+    
+    #true/false
+    use_fld <- my_count == 4L
+    
+  } else {
+    #3 datasets
+    
+    my_count <- sum(
+      any(fld_vector %in% names(data_human)),
+      any(fld_vector %in% names(data_mosquito)),
+      any(fld_vector %in% names(data_env_raw))
+    )
+    
+    #true/false
+    use_fld <- my_count == 3L
+    
+  }
   
-  #true/false
-  use_fld <- my_count == 4L
-}
+  return(use_fld)
+  
+} 
 
 create_id_field <- function(my_tbl, fld_vector){
   #the field names in the dataset that match the accepted names
   # [[1]] takes the first
   field_to_copy <- intersect(fld_vector, names(my_tbl))[[1]]
-
+  
   updated_tbl <- my_tbl %>% 
     #some rlang and ggplot2 functions to handle string to field name
-    mutate(arbo_ID = !!ggplot2::sym(field_to_copy))
+    dplyr::mutate(arbo_ID = !!ggplot2::sym(field_to_copy))
 }
 
 standarize_fips <- function(my_tbl, fips_vector = field_fips_accepted){
@@ -272,7 +306,7 @@ standarize_fips <- function(my_tbl, fips_vector = field_fips_accepted){
   state_code <- data_sf_orig$STATEFP %>% unique()
   
   #<<>> DEV
-
+  
 }
 
 simplifynames <- function(priornames=NULL) {
@@ -308,10 +342,10 @@ standarize_names <- function(my_tbl, names_vector = field_names_accepted){
   
   #Create new field arbo_ID which will be used for matching now on
   arbo_tbl <- create_id_field(my_tbl, names_vector)
-
+  
   #Use original name simplification
   arbo_tbl <- arbo_tbl %>% 
-    mutate(arbo_ID = simplifynames(arbo_ID))
+    dplyr::mutate(arbo_ID = simplifynames(arbo_ID))
 }
 
 
@@ -319,30 +353,37 @@ standarize_names <- function(my_tbl, names_vector = field_names_accepted){
 # Set up arbo_ID 
 if (confirm_id_fields(field_fips_accepted)){
   # use fips as arbo_ID
-
+  
   data_human <- standarize_fips(data_human)
   data_mosquito <- standarize_fips(data_mosquito)
-  data_strata <- standarize_fips(data_strata)
   data_env_raw <- standarize_fips(data_env_raw)
+  
+  if (!is.null(data_strata)){
+    data_strata <- standarize_fips(data_strata)
+  }
   
   #  data_sf_orig will be dealt with separately, as it is standard format
   #census shape: GEOID is 5 char FIPS code
   data_sf_orig <- data_sf_orig %>% 
-    mutate(arbo_ID = GEOID)
+    dplyr::mutate(arbo_ID = GEOID)
   
 } else if (confirm_id_fields(field_names_accepted)){
   # use county names as arbo_ID
-
+  
   data_human <- standarize_names(data_human)
   data_mosquito <- standarize_names(data_mosquito)
-  data_strata <- standarize_names(data_strata)
   data_env_raw <- standarize_names(data_env_raw)
-
+  
+  if (!is.null(data_strata)){
+    data_strata <- standarize_names(data_strata)
+  }
+  
+  
   #  data_sf_orig will be dealt with separately, as it is standard format
   #census shape: NAME is county name
   data_sf_orig <- data_sf_orig %>% 
-    mutate(arbo_ID = simplifynames(NAME))
-
+    dplyr::mutate(arbo_ID = simplifynames(NAME))
+  
 }#end arbo_ID setup
 
 
@@ -362,8 +403,8 @@ data_env <- data_env_raw %>%
   select("arbo_ID", "doy", "year", "file_time", 
          params$predictor_var1, params$predictor_var2) %>% 
   #create date field from year and doy
-  mutate(date_obs = as.Date(paste(year, doy, sep = "-"),
-                            "%Y-%j")) %>% 
+  dplyr::mutate(date_obs = as.Date(paste(year, doy, sep = "-"),
+                                   "%Y-%j")) %>% 
   # Group by county and date, 
   group_by(arbo_ID, date_obs) %>% 
   # sort by modified time DESC, 
@@ -395,67 +436,67 @@ data_env <- data_env_raw %>%
 # > as.Date("6/4/2019")
 # [1] "0006-04-20"
 # also note that tryCatch doesn't work inside mutate plain
-# need rowwise or other solution
+# need rowwise or other solution to use that
 # So below solution is not quite as robust as it could be, 
 #  but it should be pretty good
 
 data_human <- data_human %>% 
   #try old specified format first
   #gives NA when given dates like "2019-6-4"
-  mutate(date_obs = as.Date(date, format = "%m/%d/%Y"),
-         #test for NA and let as.Date guess this time
-         #MUST use ifelse, not if_else b/c that evaluates all
-         # and as.Date will throw error if given the old format without pattern
-         # however ifelse strips date format, so must cast it afterwards
-         # note: zoo package used for default origin for as.Date()
-         date_obs = as.Date(ifelse(is.na(date_obs), 
-                                    as.Date(date), 
-                                    date_obs)))
+  dplyr::mutate(date_obs = as.Date(date, format = "%m/%d/%Y"),
+                #test for NA and let as.Date guess this time
+                #MUST use ifelse, not if_else b/c that evaluates all
+                # and as.Date will throw error if given the old format without pattern
+                # however ifelse strips date format, so must cast it afterwards
+                # note: zoo package used for default origin for as.Date()
+                date_obs = as.Date(ifelse(is.na(date_obs), 
+                                          as.Date(date), 
+                                          date_obs)))
 
 
 data_mosquito <- data_mosquito %>% 
   #try old specified format first
   #gives NA when given dates like "2019-6-4"
-  mutate(date_obs = as.Date(col_date, format = "%m/%d/%Y"),
-         #test for NA and let as.Date guess this time
-         #MUST use ifelse, not if_else b/c that evaluates all
-         # and as.Date will throw error if given the old format without pattern
-         # however ifelse strips date format, so must cast it afterwards
-         # note: zoo package used for default origin for as.Date()
-         date_obs = as.Date(ifelse(is.na(date_obs), 
-                                    as.Date(col_date), 
-                                    date_obs)))
+  dplyr::mutate(date_obs = as.Date(col_date, format = "%m/%d/%Y"),
+                #test for NA and let as.Date guess this time
+                #MUST use ifelse, not if_else b/c that evaluates all
+                # and as.Date will throw error if given the old format without pattern
+                # however ifelse strips date format, so must cast it afterwards
+                # note: zoo package used for default origin for as.Date()
+                date_obs = as.Date(ifelse(is.na(date_obs), 
+                                          as.Date(col_date), 
+                                          date_obs)))
 
 
 ## Filter data by year parameters
 # More data may be present in the files than what we want to use 
 #   e.g. incomplete year data
+# Adds useful date parts as fields for use here and later
 # Note: Calendar year is used for filtering
 # <<>> EPIDATE DEV check if switch is correct
 
 data_human <- data_human %>% 
   #temporary year field for filtering
-  mutate(year_obs = lubridate::year(date_obs)) %>% 
+  dplyr::mutate(year_obs = lubridate::year(date_obs)) %>% 
   #filter year range from parameter input
-  filter(year_obs >= params$year_human_start & 
-           year_obs <= params$year_human_end) %>% 
-  #remove extra field
-  select(-year_obs)
+  dplyr::filter(year_obs >= params$year_human_start & 
+                  year_obs <= params$year_human_end)
 
 data_mosquito <- data_mosquito %>% 
-  #temporary year field for filtering
-  mutate(year_obs = lubridate::year(date_obs)) %>% 
+  #year field for filtering (here and later in mosq modelling)
+  dplyr::mutate(year_obs = lubridate::year(date_obs),
+                #also doy, used later in mosq modelling
+                doy = as.numeric(format(date_obs, "%j"))) %>% 
   #filter year range from parameter input
-  filter(year_obs >= params$year_mosquito_start & 
-           year_obs <= params$year_mosquito_end) %>% 
-  #remove extra field
-  select(-year_obs)
+  dplyr::filter(year_obs >= params$year_mosquito_start & 
+                  year_obs <= params$year_mosquito_end) 
+
 
 data_env <- data_env %>% 
   #already has year field from GEE <<>> DEV document in user's guide data requirements
   #filter year range from parameter input
-  filter(year >= params$year_weather_start & 
-           year <= params$year_weather_end) 
+  dplyr::filter(year >= params$year_weather_start & 
+                  year <= params$year_weather_end) 
 
 
 
@@ -466,42 +507,382 @@ week_user <- as.Date(params$forecast_date, "%Y-%m-%d")
 
 #<<>> EPIDATE DEV keeping old date processing for the moment until conversion to epiweeks  
 
-  # makes sure we round to the previous Sunday, so that this week is included
-  TBC_weekinquestionSun <- week_user - (as.numeric(strftime(week_user, '%u')) %% 7)
-  TBC_weekinquestionSat <- TBC_weekinquestionSun + 6
-  TBC_weekinquestionSunstr <- strftime(TBC_weekinquestionSun, '%A')
-  TBC_weekinquestionSatstr <- strftime(TBC_weekinquestionSat, '%A')
-  
-  # figure out which is the last Sunday in the max desired year
-  TBC_maxhumandesireddate <- as.Date(paste(params$year_modeling_end, "-12-31", sep=""))
-  TBC_maxhumandesireddate <- TBC_maxhumandesireddate - (as.numeric(strftime(TBC_maxhumandesireddate, '%u')) %% 7)
-  TBC_maxhumandesireddatestr <- strftime(TBC_maxhumandesireddate, '%A')
-  
-  # figure out which is the first Sunday in the min desired human year
-  TBC_minhumandesireddate <- as.Date(paste(params$year_modeling_start, "-01-01", sep=""))
-  TBC_minhumandesireddate <- TBC_minhumandesireddate - (as.numeric(strftime(TBC_minhumandesireddate, '%u')) %% 7)
-  TBC_minhumandesireddatestr <- strftime(TBC_minhumandesireddate, '%A')
+# makes sure we round to the previous Sunday, so that this week is included
+TBC_weekinquestionSun <- week_user - (as.numeric(strftime(week_user, '%u')) %% 7)
+TBC_weekinquestionSat <- TBC_weekinquestionSun + 6
+TBC_weekinquestionSunstr <- strftime(TBC_weekinquestionSun, '%A')
+TBC_weekinquestionSatstr <- strftime(TBC_weekinquestionSat, '%A')
 
+# figure out which is the last Sunday in the max desired year
+TBC_maxhumandesireddate <- as.Date(paste(params$year_modeling_end, "-12-31", sep=""))
+TBC_maxhumandesireddate <- TBC_maxhumandesireddate - (as.numeric(strftime(TBC_maxhumandesireddate, '%u')) %% 7)
+TBC_maxhumandesireddatestr <- strftime(TBC_maxhumandesireddate, '%A')
 
+# figure out which is the first Sunday in the min desired human year
+TBC_minhumandesireddate <- as.Date(paste(params$year_modeling_start, "-01-01", sep=""))
+TBC_minhumandesireddate <- TBC_minhumandesireddate - (as.numeric(strftime(TBC_minhumandesireddate, '%u')) %% 7)
+TBC_minhumandesireddatestr <- strftime(TBC_minhumandesireddate, '%A')
 
-  
-
-
-  
 
 ```
 
 
+```{r data_processing_dx, echo=FALSE} 
+
+## Human
+#<<>> DEV move to here
+
+## Weather
+#<<>> DEV if exists, move to here
+
+
+## Mosquito
+
+#Record raw row count (in mosquito_year_start through mosquito_year_end)
+dx_mosq_nrow_all <- nrow(data_mosquito)
+
+#Clean mosq data
+# remove any with unmatched district info
+#   especially necessary for doing regression modeling
+#   Not original done in [V3] for simpleratio or AUC, 
+#   but it makes sense to be consistent here. 
+data_mosquito <- data_mosquito %>% 
+  dplyr::filter(arbo_ID %in% unique(data_sf_orig$arbo_ID),
+                #remove any with NAs in wnv_result or doy
+                #both are needed in regression modeling
+                #doy (and obs_year) would be na is date_obs was na
+                (!is.na(wnv_result)),
+                (!is.na(date_obs)))
+
+#Record row count post cleaning
+dx_mosq_nrow_clean <- nrow(data_mosquito)
+
+#Filter by mosquito range
+data_mosquito <- data_mosquito %>% 
+  #filter by doy
+  dplyr::filter(doy >= params$mosquito_doy_start &
+                  doy <= params$mosquito_doy_end)
+
+#Record row count post cleaning
+dx_mosq_nrow_filtered <- nrow(data_mosquito)
+
+#gather list of districts in mosquito data
+dx_mosq_districts <- unique(data_mosquito$arbo_ID)
+
+#max/latest year diagnostics and statistics for report text and debugging
+# note this is being done after mosquito_year_end filtering
+#  so not latest in data file, but latest in dataset for this forecast
+data_mosq_maxyr <- data_mosquito %>% 
+  dplyr::filter(year_obs == max(.$year_obs, na.rm = TRUE))
+#number rows of data in max year
+dx_mosq_nrow_maxyr <- nrow(data_mosq_maxyr)
+#number of wnv positive pools in max year
+mosq_pos_num_maxyr <- data_mosq_maxyr %>% 
+  dplyr::filter(wnv_result == 1) %>% 
+  nrow()
+#percent of pools positive in max year
+mosq_pos_perc_maxyr <- mosq_pos_num_maxyr / dx_mosq_nrow_maxyr * 100 %>% 
+  round(3)
+
+
+
+```
 
 
 ```{r mosquito_resampling, echo=FALSE} 
 
-#big IF block, optional
+if (resample_mosquito){
+  
+  # read and process resampling file
+  data_resample <- readr::read_csv(params$resample_file, show_col_types = FALSE)
+  
+  # added needed dates
+  data_resample <- data_resample %>% 
+    #try old specified format first
+    #gives NA when given dates like "2019-6-4"
+    dplyr::mutate(date_obs = as.Date(col_date, format = "%m/%d/%Y"),
+                  #test for NA and let as.Date guess this time
+                  #MUST use ifelse, not if_else b/c that evaluates all
+                  # and as.Date will throw error if given the old format without pattern
+                  # however ifelse strips date format, so must cast it afterwards
+                  # note: zoo package used for default origin for as.Date()
+                  date_obs = as.Date(ifelse(is.na(date_obs), 
+                                            as.Date(col_date), 
+                                            date_obs)),
+                  # and doy
+                  doy = as.numeric(format(date_obs, "%j")))
+  
+  # [V3] NOTE: Keeping original (v3) code with new names only
+  # No test resample file to try
+  # However, I believe it will fail as currently/previously coded, 
+  #   unless mosquito data file has a different format when it needs resampling
+  #   data_mosquito$total nor $positives does not exist?
+  
+  #create subset
+  positivedoys <- data_resample$doy[data_resample$wnv_result == 1]
+  negativedoys <- data_resample$doy[data_resample$wnv_result == 0]
+  
+  # create and fill up the expanded file
+  wnv <- data.frame()
+  for (i in 1:nrow(data_mosquito)) {
+    
+    positives <- data_mosquito$positives[i]
+    negatives <- data_mosquito$total[i] - data_mosquito$positives[i]
+    
+    if (positives > 0) {
+      
+      tempdf1 <- data.frame(doy = sample(x=positivedoys,
+                                         size=positives,
+                                         replace=TRUE),
+                            year = data_mosquito$year[i],
+                            district = district_shapes$district[1], #? hard-coded first? DEV
+                            wnv_result = 1)
+      
+    } else { tempdf1 <- data.frame() }
+    
+    if (negatives > 0) {
+      
+      tempdf0 <- data.frame(doy = sample(x=negativedoys,
+                                         size=negatives,
+                                         replace=TRUE),
+                            year = data_mosquito$year[i],
+                            district = district_shapes$district[1], #? hard-coded first? DEV
+                            wnv_result = 0)
+      
+    } else { tempdf2 <- data.frame() }
+    
+    data_mosquito <- bind_rows(data_mosquito, tempdf1, tempdf0)
+  }
+  
+} #end if resample
+
+
 
 ```
 
 
 ```{r mosquito_infection_model, echo=FALSE} 
+
+# Calculates MIRsummarystat (mosquito infection rate), based on mosquito model
+#   Creates mosq_mir : 
+#   dataset with 'year_obs' and 'MIRsummarystat', (and 'strata' for stratified models)
+
+# If match failure, default will be AUC
+# Note: If add a mosquito model, you MUST add it here
+if (params$mosquito_model %in% c(
+  "simpleratio", 
+  "AUC",
+  "MIGR",
+  "MII",
+  "stratifiedMIGR", 
+  "stratifiedMII")){
+  mosquito_model_clean <- params$mosquito_model
+} else {
+  #if unmatched, default AUC
+  mosquito_model_clean <- "AUC"
+}
+
+
+# Potentially multiple if blocks per model type, 
+#   depends on processing/calculations needed
+
+###
+#Primary set of calculation blocks, includes all model types
+if (mosquito_model_clean == "simpleratio") {
+  
+  mosq_mir <- data_mosquito %>% 
+    #total of positive pools, total pools, per year
+    group_by(year_obs) %>% 
+    dplyr::summarise(tot_pos = sum(wnv_result, na.rm=TRUE),
+                     tot_test = n()) %>%
+    #simpleratio MIR is ratio of total positive pools over total pools tested
+    dplyr::mutate(MIRsummarystat = tot_pos / tot_test) %>% 
+    #select only year and summary stat for consistency across all non-strat mosq models
+    dplyr::select(year_obs, MIRsummarystat)
+  
+} #end if 'simpleratio'
+
+if (mosquito_model_clean == "AUC") {
+  
+  data_mosquito <- data_mosquito %>% 
+    # #remove rows with NA
+    # # [v3] dev note: I'm assuming glmer is unhappy otherwise [DMN]
+    # dplyr::filter_at(vars(wnv_result, doy, year_obs),
+    #                  #all variables listed must be not NA
+    #                  all_vars(!is.na(.))) %>% 
+    # [v3] create a variable that at least has a little chance of being orthogonal to 1.
+    dplyr::mutate(dminus = doy - mean(.$doy, na.rm = TRUE),
+                  #factor year for modeling
+                  year_obs = factor(year_obs))
+  
+  #data frame for glmer
+  data_mosq_df <- data_mosquito %>% as.data.frame()
+  
+  # [V3] run a random effect model on orthogonalized data
+  mir_glm <- lme4::glmer(wnv_result ~ poly(dminus, 2) + (poly(dminus, 2)|year_obs),
+                         family = binomial(),
+                         data = data_mosq_df)
+  
+  # [V3] create a data frame to store the calculations for the aucs
+  pred_frame <- expand.grid(year_obs = unique(data_mosquito$year_obs),
+                            dminus = seq(from = min(data_mosquito$dminus, na.rm=TRUE),
+                                         to = max(data_mosquito$dminus, na.rm=TRUE),
+                                         length.out = 100))
+  pred_frame$pred <- predict(mir_glm,
+                             newdata = pred_frame,
+                             type = "response")
+  
+  # calculate the AUCs
+  # DEV note: Appears to be the sum of the predictions from all dminus values per year [DMN]
+  mosq_mir <- pred_frame %>% 
+    dplyr::group_by(year_obs) %>% 
+    dplyr::summarise(MIRsummarystat = sum(pred, na.rm = TRUE)) %>% 
+    #make year numeric again (not factor)
+    dplyr::mutate(year_obs = as.numeric(as.character(year_obs)))
+  
+  #make year numeric again (not factor)
+  data_mosquito <- data_mosquito %>% 
+    dplyr::mutate(year_obs = as.numeric(as.character(year_obs)))
+  
+}
+
+if (mosquito_model_clean %in% c("MIGR", "MII")) {
+
+  #<<>> DEV does arbo_ID really have to be a factor? is it used in these regressions??
+  
+  data_mosquito <- data_mosquito %>% 
+    # [v3] create a variable that at least has a little chance of being orthogonal to 1.
+    dplyr::mutate(dminus = doy - mean(.$doy, na.rm = TRUE),
+                  #factor year for modeling
+                  year_obs = factor(year_obs),
+                  #arbo_ID (district|county|fips) to factor (for regression)
+                  arbo_ID = factor(arbo_ID))
+  
+  #data frame for glmer
+  data_mosq_df <- data_mosquito %>% as.data.frame()
+  
+  
+  #[V3] run a random effect model on orthogonalized data
+  mir_glm <- lme4::glmer(wnv_result ~ 1 + dminus +
+                           (0+1|year_obs) +
+                           (0+dminus|year_obs),
+                         family = binomial(),
+                         data = data_mosq_df)
+  
+  ##DEV : seemingly not used again in [V3], so temporarily removing to see if we need to keep it
+  #data_mosq_df$est <- predict(data_mosq_df, newdata=wnv, type="response")
+  #data_mosquito <- data_mosq_df %>% tibble::as_tibble()
+  
+  #make year numeric & arbo_id character again (not factor)
+  data_mosquito <- data_mosquito %>% 
+    dplyr::mutate(year_obs = as.numeric(as.character(year_obs)),
+                  arbo_ID = as.character(arbo_ID))
+  
+  
+  if (mosquito_model_clean == "MIGR") {
+    
+    #[V3] predict random effects for all years
+    mosq_mir <- tibble(year_obs = rownames(nlme::random.effects(mir_glm)$year_obs) %>% as.numeric(),
+                       MIRsummarystat = nlme::random.effects(mir_glm)$year_obs[,1]) #[,1] are intercept values [DMN]
+    
+    
+  }
+  if (mosquito_model_clean == "MII") {
+    
+    #[V3] predict random effects for all years
+    mosq_mir <- tibble(year_obs = rownames(nlme::random.effects(mir_glm)$year_obs) %>% as.numeric(),
+                       MIRsummarystat = nlme::random.effects(mir_glm)$year_obs[,2]) #[,2] are dminus values [DMN]
+    
+  }
+  
+} #end if c("MIGR", "MII")
+
+if (mosquito_model_clean %in% c("stratifiedMIGR", "stratifiedMII")) {
+  
+  #add strata information to mosquito data
+  data_mosquito <- data_mosquito %>% 
+    dplyr::left_join(data_strata %>% 
+                       select(arbo_ID, strata),
+                     by = "arbo_ID") %>%
+    #make sure all have a strata
+    dplyr::filter(!is.na(strata)) %>% 
+    # [v3] create a variable that at least has a little chance of being orthogonal to 1.
+    dplyr::mutate(dminus = doy - mean(.$doy, na.rm = TRUE),
+                  #create a stratum per year factor for regression
+                  stratum_year = paste(strata, year_obs, sep = "_") %>% 
+                    factor())
+  
+  #data frame for glmer
+  data_mosq_df <- data_mosquito %>% as.data.frame()
+  
+  
+  #[V3] run a random effect model on orthogonalized data
+  mir_glm <- lme4::glmer(wnv_result ~ 1 + dminus +
+                           (0+1|stratum_year) +
+                           (0+dminus|stratum_year),
+                         family = binomial(),
+                         data = data_mosq_df)
+  
+  ##DEV : seemingly not used again in [V3], so temporarily removing to see if we need to keep it
+  #data_mosq_df$est <- predict(data_mosq_df, newdata=wnv, type="response")
+  #data_mosquito <- data_mosq_df %>% tibble::as_tibble()
+  
+  
+  if (mosquito_model_clean == "stratifiedMIGR") {
+    
+    #[V3] predict random effects for all years
+    mosq_mir <- tibble(stratum_year = rownames(nlme::random.effects(mir_glm)$stratum_year),
+                       #[,1] seems to pull the intercept values [DMN]
+                       MIRsummarystat = nlme::random.effects(mir_glm)$stratum_year[,1]) %>% 
+      #split stratum and year back out
+      mutate(year_obs = stringr::str_split_fixed(stratum_year, "_", n = 2)[,2],
+             strata = stringr::str_split_fixed(stratum_year, "_", n = 2)[,1]) %>% 
+      #drop old field
+      select(-stratum_year)
+    
+  }
+  if (mosquito_model_clean == "stratifiedMII") {
+    
+    #[V3] predict random effects for all years
+    mosq_mir <- tibble(stratum_year = rownames(nlme::random.effects(mir_glm)$stratum_year),
+                       #[,2] seems to pull the dminus values [DMN]
+                       MIRsummarystat = nlme::random.effects(mir_glm)$stratum_year[,2]) %>% 
+      #split stratum and year back out
+      mutate(year_obs = stringr::str_split_fixed(stratum_year, "_", n = 2)[,2],
+             strata = stringr::str_split_fixed(stratum_year, "_", n = 2)[,1]) %>% 
+      #drop old field
+      select(-stratum_year)
+    
+  }
+  
+} #end if c("stratifiedMIGR", "stratifiedMII")
+
+
+# # DEV testing output
+# write_csv(mosq_mir, file = file.path("dev", "mosq_mir", paste0(mosquito_model_clean, "_1precenter.csv")))
+
+
+# Center the MIR statistic 
+# NAs replaced in 0s only in non-stratified models (as coded in version 3) [V3]
+# [V3] Originally done in the plotting code. Carried through to modeling, so done here. 
+
+if (mosquito_model_clean %in% c("simpleratio", "AUC", "MIGR", "MII")){
+  
+  mosq_mir <- mosq_mir %>% 
+    dplyr::mutate(MIRsummarystat = MIRsummarystat - mean(.$MIRsummarystat, na.rm = TRUE),
+                  MIRsummarystat = tidyr::replace_na(MIRsummarystat, 0))
+  
+}
+
+if (mosquito_model_clean %in% c("stratifiedMIGR", "stratifiedMII")){
+  
+  mosq_mir <- mosq_mir %>% 
+    dplyr::mutate(MIRsummarystat = MIRsummarystat - mean(.$MIRsummarystat, na.rm = TRUE))
+  
+}
+
+# # DEV testing output
+# write_csv(mosq_mir, file = file.path("dev", "mosq_mir", paste0(mosquito_model_clean, "_2centered.csv")))
 
 
 ```
