@@ -13,10 +13,10 @@ params:
   mosquito_doy_start: 140
   mosquito_doy_end: 214
   ## input data file locations
-  file_human: !r file.path("data_human", "simulated human case data.csv")
-  file_mosquito: !r file.path("data_mosquito", "simulated mosquito tests.csv")
+  file_human: !r file.path("data_human", "simulated_human_data.csv")
+  file_mosquito: !r file.path("data_mosquito", "simulated_mosquito_data.csv")
     #if no strata, set to ""
-  file_strata: !r file.path("data_strata", "example SD strata.csv")
+  file_strata: !r file.path("data_strata", "example_strata_SD.csv")
     #if do not have sf object of counties saved as an RDS file, 
       #temporarily set to "create" once, and it will make the appropriate state file. Must have internet access.
     #if do not want to cache, 
@@ -883,7 +883,6 @@ if (mosquito_model_clean %in% c("stratifiedMIGR", "stratifiedMII")){
 
 # # DEV testing output
 # write_csv(mosq_mir, file = file.path("dev", "mosq_mir", paste0(mosquito_model_clean, "_2centered.csv")))
-
 
 ```
 
