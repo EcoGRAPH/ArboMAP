@@ -91,7 +91,6 @@ if (packageVersion("readr") < 2.1){
 
 ```
 
-
 ```{r dev_parameters, include=FALSE}
 #input is named list
 
@@ -134,11 +133,9 @@ model_formulas <- NULL
 
 resample_mosquito <- FALSE
 reg_function <- "GAM"
+impute_human_missing_districts <- FALSE
 
 ```
-
-
-
 
 ```{r data_load, include=FALSE}
 #Loads data from file locations given in parameters
@@ -224,6 +221,12 @@ data_env_raw <- env_csv_files %>%
   dplyr::bind_rows()
 
 
+#Record row count of data as read in
+dx_mosq_nrow_0load <- nrow(data_mosquito)
+dx_human_nrow_0load <- nrow(data_human)
+dx_env_nrow_0load <- nrow(data_env_raw) #note PRE de-duplication
+
+
 ```
 
 ```{r data_id_fields, echo=FALSE} 
@@ -285,7 +288,9 @@ create_id_field <- function(my_tbl, fld_vector){
   
   updated_tbl <- my_tbl %>% 
     #some rlang and ggplot2 functions to handle string to field name
-    dplyr::mutate(arbo_ID = !!ggplot2::sym(field_to_copy))
+    #dplyr::mutate(arbo_ID = !!ggplot2::sym(field_to_copy))
+    #new way via the .data pronoun
+    dplyr::mutate(arbo_ID = .data[[field_to_copy]])
 }
 
 standarize_fips <- function(my_tbl, fips_vector = field_fips_accepted){
@@ -385,48 +390,14 @@ if (confirm_id_fields(field_fips_accepted)){
     dplyr::mutate(arbo_ID = simplifynames(NAME))
   
 }#end arbo_ID setup
-
-
-
 ```
-
-
-
-```{r data_weather_latest, echo=FALSE} 
-
-# As we will likely have data from the same day in multiple files,
-# we want to take only the LATEST value
-# (post ID set up section to remove extraneous fields before processing)
-
-data_env <- data_env_raw %>% 
-  #trim to just needed data
-  select("arbo_ID", "doy", "year", "file_time", 
-         params$predictor_var1, params$predictor_var2) %>% 
-  #create date field from year and doy
-  dplyr::mutate(date_obs = as.Date(paste(year, doy, sep = "-"),
-                                   "%Y-%j")) %>% 
-  # Group by county and date, 
-  group_by(arbo_ID, date_obs) %>% 
-  # sort by modified time DESC, 
-  arrange(desc(file_time)) %>% 
-  # slice(1) to get first/latest (or only if not duplicated)
-  slice(1) %>% 
-  #drop file time
-  dplyr::select(-file_time) %>%
-  #ungroup to finish
-  dplyr::ungroup()
-
-#Note: This does not check for missing days
-# If adding, adapt code from function corral_environmental()
-#  in data_corrals.R in epidemia_runspace (internal repo, Github)
-
-```
-
 
 ```{r data_dates, echo=FALSE} 
 
 # Dates in data
-# "date_obs" will become the standard date field name
+#   "date_obs" will become the standard date field name
+# Filtering on years given in parameters
+# Setting up week-related variables
 
 # Note: tryCatch not helpful b/c of as.Date return values 
 # > as.Date("2019-6-4")
@@ -453,7 +424,6 @@ data_human <- data_human %>%
                                           as.Date(date), 
                                           date_obs)))
 
-
 data_mosquito <- data_mosquito %>% 
   #try old specified format first
   #gives NA when given dates like "2019-6-4"
@@ -474,13 +444,17 @@ data_mosquito <- data_mosquito %>%
 # Adds useful date parts as fields for use here and later
 # Note: Calendar year is used for filtering
 # <<>> EPIDATE DEV check if switch is correct
-
 data_human <- data_human %>% 
-  #temporary year field for filtering
-  dplyr::mutate(year_obs = lubridate::year(date_obs)) %>% 
+  #year field for filtering
+  dplyr::mutate(year_obs = lubridate::year(date_obs),
+                #also doy, used later in modelling
+                doy = as.numeric(format(date_obs, "%j")),
+                #week of year DEV EPIDATE <<>>
+                TBC_weeknum = as.numeric(format(date_obs, "%U"))) %>% 
   #filter year range from parameter input
   dplyr::filter(year_obs >= params$year_human_start & 
                   year_obs <= params$year_human_end)
+
 
 data_mosquito <- data_mosquito %>% 
   #year field for filtering (here and later in mosq modelling)
@@ -490,6 +464,7 @@ data_mosquito <- data_mosquito %>%
   #filter year range from parameter input
   dplyr::filter(year_obs >= params$year_mosquito_start & 
                   year_obs <= params$year_mosquito_end) 
+#Note: doy filtering happens in code block data_mosq_processing_dx below
 
 
 data_env <- data_env %>% 
@@ -503,15 +478,19 @@ data_env <- data_env %>%
 ## Dates for forecasts and functions
 
 #week of forecast, given by user
-week_user <- as.Date(params$forecast_date, "%Y-%m-%d")
+date_forecast <- as.Date(params$forecast_date, "%Y-%m-%d")
+date_forecast_week <- format(date_forecast, "%U") %>% as.numeric() #keeping this name, but flagging with TBC_
 
 #<<>> EPIDATE DEV keeping old date processing for the moment until conversion to epiweeks  
 
 # makes sure we round to the previous Sunday, so that this week is included
-TBC_weekinquestionSun <- week_user - (as.numeric(strftime(week_user, '%u')) %% 7)
+TBC_weekinquestionSun <- date_request - (as.numeric(strftime(date_request, '%u')) %% 7)
+
 TBC_weekinquestionSat <- TBC_weekinquestionSun + 6
 TBC_weekinquestionSunstr <- strftime(TBC_weekinquestionSun, '%A')
 TBC_weekinquestionSatstr <- strftime(TBC_weekinquestionSat, '%A')
+
+TBC_weekinquestionSundoy <- as.numeric(format(TBC_weekinquestionSun, "%j"))
 
 # figure out which is the last Sunday in the max desired year
 TBC_maxhumandesireddate <- as.Date(paste(params$year_modeling_end, "-12-31", sep=""))
@@ -526,20 +505,60 @@ TBC_minhumandesireddatestr <- strftime(TBC_minhumandesireddate, '%A')
 
 ```
 
-
-```{r data_processing_dx, echo=FALSE} 
-
+```{r data_human_processing_dx, echo=FALSE} 
 ## Human
-#<<>> DEV move to here
 
-## Weather
-#<<>> DEV if exists, move to here
+#Record row count (in human_year_start through human_year_end)
+dx_human_nrow_1range <- nrow(data_human)
 
+#Clean human data
+# remove any with unmatched district info
+#   especially necessary for doing regression modeling
+data_human <- data_human %>% 
+  dplyr::filter(arbo_ID %in% unique(data_sf_orig$arbo_ID),
+                #remove any without a good date
+                (!is.na(date_obs)))
+
+#Record row count post cleaning
+dx_human_nrow_2clean <- nrow(data_human)
+
+#gather list of districts in human data
+dx_human_districts <- data_human %>% 
+    pull(arbo_ID) %>% unique() %>% sort()
+
+
+#[V3] DEV imputemissingdistricts was hard coded as FALSE in v3 production code
+# updated names and code, and added dev option for renamed impute_human_missing_districts, default = FALSE
+# DEV This looks like it samples existing districts as data for the missing districts.
+#     I can't think of a time where this would be wanted. May be able to delete in future. [DMN]
+if (impute_human_missing_districts){
+  #list of districts in that state that are missing from human data
+  districts_missing <- data_sf_orig$arbo_ID[!(data_sf_orig$arbo_ID %in% dx_human_districts)]
+  #create random rows to fill in one observation for each missing district
+  # by pulling a sampled row from the observed human data (for a different district) 
+  sample_rows <- data_human %>% 
+    dplyr::filter(row_number() %in% sample(x = 1:nrow(data_human),
+                                           size = length(districts_missing),
+                                           replace = TRUE))
+  #pull only appropriate columns and make new tibble to add
+  data_human_imputed <- tibble::tibble(arbo_ID = districts_missing) %>% 
+    dplyr::bind_cols(sample_rows %>% 
+                       dplyr::select(date_obs, year_obs, doy, TBC_weeknum)) 
+  #bind imputed data to existing data
+  data_human <- dplyr::bind_rows(data_human, data_human_imputed)
+  
+}
+
+
+```
+
+```{r data_mosq_processing_dx, echo=FALSE} 
 
 ## Mosquito
+# Cleaning, filtering, statistics for report
 
-#Record raw row count (in mosquito_year_start through mosquito_year_end)
-dx_mosq_nrow_all <- nrow(data_mosquito)
+#Record row count (in mosquito_year_start through mosquito_year_end)
+dx_mosq_nrow_1range <- nrow(data_mosquito)
 
 #Clean mosq data
 # remove any with unmatched district info
@@ -555,7 +574,7 @@ data_mosquito <- data_mosquito %>%
                 (!is.na(date_obs)))
 
 #Record row count post cleaning
-dx_mosq_nrow_clean <- nrow(data_mosquito)
+dx_mosq_nrow_2clean <- nrow(data_mosquito)
 
 #Filter by mosquito range
 data_mosquito <- data_mosquito %>% 
@@ -563,12 +582,13 @@ data_mosquito <- data_mosquito %>%
   dplyr::filter(doy >= params$mosquito_doy_start &
                   doy <= params$mosquito_doy_end)
 
-#Record row count post cleaning
-dx_mosq_nrow_filtered <- nrow(data_mosquito)
+#Record row count post doy filtering
+dx_mosq_nrow_3filtered <- nrow(data_mosquito)
 
 #gather list of districts in mosquito data
-dx_mosq_districts <- unique(data_mosquito$arbo_ID)
-
+dx_mosq_districts <- data_mosquito %>% 
+  pull(arbo_ID) %>% unique() %>% sort()
+  
 #max/latest year diagnostics and statistics for report text and debugging
 # note this is being done after mosquito_year_end filtering
 #  so not latest in data file, but latest in dataset for this forecast
@@ -583,11 +603,7 @@ mosq_pos_num_maxyr <- data_mosq_maxyr %>%
 #percent of pools positive in max year
 mosq_pos_perc_maxyr <- mosq_pos_num_maxyr / dx_mosq_nrow_maxyr * 100 %>% 
   round(3)
-
-
-
 ```
-
 
 ```{r mosquito_resampling, echo=FALSE} 
 
@@ -655,11 +671,7 @@ if (resample_mosquito){
   }
   
 } #end if resample
-
-
-
 ```
-
 
 ```{r mosquito_infection_model, echo=FALSE} 
 
@@ -747,7 +759,7 @@ if (mosquito_model_clean == "AUC") {
 }
 
 if (mosquito_model_clean %in% c("MIGR", "MII")) {
-
+  
   #<<>> DEV does arbo_ID really have to be a factor? is it used in these regressions??
   
   data_mosquito <- data_mosquito %>% 
@@ -886,63 +898,239 @@ if (mosquito_model_clean %in% c("stratifiedMIGR", "stratifiedMII")){
 
 ```
 
+```{r data_weather_latest, echo=FALSE} 
 
+# As we will likely have data from the same day in multiple files,
+# we want to take only the LATEST value
+# (post ID set up section to remove extraneous fields before processing)
+
+data_env <- data_env_raw %>% 
+  #trim to just needed data
+  select("arbo_ID", "doy", "year", "file_time", 
+         params$predictor_var1, params$predictor_var2) %>% 
+  #create date field from year and doy
+  dplyr::mutate(date_obs = as.Date(paste(year, doy, sep = "-"),
+                                   "%Y-%j")) %>% 
+  # Group by county and date, 
+  group_by(arbo_ID, date_obs) %>% 
+  # sort by modified time DESC, 
+  arrange(desc(file_time)) %>% 
+  # slice(1) to get first/latest (or only if not duplicated)
+  slice(1) %>% 
+  #drop file time
+  dplyr::select(-file_time) %>%
+  #ungroup to finish
+  dplyr::ungroup()
+
+#Note: This does not check for missing days (IMPLICIT missing)
+# If adding, adapt code from function corral_environmental()
+#  in data_corrals.R in epidemia_runspace (internal repo, Github)
+# Explicit missing in handled in the anomalized section, 
+#   these NAs are filled the weather model predicted values
+```
 
 ```{r data_weather_anomalization, echo=FALSE} 
 
+#Note: field names here are dynamically created 
+#   based on user parameters for var1 and var2.
+#   Tidyverse programming is a little weird with that 
+#     (though the syntax is cleaner now than earlier versions).
+# HOWEVER, as we are dealing with dataframes (not tibbles) for bam anyway
+#   using base R and [V3] code
 
-# be certain district is a factor before modeling
-#weather$district <- factor(weather$district)
+# Params format reminder: 
+#  predictor_var1: "tmeanc"
+#  predictor_var2: "vpd"
+
+#data frame for bam
+data_env_df <- data_env %>% 
+  #ID must be a factor for modeling
+  mutate(arbo_ID = factor(arbo_ID)) %>% 
+  as.data.frame()
+
+#loop to do each variable
+for (v in c(params$predictor_var1, params$predictor_var2)) {
+  
+  #set up temp variable with known name (to use in bam call)
+  # will be overwritten each loop
+  data_env_df$this_var <- data_env_df[,v]
+  
+  #run a bam model with smooth on day of year (seasonal) and district
+  this_env_mod <- mgcv::bam(this_var ~ arbo_ID + s(doy, bs="cc", by=arbo_ID), 
+                            data = data_env_df, 
+                            discrete = TRUE)
+  
+  #predicted values
+  this_preds <- predict(this_env_mod, newdata = data_env_df)
+  
+  # any missing environmental data is filled in with predicted values [V3]
+  #   this means we are updating our data, so we will have to overwrite data_env 
+  #   note that this is POST env modelling, but PRE forecast modelling
+  data_env_df[is.na(data_env_df[,v]), v] <- this_preds[is.na(data_env_df[,v])]
+  
+  #anomaly calculations: deviance between observed and predicted
+  #   creating a dynamically generated name that is "anom_" plus the name of the variable
+  data_env_df[,paste("anom_", v, sep="")] <- data_env_df[,v] - this_preds
+  # then should there be any NA values, they are given the value 0 instead
+  data_env_df[is.na(data_env_df[,paste("anom_", v, sep="")]), paste("anom_", v, sep="")] <- 0
+  
+}
+
+#clean up and updating data_env
+# changes were made of data_env_df that we need to keep
+#   anomalized variables, imputed values
+data_env <- data_env_df %>% 
+  #convert table to tibble
+  tibble::as_tibble() %>% 
+  #drop temporary variable
+  dplyr::select(-this_var)
+#remove temporary table to avoid confusion
+rm(this_preds)
+#remove large temporary bam model
+rm(this_env_mod)
+
+```
+
+
+```{r data_combine, echo=FALSE} 
+
+# Human, mosq infection rate, and environmental data together
+#   creating full matrix in prep for forecast modeling
+
+## Human
+
+#determine the range (of weeks of year) we should include in modelling [V3]
+# this is based on the human case_trim_alpha parameter
+# this is removing outlier human cases that are very early or late in season [DMN]
+#find min&max weeks using the case_trim_alpha parameter
+human_wks_alpha <- quantile(data_human$TBC_weeknum, 
+                            probs = c(params$case_trim_alpha/2, 
+                                      1 - (params$case_trim_alpha/2)), na.rm = TRUE)
+human_wk_min <- human_wks_alpha[1]
+human_wk_max <- human_wks_alpha[2]
+
+
+##Create dataset that will become the complete combined data for modelling input
+
+#First, use human data (what we are predicting) to set start and end dates
+# need to ensure that the end week is the last week of the year of the requested forecast week, 
+#   so seq.Date is reverse chronological
+weeks_model_list <- seq.Date(from = TBC_maxhumandesireddate, to = TBC_minhumandesireddate, by =-7)
+# Create a frame that has entries for all district for all weeks in modelling list
+data_combined_prep <- tidyr::expand_grid(arbo_ID = dx_human_districts,
+                                         mod_wk_dt = weeks_model_list) %>% 
+  #add other useful date fields
+  dplyr::mutate(mod_wk_dt_yr = as.numeric(format(mod_wk_dt, "%Y")),
+                mod_wk_dt_doy = as.numeric(format(mod_wk_dt, "%j")),
+                TBC_mod_wk_dt_week = as.numeric(format(mod_wk_dt, "%U")),
+                #create a flag if the week was in years between 
+                #  params year_human_start through year_human_end
+                observed = if_else(mod_wk_dt_yr >= params$year_human_start &
+                                    mod_wk_dt_yr <= params$year_human_end,
+                                   TRUE,
+                                   FALSE),
+                #create a flag if the week was within the trimmed alpha week range)
+                modeled = if_else(TBC_mod_wk_dt_week >= human_wk_min &
+                                    TBC_mod_wk_dt_week <= human_wk_max,
+                                  TRUE,
+                                  FALSE))
+
+
+#<<>><<>><<>><<>>
+
+#count the number of cases that occur in each week for each district
+#   note, if a district had no cases for that week, there will not be a row entry
+data_human_week <- data_human %>% 
+  dplyr::group_by(arbo_ID, year_obs, TBC_weeknum) %>% 
+  #each row is a case
+  dplyr::summarise(case_count = n(), .groups = "drop") %>% 
+  #binary if any cases happened in that week in that district
+  dplyr::mutate(any_cases = if_else(case_count >= 1,
+                                    1, #yes, there was at least one case in this district-week 
+                                    0))
+
+#join, and fill 0s for any district-week that had no cases
+data_combined_prep <- data_combined_prep %>% 
+  left_join(data_human_week, by = c("arbo_ID", "mod_wk_dt_yr" = "year_obs", "TBC_mod_wk_dt_week" = "TBC_weeknum")) %>% 
+  dplyr::mutate(case_count = tidyr::replace_na(case_count, 0),
+                any_cases = tidyr::replace_na(any_cases, 0)) 
+
+
+
+# Human case stats for report text
+
+# Total number of cases over all districts over all time
+state_cases_total <- sum(data_combined_prep$case_count, na.rm=TRUE)
+state_any_cases_total  <- sum(data_combined_prep$any_cases, na.rm=TRUE)
+
+# What percentage of cases we'll likely have seen before the start of this week
+#   based on historical years
+# DEV I believe the logic wasn't quite right in [V3]. 
+#   I am adding a filter to remove the current year from the calculations, and
+#   filtering by date (has been combined into weeks, but by date will yield same result here)  
+
+cases_before_fc_wk <- data_combined_prep %>% 
+  dplyr::filter(TBC_mod_wk_dt_week < date_forecast_week) %>% 
+  pull(case_count) %>% 
+  sum(na.rm = TRUE)
+
+cases_perc_obs_hx <- 100 * (cases_before_fc_wk / state_cases_total) %>% round(2)
+
+
+## 
+
+#which data add next
+#<<>><<>><<>><<>>
+
 
 
 ```
 
 
+```{r forecast_modeling, echo=FALSE}
 
-
-
-
-```{r weatherplots, fig.width=7, fig.height=5, echo=FALSE}
-```
-
-
-```{r mosquitodataread, echo=FALSE} 
+#<<>>
 
 ```
 
+<!-- End of internals: data load, processing, forecast modeling, etc. -->
+<!-- Everything below is report: text and figures. -->
 
-```{r mosquitodataprocess, echo=FALSE}
+
+
+
+
+
+
+
+```{r , fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
+```
+
+```{r , fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
 ```
 
 
-```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
-```
-
-```{r fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
-```
-
-```{r humandata, include=FALSE, echo=TRUE}
-
+```{r , include=TRUE, echo=FALSE, fig.width=6, fig.height=3}
 ```
 
 
-```{r mosqbymonth, include=TRUE, echo=FALSE, fig.width=6, fig.height=3}
+```{r , echo=FALSE, include=TRUE, fig.width=7, fig.height=3.5}
 ```
 
 
-```{r humandatasummary, echo=FALSE, include=TRUE, fig.width=7, fig.height=3.5}
+```{r , echo=TRUE, warnings=FALSE, include=FALSE}
 ```
 
 
-```{r humandata2, echo=TRUE, warnings=FALSE, include=FALSE}
-```
-
-
-```{r humanreg, echo=FALSE, include=FALSE}
+```{r , echo=FALSE, include=FALSE}
 
 ```
 
-```{r humanregplot, echo=FALSE}
+```{r , echo=FALSE}
+```
+
+
+```{r , fig.width=7, fig.height=4, echo=FALSE, warnings=FALSE}
 ```
 
 
@@ -950,43 +1138,17 @@ if (mosquito_model_clean %in% c("stratifiedMIGR", "stratifiedMII")){
 ```
 
 
-```{r fig.width=7, fig.height=4, echo=FALSE, warnings=FALSE}
-```
+```{r params_pretty, include=TRUE, echo=FALSE}
+#<<>>
 
-
-```{r, echo=FALSE, include=TRUE}
-```
-
-
-```{r curyearplot, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-```
-
-
-```{r echo=FALSE, width=7, height=8}
-```
-
-
-```{r shapefile, include=TRUE, echo=FALSE, warnings=FALSE}
-```
-
-
-
-```{r miscscaves, include=FALSE, echo=FALSE}
-```
-
-
-```{r riskcalcs, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 
 ```
 
 
-```{r modelplots, include=TRUE, echo=FALSE, fig.width=7, fig.height=4}
-```
+```{r appendix_switch, child=if (params$create_appendix) 'ArboMAP_forecast_appendix.Rmd'}
+# Conditionally add the appendix child file (to be created) depending the T/F value of create_appendix 
+#https://bookdown.org/yihui/rmarkdown-cookbook/child-document.html
 
+# <<>> DEV look at epidemia report to see what, if anything, needs set up here. 
 
-```{r diagnostics, include=FALSE, echo=FALSE}
-```
-
-
-```{r printparams, include=TRUE, echo=FALSE}
 ```
