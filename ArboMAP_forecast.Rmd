@@ -70,7 +70,8 @@ if (!require("pacman")) install.packages("pacman"); library(pacman)
 #load packages, install if not installed
 pacman::p_load(
   #data processing, tidyverse related 
-  dplyr, readr, tidyselect, rlang, tibble, stringr, 
+  dplyr, readr, tidyselect, rlang, 
+  tibble, stringr, glue,
   #add'l data processing
   zoo, 
   #modeling
@@ -287,10 +288,10 @@ create_id_field <- function(my_tbl, fld_vector){
   field_to_copy <- intersect(fld_vector, names(my_tbl))[[1]]
   
   updated_tbl <- my_tbl %>% 
-    #some rlang and ggplot2 functions to handle string to field name
-    #dplyr::mutate(arbo_ID = !!ggplot2::sym(field_to_copy))
-    #new way via the .data pronoun
-    dplyr::mutate(arbo_ID = .data[[field_to_copy]])
+    #slight weirdness with dynamic field name in tidyverse on RHS
+    #using glue {{}}
+    #https://stackoverflow.com/questions/26003574/use-dynamic-name-for-new-column-variable-in-dplyr
+    dplyr::mutate(arbo_ID = {{field_to_copy}})
 }
 
 standarize_fips <- function(my_tbl, fips_vector = field_fips_accepted){
@@ -697,7 +698,9 @@ if (params$mosquito_model %in% c(
   #if unmatched, default AUC
   mosquito_model_clean <- "AUC"
 }
-
+#list of non/stratified models for easier filtering
+mosq_nonstrat_models <- c("simpleratio", "AUC", "MIGR", "MII")
+mosq_strat_models <- c("stratifiedMIGR", "stratifiedMII")
 
 # Potentially multiple if blocks per model type, 
 #   depends on processing/calculations needed
@@ -817,7 +820,7 @@ if (mosquito_model_clean %in% c("MIGR", "MII")) {
   
 } #end if c("MIGR", "MII")
 
-if (mosquito_model_clean %in% c("stratifiedMIGR", "stratifiedMII")) {
+if (mosquito_model_clean %in% mosq_strat_models) {
   
   #add strata information to mosquito data
   data_mosquito <- data_mosquito %>% 
@@ -889,28 +892,13 @@ if (mosquito_model_clean %in% c("stratifiedMIGR", "stratifiedMII")) {
 
 
 # Center the MIR statistic 
-# NAs replaced in 0s only in non-stratified models (as coded in version 3) [V3]
 # [V3] Originally done in the plotting code. Carried through to modeling, so done here. 
+mosq_mir <- mosq_mir %>% 
+  dplyr::mutate(MIRsummarystat_ctr = MIRsummarystat_raw - mean(.$MIRsummarystat_raw, na.rm = TRUE))
 
-if (mosquito_model_clean %in% c("simpleratio", "AUC", "MIGR", "MII")){
-  
-  mosq_mir <- mosq_mir %>% 
-    dplyr::mutate(MIRsummarystat_ctr = MIRsummarystat_raw - mean(.$MIRsummarystat_raw, na.rm = TRUE),
-                  MIRsummarystat_ctr = tidyr::replace_na(MIRsummarystat_ctr, 0))
-  
-}
-
-if (mosquito_model_clean %in% c("stratifiedMIGR", "stratifiedMII")){
-  
-  mosq_mir <- mosq_mir %>% 
-    dplyr::mutate(MIRsummarystat_ctr = MIRsummarystat_raw - mean(.$MIRsummarystat_raw, na.rm = TRUE))
-  
-}
 
 # # DEV testing output
 # write_csv(mosq_mir, file = file.path("dev", "mosq_mir", paste0(mosquito_model_clean, "_postctr.csv")))
-
-
 ```
 
 ```{r data_weather_latest, echo=FALSE} 
@@ -1012,6 +1000,10 @@ rm(this_env_mod)
 # Human, mosq infection rate, and environmental data together
 #   creating full matrix in prep for forecast modeling
 
+# After creating frame based on human data, other data may need filling
+#   so additional processing/calculations happen in this block
+
+###
 ## Human
 
 #determine the range (of weeks of year) we should include in modelling [V3]
@@ -1025,8 +1017,7 @@ human_wk_min <- human_wks_alpha[1]
 human_wk_max <- human_wks_alpha[2]
 
 
-##Create dataset that will become the complete combined data for modelling input
-
+#Create dataset that will become the complete combined data for modelling input
 #First, use human data (what we are predicting) to set start and end dates
 # need to ensure that the end week is the last week of the year of the requested forecast week, 
 #   so seq.Date is reverse chronological
@@ -1050,9 +1041,6 @@ data_combined_prep <- tidyr::expand_grid(arbo_ID = dx_human_districts,
                                   TRUE,
                                   FALSE))
 
-
-#<<>><<>><<>><<>>
-
 #count the number of cases that occur in each week for each district
 #   note, if a district had no cases for that week, there will not be a row entry
 data_human_week <- data_human %>% 
@@ -1071,8 +1059,7 @@ data_combined_prep <- data_combined_prep %>%
                 any_cases = tidyr::replace_na(any_cases, 0)) 
 
 
-
-# Human case stats for report text
+## Human case stats for report text
 
 # Total number of cases over all districts over all time
 state_cases_total <- sum(data_combined_prep$case_count, na.rm=TRUE)
@@ -1080,7 +1067,7 @@ state_any_cases_total  <- sum(data_combined_prep$any_cases, na.rm=TRUE)
 
 # What percentage of cases we'll likely have seen before the start of this week
 #   based on historical years
-# DEV I believe the logic wasn't quite right in [V3]. 
+# DEV I believe the logic wasn't quite right in [V3]. [DMN]
 #   I am adding a filter to remove the current year from the calculations, and
 #   filtering by date (has been combined into weeks, but by date will yield same result here)  
 
@@ -1092,11 +1079,267 @@ cases_before_fc_wk <- data_combined_prep %>%
 cases_perc_obs_hx <- 100 * (cases_before_fc_wk / state_cases_total) %>% round(2)
 
 
-## 
+###
+## Mosquito MIR 
+# mosq_mir is name of dataset from mosquito modeling with MIRsummarystat
+# MIRsummarystat_ctr : field with MIRsummarystat raw values that have been centered
+# MIRsummarystat : created in this block, from _ctr, but also with imputation for needed missing entries
 
-#which data add next
-#<<>><<>><<>><<>>
+# Create temporary frames of full data, add in mir known, flag for imputation
+#   separated out by stratification models, as that involves the strata column as well 
+# Using data_combined_prep (the to-be-complete combined data)
+# to create a data frame with all the years that we will need for modeling
 
+if (mosquito_model_clean %in% mosq_nonstrat_models){
+
+  #for NON-stratified mosq models
+  
+  prep_mir_filler <- data_combined_prep %>% 
+    dplyr::select(mod_wk_dt_yr) %>% 
+    #one entry for each year
+    dplyr::distinct() %>% 
+    #join with mosq_mir to get 'MIRsummarystat_'s
+    dplyr::left_join(mosq_mir, by = "mod_wk_dt_yr") %>% 
+    #add flag if MIR summary stat needs to be imputed (i.e. if that combination is missing)
+    # AND if the year in within the human year range 
+    dplyr::mutate(mir_impute = (is.na(MIRsummarystat_ctr) & 
+                                     mod_wk_dt_yr >= params$year_human_start &
+                                     mod_wk_dt_yr <= params$year_human_end))
+  
+} else if (mosquito_model_clean %in% mosq_strat_models){
+  
+  #for stratified mosq models
+  
+  prep_mir_filler <- tidyr::expand_grid(strata = data_strata %>% 
+                                          dplyr::pull(strata) %>% 
+                                          unique() %>% sort(),
+                                        mod_wk_dt_yr = data_combined_prep %>% 
+                                          dplyr::pull(mod_wk_dt_yr) %>% 
+                                          #for consistency with data_combined_, 
+                                          #keep with reverse chronological
+                                          unique() %>% sort(decreasing = TRUE)) %>% 
+    #join with mosq_mir to get 'MIRsummarystat_'s
+    dplyr::left_join(mosq_mir, by = c("strata", "mod_wk_dt_yr" = "year_obs")) %>% 
+    #add flag if MIR summary stat needs to be imputed (i.e. if that combination is missing)
+    # AND if the year in within the human year range 
+    dplyr::mutate(mir_impute = (is.na(MIRsummarystat_ctr) & 
+                                     mod_wk_dt_yr >= params$year_human_start &
+                                     mod_wk_dt_yr <= params$year_human_end))
+}
+
+#replace NA MIRsummarystat_ctr with zero (i.e. average risk, per comment from [V3])
+# creating final MIRsummarystat variable to use in modelling
+prep_mir_filler <- dplyr::mutate(prep_mir_filler, 
+                                 MIRsummarystat = if_else(mir_impute, 
+                                                          0,
+                                                          MIRsummarystat_ctr))
+
+# IF MIRsummarystat has been imputed, then doing exactfit
+#   Add appropriate exactfit columns here
+
+yrs_mir_imputed <- prep_mir_filler %>% 
+  filter(mir_impute == TRUE) %>% 
+  pull(mod_wk_dt_yr) %>% unique() %>% sort(decreasing = TRUE)
+
+#loop over these years to add a column for each year
+# that flags if it will be an exactfit
+for (this_yr in yrs_mir_imputed){
+  
+  this_col_name <- paste0("exactfit_", this_yr)
+  
+  prep_mir_filler <- prep_mir_filler %>% 
+    #slight weirdness for dynamic field name on left-hand side (tidyverse)
+    #using glue {{}} with := assignment operator
+    #https://stackoverflow.com/questions/26003574/use-dynamic-name-for-new-column-variable-in-dplyr
+     mutate({{this_col_name}} := (mod_wk_dt_yr == this_yr))
+  
+}
+
+# record years (or none) for text in report
+if (length(yrs_mir_imputed) == 0) {
+  yrs_mir_imputed_text <- "none"
+} else {
+  yrs_mir_imputed_text <- stringr::str_flatten(yrs_mir_imputed, 
+                                               collapse = ", ")
+}
+
+# Now, add our final MIRsummarystat to the combined data set
+if (mosquito_model_clean %in% mosq_nonstrat_models){
+  
+  data_combined_prep <- data_combined_prep %>% 
+    #MIRsummarystat same for every week and district within a year
+    dplyr::left_join(prep_mir_filler, by = "mod_wk_dt_yr")
+  
+} else if (mosquito_model_clean %in% mosq_strat_models){
+    
+  data_combined_prep <- data_combined_prep %>% 
+      #join with data_strata to get strata
+    dplyr::left_join(data_strata %>% 
+                       select(arbo_ID, strata),
+                     by = "arbo_ID") %>% 
+    #MIRsummarystat same for every week and district within a year
+    dplyr::left_join(prep_mir_filler, by = c("mod_wk_dt_yr", "strata"))
+
+}
+
+
+
+
+
+## Environmental data
+
+# <<>><<>><<>>
+
+
+
+
+
+
+
+# select which variables we're going to use
+weather <- data.frame(weather)
+weather$var1 <- weather[,which(colnames(weather) == var1name)]
+weather$var2 <- weather[,which(colnames(weather) == var2name)]
+
+weather$anom_var1 <- weather[,which(colnames(weather) == paste("anom_", var1name, sep=""))]
+weather$anom_var2 <- weather[,which(colnames(weather) == paste("anom_", var2name, sep=""))]
+
+weather <- weather[c("district", "date", "var1", "var2", "anom_var1", "anom_var2")]
+weather$district <- simplifynames(weather$district)
+# fill in missing and future climatological data
+totalweather <- expand.grid(district=unique(weather$district),
+                            date=seq(from=as.Date(paste(minhumandesiredyear-1, "-01-01", sep=""),
+                                                  "%Y-%m-%d"),
+                                     to=  as.Date(paste(maxhumandesiredyear, "-12-31", sep=""),
+                                                  "%Y-%m-%d"),
+                                     by=1))
+weather <- merge(x=totalweather, y=weather,
+                 by.x=c("district","date"),
+                 by.y=c("district","date"),
+                 all.x=TRUE)
+weather$doy <- as.numeric(format(weather$date, "%j"))
+
+weather <- group_by(weather, district, doy)
+districtdoymean <- dplyr::summarize(weather,
+                                    meanvar1=mean(var1, na.rm=TRUE),
+                                    meanvar2=mean(var2, na.rm=TRUE),
+                                    .groups="keep")
+weather <- ungroup(weather)                           
+
+weather <- left_join(weather, districtdoymean,
+                     by=c("district","doy"))
+
+# replace missing with reasonable values
+weather$var1[is.na(weather$var1)] <- weather$meanvar1[is.na(weather$var1)]
+weather$var2[is.na(weather$var2)] <- weather$meanvar2[is.na(weather$var2)]
+weather$anom_var1[is.na(weather$anom_var1)] <- 0
+weather$anom_var2[is.na(weather$anom_var2)] <- 0
+
+# garbage collection
+rm(districtdoymean)
+weather$meanvar1 <- NULL
+weather$meanvar2 <- NULL
+gc()
+
+# we need the districts to be in lower case to merge with the gridMET data
+fullcasemat$district <- simplifynames(fullcasemat$district)
+
+datalagger <- expand.grid(unique(fullcasemat$district),
+                          unique(fullcasemat$weekstartdate),
+                          seq(from=0, to=laglen-1, by=1))
+names(datalagger) <- c("district","date","lag")
+datalagger$laggeddate <- datalagger$date-datalagger$lag
+
+datalagger <- left_join(datalagger, weather,
+                        by=c("district"="district",
+                             "laggeddate"="date"))
+
+# garbage collection
+rm(weather)
+gc()
+
+# pivot
+mean1data <- dcast(datalagger, district + date ~ lag, value.var="var1")
+names(mean1data) <- paste("var1_",names(mean1data),sep="")
+mean2data <- dcast(datalagger, district + date ~ lag, value.var="var2")
+names(mean2data) <- paste("var2_",names(mean2data),sep="")
+
+anom_mean1data <- dcast(datalagger, district + date ~ lag, value.var="anom_var1")
+names(anom_mean1data) <- paste("anom_var1_",names(anom_mean1data),sep="")
+anom_mean2data <- dcast(datalagger, district + date ~ lag, value.var="anom_var2")
+names(anom_mean2data) <- paste("anom_var2_",names(anom_mean2data),sep="")
+
+# garbage collection
+rm(datalagger)
+gc()
+
+# and put all this lagged info back into the total case matrix
+fullcasemat <- merge(x=fullcasemat, y=mean1data,
+                     by.x=c("district", "weekstartdate"),
+                     by.y=c("var1_district","var1_date"),
+                     all.x=TRUE)
+fullcasemat <- merge(x=fullcasemat, y=mean2data,
+                     by.x=c("district", "weekstartdate"),
+                     by.y=c("var2_district","var2_date"),
+                     all.x=TRUE)
+
+# turn these into matrices
+fullcasemat$var1 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
+                                                pattern="var1_",
+                                                fixed=TRUE)])
+fullcasemat$var2 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
+                                                pattern="var2_",
+                                                fixed=TRUE)])
+fullcasemat <- merge(x=fullcasemat, y=anom_mean1data,
+                     by.x=c("district", "weekstartdate"),
+                     by.y=c("anom_var1_district","anom_var1_date"),
+                     all.x=TRUE)
+fullcasemat <- merge(x=fullcasemat, y=anom_mean2data,
+                     by.x=c("district", "weekstartdate"),
+                     by.y=c("anom_var2_district","anom_var2_date"),
+                     all.x=TRUE)
+
+# turn these into matrices too
+fullcasemat$anom_var1 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
+                                                     pattern="anom_var1_",
+                                                     fixed=TRUE)])
+fullcasemat$anom_var2 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
+                                                     pattern="anom_var2_",
+                                                     fixed=TRUE)])
+
+fullcasemat[,grep(x=colnames(fullcasemat), pattern="var1_", fixed=TRUE)] <- NULL
+fullcasemat[,grep(x=colnames(fullcasemat), pattern="var2_", fixed=TRUE)] <- NULL
+fullcasemat[,grep(x=colnames(fullcasemat), pattern="anom_var1_", fixed=TRUE)] <- NULL
+fullcasemat[,grep(x=colnames(fullcasemat), pattern="anom_var2_", fixed=TRUE)] <- NULL
+
+# create lag matrix
+fullcasemat$lag <- fullcasemat$var1
+for (curcol in 1:dim(fullcasemat$lag)[2]) {
+  
+  fullcasemat$lag[,curcol] <- (curcol-1)
+  
+}
+
+# create terms for seasonally-varying distributed lag
+fullcasemat$doymat <- fullcasemat$lag
+fullcasemat$doymat[,] <- fullcasemat$doy
+
+fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
+
+# do we have strata?
+if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
+  
+  fullcasemat <- left_join(fullcasemat, strata, by="district")
+  fullcasemat$stratumyear <- paste(fullcasemat$strata,
+                                   fullcasemat$year,
+                                   sep="-")
+  
+}
+
+# garbage collection
+rm(mean1data)
+rm(mean2data)
+gc()
 
 
 ```
@@ -1104,7 +1347,79 @@ cases_perc_obs_hx <- 100 * (cases_before_fc_wk / state_cases_total) %>% round(2)
 
 ```{r forecast_modeling, echo=FALSE}
 
-#<<>>
+#<<>><<>><<>>
+# rem GAM dev switch
+# rem get model cache code from other project
+
+
+# set up list to contain models
+modelplots <- list()
+
+# make sure district is a factor before modeling
+fullcasemat$district <- factor(fullcasemat$district)
+
+# get list of models and run them
+preds <- data.frame()
+modelevals <- data.frame()
+curmodel <- modelnames[1]
+for (curmodel in modelnames) {
+  
+  # get the formula
+  thisformula <- modelformulas[c(curmodel)]
+  
+  # add any exact fits
+  exactfitlist <- colnames(fullcasemat)[grep(x=colnames(fullcasemat),
+                                             pattern="exactfit_",
+                                             fixed=TRUE)]
+  if (length(exactfitlist) > 0) {
+    
+    exactfitlist <- paste(exactfitlist, collapse = " + ")
+    thisformula <- paste(thisformula, exactfitlist, sep= " + ")
+    
+  }
+  myform <- as.formula(thisformula)
+  
+  # main human risk model
+  cl <- makeCluster(detectCores(logical=FALSE)-1)
+  firstreg  <- bam(formula=myform,
+                   family=binomial(), data=fullcasemat,
+                   subset=modeled==1,
+                   cluster=cl)
+  stopCluster(cl)
+  
+  # add model plots to the list
+  modelplots[[curmodel]] <- plot(firstreg, select=1)
+  
+  # predict on this model
+  fullcasemat$pred <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
+  
+  # censor predictions outside of the observed range
+  fullcasemat$pred[fullcasemat$weeknum < minhumanobsweek] <- 0
+  fullcasemat$pred[fullcasemat$weeknum > maxhumanobsweek] <- 0
+  
+  # get data frame of predictions from this model
+  tempdf <- data.frame(weekstartdate = fullcasemat$weekstartdate,
+                       district = fullcasemat$district,
+                       anycases = fullcasemat$anycases,
+                       totalcases = fullcasemat$totalcases,
+                       observed = fullcasemat$observed,
+                       modeled = fullcasemat$modeled,
+                       pred = fullcasemat$pred,
+                       model = curmodel)
+  preds <- bind_rows(preds, tempdf)
+  
+  # evaluate this model fit
+  tempdf <- fullcasemat[fullcasemat$modeled == 1,]
+  tempdf <- data.frame(auc = round_any(roc(response = tempdf$anycases,
+                                           predictor = tempdf$pred,
+                                           na.rm=TRUE,
+                                           auc=TRUE)$auc, 0.01),
+                       aic = round_any(AIC(firstreg)[1], 0.01),
+                       model = curmodel)
+  modelevals <- bind_rows(modelevals, tempdf)
+  
+}
+
 
 ```
 
