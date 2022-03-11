@@ -677,7 +677,11 @@ if (resample_mosquito){
 
 # Calculates MIRsummarystat (mosquito infection rate), based on mosquito model
 #   Creates mosq_mir : 
-#   dataset with 'year_obs' and 'MIRsummarystat', (and 'strata' for stratified models)
+#   dataset with 'year_obs' and 'MIRsummarystat's, (and 'strata' for stratified models)
+#   MIRsummarystat_raw : calculated via modelling
+#   MIRsummarystat_ctr : post centering of above raw value
+#   MIRsummarystat : NOT created in this block, but in combining data code block below.
+#                   _ctr after imputation of any missing that are needed (used in modelling)
 
 # If match failure, default will be AUC
 # Note: If add a mosquito model, you MUST add it here
@@ -708,9 +712,9 @@ if (mosquito_model_clean == "simpleratio") {
     dplyr::summarise(tot_pos = sum(wnv_result, na.rm=TRUE),
                      tot_test = n()) %>%
     #simpleratio MIR is ratio of total positive pools over total pools tested
-    dplyr::mutate(MIRsummarystat = tot_pos / tot_test) %>% 
-    #select only year and summary stat for consistency across all non-strat mosq models
-    dplyr::select(year_obs, MIRsummarystat)
+    dplyr::mutate(MIRsummarystat_raw = tot_pos / tot_test) %>% 
+    #select only year and summary stat for consistency
+    dplyr::select(year_obs, MIRsummarystat_raw)
   
 } #end if 'simpleratio'
 
@@ -748,7 +752,7 @@ if (mosquito_model_clean == "AUC") {
   # DEV note: Appears to be the sum of the predictions from all dminus values per year [DMN]
   mosq_mir <- pred_frame %>% 
     dplyr::group_by(year_obs) %>% 
-    dplyr::summarise(MIRsummarystat = sum(pred, na.rm = TRUE)) %>% 
+    dplyr::summarise(MIRsummarystat_raw = sum(pred, na.rm = TRUE)) %>% 
     #make year numeric again (not factor)
     dplyr::mutate(year_obs = as.numeric(as.character(year_obs)))
   
@@ -794,16 +798,20 @@ if (mosquito_model_clean %in% c("MIGR", "MII")) {
   if (mosquito_model_clean == "MIGR") {
     
     #[V3] predict random effects for all years
-    mosq_mir <- tibble(year_obs = rownames(nlme::random.effects(mir_glm)$year_obs) %>% as.numeric(),
-                       MIRsummarystat = nlme::random.effects(mir_glm)$year_obs[,1]) #[,1] are intercept values [DMN]
+    mosq_mir <- tibble(year_obs = rownames(nlme::random.effects(mir_glm)$year_obs) %>% 
+                         as.numeric(),
+                       #[,1] are intercept values [DMN]
+                       MIRsummarystat_raw = nlme::random.effects(mir_glm)$year_obs[,1]) 
     
     
   }
   if (mosquito_model_clean == "MII") {
     
     #[V3] predict random effects for all years
-    mosq_mir <- tibble(year_obs = rownames(nlme::random.effects(mir_glm)$year_obs) %>% as.numeric(),
-                       MIRsummarystat = nlme::random.effects(mir_glm)$year_obs[,2]) #[,2] are dminus values [DMN]
+    mosq_mir <- tibble(year_obs = rownames(nlme::random.effects(mir_glm)$year_obs) %>%
+                         as.numeric(),
+                       #[,2] are dminus values [DMN]
+                       MIRsummarystat_raw = nlme::random.effects(mir_glm)$year_obs[,2]) 
     
   }
   
@@ -845,10 +853,15 @@ if (mosquito_model_clean %in% c("stratifiedMIGR", "stratifiedMII")) {
     #[V3] predict random effects for all years
     mosq_mir <- tibble(stratum_year = rownames(nlme::random.effects(mir_glm)$stratum_year),
                        #[,1] seems to pull the intercept values [DMN]
-                       MIRsummarystat = nlme::random.effects(mir_glm)$stratum_year[,1]) %>% 
+                       MIRsummarystat_raw = nlme::random.effects(mir_glm)$stratum_year[,1]) %>% 
       #split stratum and year back out
       mutate(year_obs = stringr::str_split_fixed(stratum_year, "_", n = 2)[,2],
-             strata = stringr::str_split_fixed(stratum_year, "_", n = 2)[,1]) %>% 
+             strata = stringr::str_split_fixed(stratum_year, "_", n = 2)[,1],
+             #convert year back to numeric
+             year_obs = as.numeric(year_obs),
+             #need to convert strata back to whatever data type as in data_strata
+             #    in example is dbl for '101', etc. But could conceivably be numeric or string
+             strata = as(strata, class(data_strata$strata))) %>% 
       #drop old field
       select(-stratum_year)
     
@@ -858,20 +871,21 @@ if (mosquito_model_clean %in% c("stratifiedMIGR", "stratifiedMII")) {
     #[V3] predict random effects for all years
     mosq_mir <- tibble(stratum_year = rownames(nlme::random.effects(mir_glm)$stratum_year),
                        #[,2] seems to pull the dminus values [DMN]
-                       MIRsummarystat = nlme::random.effects(mir_glm)$stratum_year[,2]) %>% 
+                       MIRsummarystat_raw = nlme::random.effects(mir_glm)$stratum_year[,2]) %>% 
       #split stratum and year back out
       mutate(year_obs = stringr::str_split_fixed(stratum_year, "_", n = 2)[,2],
-             strata = stringr::str_split_fixed(stratum_year, "_", n = 2)[,1]) %>% 
+             strata = stringr::str_split_fixed(stratum_year, "_", n = 2)[,1],
+             #convert year back to numeric
+             year_obs = as.numeric(year_obs),
+             #need to convert strata back to whatever data type as in data_strata
+             #    in example is dbl for '101', etc. But could conceivably be numeric or string
+             strata = as(strata, class(data_strata$strata))) %>% 
       #drop old field
       select(-stratum_year)
     
   }
   
 } #end if c("stratifiedMIGR", "stratifiedMII")
-
-
-# # DEV testing output
-# write_csv(mosq_mir, file = file.path("dev", "mosq_mir", paste0(mosquito_model_clean, "_1precenter.csv")))
 
 
 # Center the MIR statistic 
@@ -881,20 +895,21 @@ if (mosquito_model_clean %in% c("stratifiedMIGR", "stratifiedMII")) {
 if (mosquito_model_clean %in% c("simpleratio", "AUC", "MIGR", "MII")){
   
   mosq_mir <- mosq_mir %>% 
-    dplyr::mutate(MIRsummarystat = MIRsummarystat - mean(.$MIRsummarystat, na.rm = TRUE),
-                  MIRsummarystat = tidyr::replace_na(MIRsummarystat, 0))
+    dplyr::mutate(MIRsummarystat_ctr = MIRsummarystat_raw - mean(.$MIRsummarystat_raw, na.rm = TRUE),
+                  MIRsummarystat_ctr = tidyr::replace_na(MIRsummarystat_ctr, 0))
   
 }
 
 if (mosquito_model_clean %in% c("stratifiedMIGR", "stratifiedMII")){
   
   mosq_mir <- mosq_mir %>% 
-    dplyr::mutate(MIRsummarystat = MIRsummarystat - mean(.$MIRsummarystat, na.rm = TRUE))
+    dplyr::mutate(MIRsummarystat_ctr = MIRsummarystat_raw - mean(.$MIRsummarystat_raw, na.rm = TRUE))
   
 }
 
 # # DEV testing output
-# write_csv(mosq_mir, file = file.path("dev", "mosq_mir", paste0(mosquito_model_clean, "_2centered.csv")))
+# write_csv(mosq_mir, file = file.path("dev", "mosq_mir", paste0(mosquito_model_clean, "_postctr.csv")))
+
 
 ```
 
