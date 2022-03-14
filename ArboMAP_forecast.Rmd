@@ -1049,7 +1049,7 @@ rm(this_env_mod)
 #   so additional processing/calculations happen in this block
 
 ###
-## Human
+## Human -------------------------------------------------------
 
 #determine the range (of weeks of year) we should include in modelling [V3]
 # this is based on the human case_trim_alpha parameter
@@ -1077,7 +1077,7 @@ data_combined_prep <- tidyr::expand_grid(arbo_ID = dx_human_districts,
                 #create a flag if the week was in years between 
                 #  params year_human_start through year_human_end
                 observed = if_else(mod_wk_dt_yr >= params$year_human_start &
-                                    mod_wk_dt_yr <= params$year_human_end,
+                                     mod_wk_dt_yr <= params$year_human_end,
                                    TRUE,
                                    FALSE),
                 #create a flag if the week was within the trimmed alpha week range)
@@ -1117,15 +1117,14 @@ state_any_cases_total  <- sum(data_combined_prep$any_cases, na.rm=TRUE)
 #   filtering by date (has been combined into weeks, but by date will yield same result here)  
 
 cases_before_fc_wk <- data_combined_prep %>% 
-  dplyr::filter(TBC_mod_wk_dt_week < date_forecast_week) %>% 
+  dplyr::filter(TBC_mod_wk_dt_week < date_request_week) %>% 
   pull(case_count) %>% 
   sum(na.rm = TRUE)
 
 cases_perc_obs_hx <- 100 * (cases_before_fc_wk / state_cases_total) %>% round(2)
 
 
-###
-## Mosquito MIR 
+## Mosquito MIR -------------------------------------------------------
 # mosq_mir is name of dataset from mosquito modeling with MIRsummarystat
 # MIRsummarystat_ctr : field with MIRsummarystat raw values that have been centered
 # MIRsummarystat : created in this block, from _ctr, but also with imputation for needed missing entries
@@ -1136,7 +1135,7 @@ cases_perc_obs_hx <- 100 * (cases_before_fc_wk / state_cases_total) %>% round(2)
 # to create a data frame with all the years that we will need for modeling
 
 if (mosquito_model_clean %in% mosq_nonstrat_models){
-
+  
   #for NON-stratified mosq models
   
   prep_mir_filler <- data_combined_prep %>% 
@@ -1144,12 +1143,12 @@ if (mosquito_model_clean %in% mosq_nonstrat_models){
     #one entry for each year
     dplyr::distinct() %>% 
     #join with mosq_mir to get 'MIRsummarystat_'s
-    dplyr::left_join(mosq_mir, by = "mod_wk_dt_yr") %>% 
+    dplyr::left_join(mosq_mir, by = c("mod_wk_dt_yr" = "year_obs")) %>% 
     #add flag if MIR summary stat needs to be imputed (i.e. if that combination is missing)
     # AND if the year in within the human year range 
     dplyr::mutate(mir_impute = (is.na(MIRsummarystat_ctr) & 
-                                     mod_wk_dt_yr >= params$year_human_start &
-                                     mod_wk_dt_yr <= params$year_human_end))
+                                  mod_wk_dt_yr >= params$year_human_start &
+                                  mod_wk_dt_yr <= params$year_human_end))
   
 } else if (mosquito_model_clean %in% mosq_strat_models){
   
@@ -1168,8 +1167,8 @@ if (mosquito_model_clean %in% mosq_nonstrat_models){
     #add flag if MIR summary stat needs to be imputed (i.e. if that combination is missing)
     # AND if the year in within the human year range 
     dplyr::mutate(mir_impute = (is.na(MIRsummarystat_ctr) & 
-                                     mod_wk_dt_yr >= params$year_human_start &
-                                     mod_wk_dt_yr <= params$year_human_end))
+                                  mod_wk_dt_yr >= params$year_human_start &
+                                  mod_wk_dt_yr <= params$year_human_end))
 }
 
 #replace NA MIRsummarystat_ctr with zero (i.e. average risk, per comment from [V3])
@@ -1179,7 +1178,7 @@ prep_mir_filler <- dplyr::mutate(prep_mir_filler,
                                                           0,
                                                           MIRsummarystat_ctr))
 
-# IF MIRsummarystat has been imputed, then doing exactfit
+# If MIRsummarystat has been imputed, then doing exactfit
 #   Add appropriate exactfit columns here
 
 yrs_mir_imputed <- prep_mir_filler %>% 
@@ -1196,7 +1195,7 @@ for (this_yr in yrs_mir_imputed){
     #slight weirdness for dynamic field name on left-hand side (tidyverse)
     #using glue {{}} with := assignment operator
     #https://stackoverflow.com/questions/26003574/use-dynamic-name-for-new-column-variable-in-dplyr
-     mutate({{this_col_name}} := (mod_wk_dt_yr == this_yr))
+    mutate({{this_col_name}} := (mod_wk_dt_yr == this_yr))
   
 }
 
