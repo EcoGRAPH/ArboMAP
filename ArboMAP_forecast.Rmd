@@ -1215,175 +1215,187 @@ if (mosquito_model_clean %in% mosq_nonstrat_models){
     dplyr::left_join(prep_mir_filler, by = "mod_wk_dt_yr")
   
 } else if (mosquito_model_clean %in% mosq_strat_models){
-    
+  
   data_combined_prep <- data_combined_prep %>% 
-      #join with data_strata to get strata
+    #join with data_strata to get strata
     dplyr::left_join(data_strata %>% 
                        select(arbo_ID, strata),
                      by = "arbo_ID") %>% 
     #MIRsummarystat same for every week and district within a year
     dplyr::left_join(prep_mir_filler, by = c("mod_wk_dt_yr", "strata"))
-
+  
 }
 
 
+## Environmental -------------------------------------------------------
+
+# fill in future and missing env data 
+# within known env period, the missing have been replaced 
+#   with bam predictions during anomalization 
+
+#sequence of dates for env data matrix
+# from Jan 1 of the year BEFORE the start of the requested modeling start year
+# through the end of the requested modeling end year
+env_dates <- seq.Date(from = as.Date(paste0(params$year_modeling_start - 1, "-01-01"), 
+                                     format = "%Y-%m-%d"),
+                      to = as.Date(paste0(params$year_modeling_end, "-12-31"), 
+                                   format = "%Y-%m-%d"),
+                      by = 1)
+#create blank tbl with all dates and districts (districts that were present in env data)
+prep_env_filler <- tidyr::expand_grid(arbo_ID = data_env %>% 
+                                        dplyr::pull(arbo_ID) %>% 
+                                        unique() %>% sort(),
+                                      date_obs = env_dates)
 
 
-
-## Environmental data
+# create a new env dataset to use for modelling
+#     could overwrite old one, but creating new temporarily [DMN]
+# subset of env data to add to
+data_env_mod <- data_env %>% 
+  # select only variables we are going to use
+  #using contains gets both unanomalized and anomalized columns
+  dplyr::select(arbo_ID,
+                date_obs,
+                doy,
+                tidyselect::contains(c(params$predictor_var1, 
+                                       params$predictor_var2))) %>%
+  #add rows from filler
+  dplyr::left_join(prep_env_filler, by = c("arbo_ID", "date_obs")) %>% 
+  #get historical values from hx table
+  dplyr::left_join(data_env_hx, by = c("arbo_ID", "doy")) %>% 
+  #replace all missing with reasonable values
+  #   raw values get mean of doy
+  #   anom values get 0 (no anomaly)
+  #creating HARD CODED field names for bam later
+  #interesting RHS syntax b/c of tidyverse
+  dplyr::mutate(
+    var1 = dplyr::if_else(
+      #predictor_var1 from the params
+      is.na(!!rlang::sym(params$predictor_var1)), 
+      #if NA, use doy mean value
+      !!rlang::sym(paste0(params$predictor_var1, "_mean")),
+      #else use what was there
+      !!rlang::sym(params$predictor_var1)),
+    var2 = dplyr::if_else(
+      #predictor_var2 from the params
+      is.na(!!rlang::sym(params$predictor_var2)), 
+      #if NA, use doy mean value
+      !!rlang::sym(paste0(params$predictor_var2, "_mean")),
+      #else use what was there
+      !!rlang::sym(params$predictor_var2)),
+    var1_anom = dplyr::if_else(
+      #anomaly of predictor_var1
+      is.na(!!rlang::sym(paste0(params$predictor_var1, "_anom"))), 
+      #if anom is NA, use 0 (no anomaly)
+      0,
+      #else use what was there
+      !!rlang::sym(paste0(params$predictor_var1, "_anom"))), 
+    var2_anom = dplyr::if_else(
+      #anomaly of predictor_var2
+      is.na(!!rlang::sym(paste0(params$predictor_var2, "_anom"))),
+      #if anom is NA, use 0 (no anomaly)
+      0,
+      #else use what was there
+      !!rlang::sym(paste0(params$predictor_var2, "_anom"))))
 
 # <<>><<>><<>>
-
-
-
-
-
-
-
-# select which variables we're going to use
-weather <- data.frame(weather)
-weather$var1 <- weather[,which(colnames(weather) == var1name)]
-weather$var2 <- weather[,which(colnames(weather) == var2name)]
-
-weather$anom_var1 <- weather[,which(colnames(weather) == paste("anom_", var1name, sep=""))]
-weather$anom_var2 <- weather[,which(colnames(weather) == paste("anom_", var2name, sep=""))]
-
-weather <- weather[c("district", "date", "var1", "var2", "anom_var1", "anom_var2")]
-weather$district <- simplifynames(weather$district)
-# fill in missing and future climatological data
-totalweather <- expand.grid(district=unique(weather$district),
-                            date=seq(from=as.Date(paste(minhumandesiredyear-1, "-01-01", sep=""),
-                                                  "%Y-%m-%d"),
-                                     to=  as.Date(paste(maxhumandesiredyear, "-12-31", sep=""),
-                                                  "%Y-%m-%d"),
-                                     by=1))
-weather <- merge(x=totalweather, y=weather,
-                 by.x=c("district","date"),
-                 by.y=c("district","date"),
-                 all.x=TRUE)
-weather$doy <- as.numeric(format(weather$date, "%j"))
-
-weather <- group_by(weather, district, doy)
-districtdoymean <- dplyr::summarize(weather,
-                                    meanvar1=mean(var1, na.rm=TRUE),
-                                    meanvar2=mean(var2, na.rm=TRUE),
-                                    .groups="keep")
-weather <- ungroup(weather)                           
-
-weather <- left_join(weather, districtdoymean,
-                     by=c("district","doy"))
-
-# replace missing with reasonable values
-weather$var1[is.na(weather$var1)] <- weather$meanvar1[is.na(weather$var1)]
-weather$var2[is.na(weather$var2)] <- weather$meanvar2[is.na(weather$var2)]
-weather$anom_var1[is.na(weather$anom_var1)] <- 0
-weather$anom_var2[is.na(weather$anom_var2)] <- 0
-
-# garbage collection
-rm(districtdoymean)
-weather$meanvar1 <- NULL
-weather$meanvar2 <- NULL
-gc()
-
-# we need the districts to be in lower case to merge with the gridMET data
-fullcasemat$district <- simplifynames(fullcasemat$district)
-
-datalagger <- expand.grid(unique(fullcasemat$district),
-                          unique(fullcasemat$weekstartdate),
-                          seq(from=0, to=laglen-1, by=1))
-names(datalagger) <- c("district","date","lag")
-datalagger$laggeddate <- datalagger$date-datalagger$lag
-
-datalagger <- left_join(datalagger, weather,
-                        by=c("district"="district",
-                             "laggeddate"="date"))
-
-# garbage collection
-rm(weather)
-gc()
-
-# pivot
-mean1data <- dcast(datalagger, district + date ~ lag, value.var="var1")
-names(mean1data) <- paste("var1_",names(mean1data),sep="")
-mean2data <- dcast(datalagger, district + date ~ lag, value.var="var2")
-names(mean2data) <- paste("var2_",names(mean2data),sep="")
-
-anom_mean1data <- dcast(datalagger, district + date ~ lag, value.var="anom_var1")
-names(anom_mean1data) <- paste("anom_var1_",names(anom_mean1data),sep="")
-anom_mean2data <- dcast(datalagger, district + date ~ lag, value.var="anom_var2")
-names(anom_mean2data) <- paste("anom_var2_",names(anom_mean2data),sep="")
-
-# garbage collection
-rm(datalagger)
-gc()
-
-# and put all this lagged info back into the total case matrix
-fullcasemat <- merge(x=fullcasemat, y=mean1data,
-                     by.x=c("district", "weekstartdate"),
-                     by.y=c("var1_district","var1_date"),
-                     all.x=TRUE)
-fullcasemat <- merge(x=fullcasemat, y=mean2data,
-                     by.x=c("district", "weekstartdate"),
-                     by.y=c("var2_district","var2_date"),
-                     all.x=TRUE)
-
-# turn these into matrices
-fullcasemat$var1 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
-                                                pattern="var1_",
-                                                fixed=TRUE)])
-fullcasemat$var2 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
-                                                pattern="var2_",
-                                                fixed=TRUE)])
-fullcasemat <- merge(x=fullcasemat, y=anom_mean1data,
-                     by.x=c("district", "weekstartdate"),
-                     by.y=c("anom_var1_district","anom_var1_date"),
-                     all.x=TRUE)
-fullcasemat <- merge(x=fullcasemat, y=anom_mean2data,
-                     by.x=c("district", "weekstartdate"),
-                     by.y=c("anom_var2_district","anom_var2_date"),
-                     all.x=TRUE)
-
-# turn these into matrices too
-fullcasemat$anom_var1 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
-                                                     pattern="anom_var1_",
-                                                     fixed=TRUE)])
-fullcasemat$anom_var2 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
-                                                     pattern="anom_var2_",
-                                                     fixed=TRUE)])
-
-fullcasemat[,grep(x=colnames(fullcasemat), pattern="var1_", fixed=TRUE)] <- NULL
-fullcasemat[,grep(x=colnames(fullcasemat), pattern="var2_", fixed=TRUE)] <- NULL
-fullcasemat[,grep(x=colnames(fullcasemat), pattern="anom_var1_", fixed=TRUE)] <- NULL
-fullcasemat[,grep(x=colnames(fullcasemat), pattern="anom_var2_", fixed=TRUE)] <- NULL
-
-# create lag matrix
-fullcasemat$lag <- fullcasemat$var1
-for (curcol in 1:dim(fullcasemat$lag)[2]) {
-  
-  fullcasemat$lag[,curcol] <- (curcol-1)
-  
-}
-
-# create terms for seasonally-varying distributed lag
-fullcasemat$doymat <- fullcasemat$lag
-fullcasemat$doymat[,] <- fullcasemat$doy
-
-fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
-
-# do we have strata?
-if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
-  
-  fullcasemat <- left_join(fullcasemat, strata, by="district")
-  fullcasemat$stratumyear <- paste(fullcasemat$strata,
-                                   fullcasemat$year,
-                                   sep="-")
-  
-}
-
-# garbage collection
-rm(mean1data)
-rm(mean2data)
-gc()
+# 
+# datalagger <- expand.grid(unique(fullcasemat$district),
+#                           unique(fullcasemat$weekstartdate),
+#                           seq(from=0, to=laglen-1, by=1))
+# names(datalagger) <- c("district","date","lag")
+# datalagger$laggeddate <- datalagger$date-datalagger$lag
+# 
+# datalagger <- left_join(datalagger, weather,
+#                         by=c("district"="district",
+#                              "laggeddate"="date"))
+# 
+# # garbage collection
+# rm(weather)
+# gc()
+# 
+# # pivot
+# mean1data <- dcast(datalagger, district + date ~ lag, value.var="var1")
+# names(mean1data) <- paste("var1_",names(mean1data),sep="")
+# mean2data <- dcast(datalagger, district + date ~ lag, value.var="var2")
+# names(mean2data) <- paste("var2_",names(mean2data),sep="")
+# 
+# anom_mean1data <- dcast(datalagger, district + date ~ lag, value.var="anom_var1")
+# names(anom_mean1data) <- paste("anom_var1_",names(anom_mean1data),sep="")
+# anom_mean2data <- dcast(datalagger, district + date ~ lag, value.var="anom_var2")
+# names(anom_mean2data) <- paste("anom_var2_",names(anom_mean2data),sep="")
+# 
+# # garbage collection
+# rm(datalagger)
+# gc()
+# 
+# # and put all this lagged info back into the total case matrix
+# fullcasemat <- merge(x=fullcasemat, y=mean1data,
+#                      by.x=c("district", "weekstartdate"),
+#                      by.y=c("var1_district","var1_date"),
+#                      all.x=TRUE)
+# fullcasemat <- merge(x=fullcasemat, y=mean2data,
+#                      by.x=c("district", "weekstartdate"),
+#                      by.y=c("var2_district","var2_date"),
+#                      all.x=TRUE)
+# 
+# # turn these into matrices
+# fullcasemat$var1 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
+#                                                 pattern="var1_",
+#                                                 fixed=TRUE)])
+# fullcasemat$var2 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
+#                                                 pattern="var2_",
+#                                                 fixed=TRUE)])
+# fullcasemat <- merge(x=fullcasemat, y=anom_mean1data,
+#                      by.x=c("district", "weekstartdate"),
+#                      by.y=c("anom_var1_district","anom_var1_date"),
+#                      all.x=TRUE)
+# fullcasemat <- merge(x=fullcasemat, y=anom_mean2data,
+#                      by.x=c("district", "weekstartdate"),
+#                      by.y=c("anom_var2_district","anom_var2_date"),
+#                      all.x=TRUE)
+# 
+# # turn these into matrices too
+# fullcasemat$anom_var1 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
+#                                                      pattern="anom_var1_",
+#                                                      fixed=TRUE)])
+# fullcasemat$anom_var2 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
+#                                                      pattern="anom_var2_",
+#                                                      fixed=TRUE)])
+# 
+# fullcasemat[,grep(x=colnames(fullcasemat), pattern="var1_", fixed=TRUE)] <- NULL
+# fullcasemat[,grep(x=colnames(fullcasemat), pattern="var2_", fixed=TRUE)] <- NULL
+# fullcasemat[,grep(x=colnames(fullcasemat), pattern="anom_var1_", fixed=TRUE)] <- NULL
+# fullcasemat[,grep(x=colnames(fullcasemat), pattern="anom_var2_", fixed=TRUE)] <- NULL
+# 
+# # create lag matrix
+# fullcasemat$lag <- fullcasemat$var1
+# for (curcol in 1:dim(fullcasemat$lag)[2]) {
+#   
+#   fullcasemat$lag[,curcol] <- (curcol-1)
+#   
+# }
+# 
+# # create terms for seasonally-varying distributed lag
+# fullcasemat$doymat <- fullcasemat$lag
+# fullcasemat$doymat[,] <- fullcasemat$doy
+# 
+# fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
+# 
+# # do we have strata?
+# if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
+#   
+#   fullcasemat <- left_join(fullcasemat, strata, by="district")
+#   fullcasemat$stratumyear <- paste(fullcasemat$strata,
+#                                    fullcasemat$year,
+#                                    sep="-")
+#   
+# }
+# 
+# # garbage collection
+# rm(mean1data)
+# rm(mean2data)
+# gc()
 
 
 ```
