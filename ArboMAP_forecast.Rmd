@@ -9,7 +9,7 @@ params:
   predictor_var1: "tmeanc"
   predictor_var2: "vpd"
   ## mosquito settings
-  mosquito_model: "stratifiedMII" # "simpleratio", "AUC", "MIGR", "MII", "stratifiedMIGR", "stratifiedMII"
+  mosquito_model: "AUC" # "simpleratio", "AUC", "MIGR", "MII", "stratifiedMIGR", "stratifiedMII"
   mosquito_doy_start: 140
   mosquito_doy_end: 214
   ## input data file locations
@@ -470,7 +470,7 @@ data_mosquito <- data_mosquito %>%
 #Note: doy filtering happens in code block data_mosq_processing_dx below
 
 
-data_env <- data_env %>% 
+data_env_raw <- data_env_raw %>% 
   #already has year field from GEE <<>> DEV document in user's guide data requirements
   #filter year range from parameter input
   dplyr::filter(year >= params$year_weather_start & 
@@ -481,8 +481,8 @@ data_env <- data_env %>%
 ## Dates for forecasts and functions
 
 #week of forecast, given by user
-date_forecast <- as.Date(params$forecast_date, "%Y-%m-%d")
-date_forecast_week <- format(date_forecast, "%U") %>% as.numeric() #keeping this name, but flagging with TBC_
+date_request <- as.Date(params$forecast_date, "%Y-%m-%d")
+date_request_week <- format(date_request, "%U") %>% as.numeric() #keeping this name, but flagging with TBC_
 
 #<<>> EPIDATE DEV keeping old date processing for the moment until conversion to epiweeks  
 
@@ -527,7 +527,7 @@ dx_human_nrow_2clean <- nrow(data_human)
 
 #gather list of districts in human data
 dx_human_districts <- data_human %>% 
-    pull(arbo_ID) %>% unique() %>% sort()
+  pull(arbo_ID) %>% unique() %>% sort()
 
 
 #[V3] DEV imputemissingdistricts was hard coded as FALSE in v3 production code
@@ -591,7 +591,7 @@ dx_mosq_nrow_3filtered <- nrow(data_mosquito)
 #gather list of districts in mosquito data
 dx_mosq_districts <- data_mosquito %>% 
   pull(arbo_ID) %>% unique() %>% sort()
-  
+
 #max/latest year diagnostics and statistics for report text and debugging
 # note this is being done after mosquito_year_end filtering
 #  so not latest in data file, but latest in dataset for this forecast
@@ -903,7 +903,11 @@ mosq_mir <- mosq_mir %>%
 # write_csv(mosq_mir, file = file.path("dev", "mosq_mir", paste0(mosquito_model_clean, "_postctr.csv")))
 ```
 
-```{r data_weather_latest, echo=FALSE} 
+```{r data_env_latest_history, echo=FALSE} 
+
+#This block:
+# 1) picks out latest values when have duplicate values for a particular day
+# 2) calculates a historical env dataset on doy
 
 # As we will likely have data from the same day in multiple files,
 # we want to take only the LATEST value
@@ -927,14 +931,55 @@ data_env <- data_env_raw %>%
   #ungroup to finish
   dplyr::ungroup()
 
+#remove large and no longer needed raw dataset
+rm(data_env_raw)
+
 #Note: This does not check for missing days (IMPLICIT missing)
 # If adding, adapt code from function corral_environmental()
 #  in data_corrals.R in epidemia_runspace (internal repo, Github)
+# However, missing days are filled in during data combining 
 # Explicit missing in handled in the anomalized section, 
 #   these NAs are filled the weather model predicted values
+
+###
+# Historical env dataset
+# Creates a mean of the variables by day of year: "{variable name}_mean"
+# This is done BEFORE any type of data filling for missing values
+# [DMN] [V3] Note that in v3 the historical dataset was calculated after 
+#             imputation of explicit missing in known time range
+#             (which granted is no rows using gridmet data)
+
+data_env_hx <- data_env %>%
+  dplyr::group_by(arbo_ID, doy) %>%
+  # [DMN] package glue's {{}} ('curly curly') 
+  #       suddenly stopped working 2022-03-14. 
+  #       Using older !!rlang:sym() for now, at least 
+  summarize(!!rlang::sym(paste0(params$predictor_var1, 
+                                "_mean")) := mean(!!rlang::sym(params$predictor_var1),
+                                                  na.rm = TRUE),
+            !!rlang::sym(paste0(params$predictor_var2,
+                                "_mean")) := mean(!!rlang::sym(params$predictor_var2),
+                                                  na.rm = TRUE),
+            #   {{params$predictor_var1}} := mean({{params$predictor_var1}},
+            #                                   na.rm = TRUE),
+            #   {{params$predictor_var2}} := mean({{params$predictor_var2}},
+            #                                   na.rm = TRUE),
+            .groups = "drop")
+
+
 ```
 
-```{r data_weather_anomalization, echo=FALSE} 
+```{r data_env_anomalization, echo=FALSE} 
+
+# This section calculates:
+# bam model for anomalization
+#   generating predicted values 
+#   anomaly: observed - predicted
+#   Also fills in missing env data in known period with predicted values
+
+# Params format reminder/example: 
+#  predictor_var1: "tmeanc"
+#  predictor_var2: "vpd"
 
 #Note: field names here are dynamically created 
 #   based on user parameters for var1 and var2.
@@ -942,10 +987,6 @@ data_env <- data_env_raw %>%
 #     (though the syntax is cleaner now than earlier versions).
 # HOWEVER, as we are dealing with dataframes (not tibbles) for bam anyway
 #   using base R and [V3] code
-
-# Params format reminder: 
-#  predictor_var1: "tmeanc"
-#  predictor_var2: "vpd"
 
 #data frame for bam
 data_env_df <- data_env %>% 
@@ -974,10 +1015,10 @@ for (v in c(params$predictor_var1, params$predictor_var2)) {
   data_env_df[is.na(data_env_df[,v]), v] <- this_preds[is.na(data_env_df[,v])]
   
   #anomaly calculations: deviance between observed and predicted
-  #   creating a dynamically generated name that is "anom_" plus the name of the variable
-  data_env_df[,paste("anom_", v, sep="")] <- data_env_df[,v] - this_preds
+  #   creating a dynamically generated name that is the name of the variable plus "_anom" 
+  data_env_df[, paste0(v, "_anom")] <- data_env_df[,v] - this_preds
   # then should there be any NA values, they are given the value 0 instead
-  data_env_df[is.na(data_env_df[,paste("anom_", v, sep="")]), paste("anom_", v, sep="")] <- 0
+  data_env_df[is.na(data_env_df[, paste0(v, "_anom")]), paste0(v, "_anom")] <- 0
   
 }
 
@@ -989,10 +1030,12 @@ data_env <- data_env_df %>%
   tibble::as_tibble() %>% 
   #drop temporary variable
   dplyr::select(-this_var)
-#remove temporary table to avoid confusion
+#remove temporary tables to avoid confusion
 rm(this_preds)
+rm(data_env_df)
 #remove large temporary bam model
 rm(this_env_mod)
+
 
 ```
 
