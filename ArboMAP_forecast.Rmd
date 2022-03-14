@@ -288,10 +288,12 @@ create_id_field <- function(my_tbl, fld_vector){
   field_to_copy <- intersect(fld_vector, names(my_tbl))[[1]]
   
   updated_tbl <- my_tbl %>% 
-    #slight weirdness with dynamic field name in tidyverse on RHS
+    #slight weirdness with dynamic field name in tidyverse
     #using glue {{}}
-    #https://stackoverflow.com/questions/26003574/use-dynamic-name-for-new-column-variable-in-dplyr
-    dplyr::mutate(arbo_ID = {{field_to_copy}})
+    #dplyr::mutate(arbo_ID = {{field_to_copy}})
+    #glue solution stopped working 2022-03-14? unknown reasons but only RHS
+    #using pseudo-base solution instead
+    dplyr::mutate(arbo_ID = .data[[field_to_copy]])
 }
 
 standarize_fips <- function(my_tbl, fips_vector = field_fips_accepted){
