@@ -105,6 +105,7 @@ if (packageVersion("readr") < 2.1){
 <!--  data_env_anomalization: calculates anomalies of environmental data via gam -->
 <!--  data_combine: combine all data and format for passing off for regression -->
 <!--  forecast_modeling: create the forecast models -->
+<!-- Note on code comment flags: [V3]: this is what was done in version 3; [DEV] developer note; [DMN] note from Dawn Nekorchuk; DEV: active development -->
 
 ```{r dev_parameters, include=FALSE}
 #input is named list
@@ -541,9 +542,63 @@ if (confirm_id_fields(field_fips_accepted)){
 ```{r data_dates, echo=FALSE} 
 
 # Dates in data
-#   "date_obs" will become the standard date field name
+#   "date_obs" will become the standard date field name of the observed
+#   "date_epi" will become the standard date for modelling weeks (END date of epiweek)
 # Filtering on years given in parameters
-# Setting up week-related variables
+# Setting up week-related variables, in CDC epiweeks
+
+##Functions
+# epiwday borrowed from epidemiar, originally written by Chris Merkord, defaults changed here
+epiwday <- function(x, system = "CDC") {
+  week_type <- match.arg(system, c("ISO", "CDC"))
+  if (week_type == "ISO") {
+    as.integer(lubridate::wday(x - 1))
+  } else if (week_type == "CDC") {
+    as.integer(lubridate::wday(x))
+  }
+}
+# make_date_yw borrowed from epidemiar, originally written by Chris Merkord, defaults changed here
+make_date_yw <- function(year = 1970L, week = 1L, weekday = 7L, system = "CDC") {
+  #year: epidemiological year
+  #week: epidemiological week number (1--53).
+  #weekday: epidemiological weekday number (1--7). Day 1 is a Monday in
+  #   the ISO-8601 WHO system and a Sunday in the CDC system. DEFAULT is LAST day of week (7)
+  #system: String indicating the standard (WHO ISO-8601 or CDC epiweeks) ["ISO" or "CDC"]. 
+  week_type <- match.arg(system, c("ISO", "CDC"))
+  lengths <- vapply(list(year, week, weekday), length, 1, USE.NAMES = FALSE)
+  if (min(lengths) == 0L) as.Date(integer(), lubridate::origin)
+  # recycle arguments
+  N <- max(lengths)
+  y <- rep_len(as.integer(year), N)
+  w <- rep_len(as.integer(week), N)
+  d <- rep_len(as.integer(weekday), N)
+
+  out <-
+    ifelse(
+      is.na(y) | is.na(w) | is.na(d), NA,
+      {
+        jan1 <- lubridate::make_date(y, 1, 1)
+        wday <- epiwday(jan1, week_type)
+        to_add <- ifelse(wday <= 4, 1, 8) - wday
+        wk1 <- jan1 + to_add
+        day1 <- wk1 + (w - 1) * 7
+        day1 + d - 1
+      }
+    )
+  as.Date(out, lubridate::origin)
+}
+# find last epiweek in a year: will be either 52 or 53
+get_last_epiweek <- function(year){
+  #first pass, get epiweek of Dec 31 of the year
+  dec31 <- as.Date(paste0(year, "-12-31"), "%Y-%m-%d")
+  dec31_epiweek <- lubridate::epiweek(dec31)
+  # Dec 31 might fall into 1st week of following year
+  if (dec31_epiweek == 1){
+    #if so, then get epiweek of the week prior instead
+    prev_epiweek <- lubridate::epiweek(dec31 - lubridate::weeks(1))
+    return(prev_epiweek)
+  } else {return(dec31_epiweek)}
+}
 
 # Note: tryCatch not helpful b/c of as.Date return values 
 # > as.Date("2019-6-4")
@@ -588,67 +643,101 @@ data_mosquito <- data_mosquito %>%
 # More data may be present in the files than what we want to use 
 #   e.g. incomplete year data
 # Adds useful date parts as fields for use here and later
-# Note: Calendar year is used for filtering
-# <<>> EPIDATE DEV check if switch is correct
+# Note: Epi year is used for filtering for consistency with using epiweeks
+
 data_human <- data_human %>% 
   #year field for filtering
-  dplyr::mutate(year_obs = lubridate::year(date_obs),
-                #also doy, used later in modelling
-                doy = as.numeric(format(date_obs, "%j")),
-                #week of year DEV EPIDATE <<>>
-                TBC_weeknum = as.numeric(format(date_obs, "%U"))) %>% 
+  dplyr::mutate(#epi year
+                year_epi = lubridate::epiyear(date_obs),
+                #epiweek
+                week_epi = lubridate::epiweek(date_obs),
+                date_epi = make_date_yw(year = year_epi, week = week_epi, weekday = 7),
+                #also doy
+                doy = lubridate::yday(date_obs)) %>% 
   #filter year range from parameter input
-  dplyr::filter(year_obs >= params$year_human_start & 
-                  year_obs <= params$year_human_end)
+  dplyr::filter(year_epi >= params$year_human_start & 
+                  year_epi <= params$year_human_end)
 
 
 data_mosquito <- data_mosquito %>% 
-  #year field for filtering (here and later in mosq modelling)
-  dplyr::mutate(year_obs = lubridate::year(date_obs),
+  #date fields for filtering (here and later in mosq modelling)
+  dplyr::mutate(year_cal = lubridate::year(date_obs),
+                #epi year and week
+                year_epi = lubridate::epiyear(date_obs),
+                week_epi = lubridate::epiweek(date_obs),
+                date_epi = make_date_yw(year = year_epi, week = week_epi, weekday = 7),
                 #also doy, used later in mosq modelling
-                doy = as.numeric(format(date_obs, "%j"))) %>% 
+                doy = lubridate::yday(date_obs)) %>% 
   #filter year range from parameter input
-  dplyr::filter(year_obs >= params$year_mosquito_start & 
-                  year_obs <= params$year_mosquito_end) 
+  dplyr::filter(year_epi >= params$year_mosquito_start & 
+                  year_epi <= params$year_mosquito_end) 
 #Note: doy filtering happens in code block data_mosq_processing_dx below
 
 
 data_env_raw <- data_env_raw %>% 
   #already has year field from GEE <<>> DEV document in user's guide data requirements
   #filter year range from parameter input
-  dplyr::filter(year >= params$year_weather_start & 
-                  year <= params$year_weather_end) 
-
+  # for consistency, this ALSO will be epi year
+  dplyr::mutate(date_obs = as.Date(paste(year, doy, sep = "-"),
+                                   "%Y-%j"),
+                #epi year and week
+                year_epi = lubridate::epiyear(date_obs),
+                week_epi = lubridate::epiweek(date_obs),
+                date_epi = make_date_yw(year = year_epi, week = week_epi, weekday = 7)) %>%  
+  dplyr::filter(year_epi >= params$year_weather_start & 
+                  year_epi <= params$year_weather_end) 
 
 
 ## Dates for forecasts and functions
+# Now using CDC epiweeks (MMWR week) 
+# The date associated with the epiweek will be the LAST day of the epiweek
 
+#Forecast week
 #week of forecast, given by user
 date_request <- as.Date(params$forecast_date, "%Y-%m-%d")
-date_request_week <- format(date_request, "%U") %>% as.numeric() #keeping this name, but flagging with TBC_
+#epi week of requested date
+epiweek_request <- lubridate::epiweek(date_request)
+#epi year of requested date
+epiyear_request <- lubridate::epiyear(date_request)
+#ENDING date of the requested epi week
+date_epiweek_request <- make_date_yw(year = epiyear_request, 
+                                     week = epiweek_request, 
+                                     weekday = 7)
+#day of year of the ending date of the requested epiweek
+doy_dt_epiwk_req <- lubridate::yday(date_epiweek_request)
 
-#<<>> EPIDATE DEV keeping old date processing for the moment until conversion to epiweeks  
+#Modeling dates
+#ending date of the FIRST epiweek in the MIN modelling year
+date_min_model <- make_date_yw(year = params$year_modeling_start,
+                               week = 1,
+                               weekday = 7)
+#ending date of LAST epiweek in the MAX modelling year
+date_max_model <- make_date_yw(year = params$year_modeling_end,
+                               week = get_last_epiweek(params$year_modeling_end), #could be 52 or 53
+                               weekday = 7)
 
-# makes sure we round to the previous Sunday, so that this week is included
-TBC_weekinquestionSun <- date_request - (as.numeric(strftime(date_request, '%u')) %% 7)
-
-TBC_weekinquestionSat <- TBC_weekinquestionSun + 6
-TBC_weekinquestionSunstr <- strftime(TBC_weekinquestionSun, '%A')
-TBC_weekinquestionSatstr <- strftime(TBC_weekinquestionSat, '%A')
-
-TBC_weekinquestionSundoy <- as.numeric(format(TBC_weekinquestionSun, "%j"))
-
-# figure out which is the last Sunday in the max desired year
-TBC_maxhumandesireddate <- as.Date(paste(params$year_modeling_end, "-12-31", sep=""))
-TBC_maxhumandesireddate <- TBC_maxhumandesireddate - (as.numeric(strftime(TBC_maxhumandesireddate, '%u')) %% 7)
-TBC_maxhumandesireddatestr <- strftime(TBC_maxhumandesireddate, '%A')
-
-# figure out which is the first Sunday in the min desired human year
-TBC_minhumandesireddate <- as.Date(paste(params$year_modeling_start, "-01-01", sep=""))
-TBC_minhumandesireddate <- TBC_minhumandesireddate - (as.numeric(strftime(TBC_minhumandesireddate, '%u')) %% 7)
-TBC_minhumandesireddatestr <- strftime(TBC_minhumandesireddate, '%A')
-
-
+# date_request_week <- format(date_request, "%U") %>% as.numeric() #keeping this name, but flagging with TBC_
+# 
+# #<<>> EPIDATE DEV keeping old date processing for the moment until conversion to epiweeks  
+# 
+# # makes sure we round to the previous Sunday, so that this week is included
+# TBC_weekinquestionSun <- date_request - (as.numeric(strftime(date_request, '%u')) %% 7)
+# 
+# TBC_weekinquestionSat <- TBC_weekinquestionSun + 6
+# TBC_weekinquestionSunstr <- strftime(TBC_weekinquestionSun, '%A')
+# TBC_weekinquestionSatstr <- strftime(TBC_weekinquestionSat, '%A')
+# 
+# TBC_weekinquestionSundoy <- as.numeric(format(TBC_weekinquestionSun, "%j"))
+# 
+# # figure out which is the last Sunday in the max desired year
+# TBC_maxhumandesireddate <- as.Date(paste(params$year_modeling_end, "-12-31", sep=""))
+# TBC_maxhumandesireddate <- TBC_maxhumandesireddate - (as.numeric(strftime(TBC_maxhumandesireddate, '%u')) %% 7)
+# TBC_maxhumandesireddatestr <- strftime(TBC_maxhumandesireddate, '%A')
+# 
+# # figure out which is the first Sunday in the min desired human year
+# TBC_minhumandesireddate <- as.Date(paste(params$year_modeling_start, "-01-01", sep=""))
+# TBC_minhumandesireddate <- TBC_minhumandesireddate - (as.numeric(strftime(TBC_minhumandesireddate, '%u')) %% 7)
+# TBC_minhumandesireddatestr <- strftime(TBC_minhumandesireddate, '%A')
 ```
 
 ```{r data_human_processing_dx, echo=FALSE} 
@@ -673,9 +762,9 @@ dx_human_districts <- data_human %>%
   pull(arbo_ID) %>% unique() %>% sort()
 
 
-#[V3] DEV imputemissingdistricts was hard coded as FALSE in v3 production code
+#[V3] [DEV] imputemissingdistricts was hard coded as FALSE in v3 production code
 # updated names and code, and added dev option for renamed impute_human_missing_districts, default = FALSE
-# DEV This looks like it samples existing districts as data for the missing districts.
+# [DEV] This looks like it samples existing districts as data for the missing districts.
 #     I can't think of a time where this would be wanted. May be able to delete in future. [DMN]
 if (impute_human_missing_districts){
   #list of districts in that state that are missing from human data
@@ -689,13 +778,11 @@ if (impute_human_missing_districts){
   #pull only appropriate columns and make new tibble to add
   data_human_imputed <- tibble::tibble(arbo_ID = districts_missing) %>% 
     dplyr::bind_cols(sample_rows %>% 
-                       dplyr::select(date_obs, year_obs, doy, TBC_weeknum)) 
+                       dplyr::select(date_obs, year_epi, week_epi, date_epi, doy)) 
   #bind imputed data to existing data
   data_human <- dplyr::bind_rows(data_human, data_human_imputed)
   
 }
-
-
 ```
 
 ```{r data_mosq_processing_dx, echo=FALSE} 
@@ -715,7 +802,7 @@ data_mosquito <- data_mosquito %>%
   dplyr::filter(arbo_ID %in% unique(data_sf_orig$arbo_ID),
                 #remove any with NAs in wnv_result or doy
                 #both are needed in regression modeling
-                #doy (and obs_year) would be na is date_obs was na
+                #doy (and rest of date-related fields) would be na is date_obs was na
                 (!is.na(wnv_result)),
                 (!is.na(date_obs)))
 
@@ -733,13 +820,13 @@ dx_mosq_nrow_3filtered <- nrow(data_mosquito)
 
 #gather list of districts in mosquito data
 dx_mosq_districts <- data_mosquito %>% 
-  pull(arbo_ID) %>% unique() %>% sort()
+  dplyr::pull(arbo_ID) %>% unique() %>% sort()
 
 #max/latest year diagnostics and statistics for report text and debugging
 # note this is being done after mosquito_year_end filtering
 #  so not latest in data file, but latest in dataset for this forecast
 data_mosq_maxyr <- data_mosquito %>% 
-  dplyr::filter(year_obs == max(.$year_obs, na.rm = TRUE))
+  dplyr::filter(year_epi == max(.$year_epi, na.rm = TRUE))
 #number rows of data in max year
 dx_mosq_nrow_maxyr <- nrow(data_mosq_maxyr)
 #number of wnv positive pools in max year
@@ -796,8 +883,8 @@ if (resample_mosquito){
       tempdf1 <- data.frame(doy = sample(x=positivedoys,
                                          size=positives,
                                          replace=TRUE),
-                            year = data_mosquito$year[i],
-                            district = district_shapes$district[1], #? hard-coded first? DEV
+                            year_epi = data_mosquito$year_epi[i],
+                            arbo_ID = district_shapes$arbo_ID[1], #? [V3] hard-coded first? DEV 
                             wnv_result = 1)
       
     } else { tempdf1 <- data.frame() }
@@ -807,13 +894,13 @@ if (resample_mosquito){
       tempdf0 <- data.frame(doy = sample(x=negativedoys,
                                          size=negatives,
                                          replace=TRUE),
-                            year = data_mosquito$year[i],
-                            district = district_shapes$district[1], #? hard-coded first? DEV
+                            year_epi = data_mosquito$year_epi[i],
+                            arbo_ID = district_shapes$arbo_ID[1], #? [V3] hard-coded first? DEV 
                             wnv_result = 0)
       
     } else { tempdf2 <- data.frame() }
     
-    data_mosquito <- bind_rows(data_mosquito, tempdf1, tempdf0)
+    data_mosquito <- dplyr::bind_rows(data_mosquito, tempdf1, tempdf0)
   }
   
 } #end if resample
@@ -821,12 +908,12 @@ if (resample_mosquito){
 
 ```{r mosquito_infection_model, echo=FALSE} 
 
-# Calculates MIRsummarystat (mosquito infection rate), based on mosquito model
+# Calculates mir_stat (mosquito infection rate), based on mosquito model
 #   Creates mosq_mir : 
-#   dataset with 'year_obs' and 'MIRsummarystat's, (and 'strata' for stratified models)
-#   MIRsummarystat_raw : calculated via modelling
-#   MIRsummarystat_ctr : post centering of above raw value
-#   MIRsummarystat : NOT created in this block, but in combining data code block below.
+#   dataset with 'year_obs' and 'mir_stat's, (and 'strata' for stratified models)
+#   mir_stat_raw : calculated via modelling
+#   mir_stat_ctr : post centering of above raw value
+#   mir_stat : NOT created in this block, but in combining data code block below.
 #                   _ctr after imputation of any missing that are needed (used in modelling)
 
 # If match failure, default will be AUC
@@ -856,13 +943,13 @@ if (mosquito_model_clean == "simpleratio") {
   
   mosq_mir <- data_mosquito %>% 
     #total of positive pools, total pools, per year
-    group_by(year_obs) %>% 
+    group_by(year_epi) %>% 
     dplyr::summarise(tot_pos = sum(wnv_result, na.rm=TRUE),
                      tot_test = n()) %>%
     #simpleratio MIR is ratio of total positive pools over total pools tested
-    dplyr::mutate(MIRsummarystat_raw = tot_pos / tot_test) %>% 
+    dplyr::mutate(mir_stat_raw = tot_pos / tot_test) %>% 
     #select only year and summary stat for consistency
-    dplyr::select(year_obs, MIRsummarystat_raw)
+    dplyr::select(year_epi, mir_stat_raw)
   
 } #end if 'simpleratio'
 
@@ -870,25 +957,25 @@ if (mosquito_model_clean == "AUC") {
   
   data_mosquito <- data_mosquito %>% 
     # #remove rows with NA
-    # # [v3] dev note: I'm assuming glmer is unhappy otherwise [DMN]
+    # # [V3] [DEV] note: I'm assuming glmer is unhappy otherwise [DMN]
     # dplyr::filter_at(vars(wnv_result, doy, year_obs),
     #                  #all variables listed must be not NA
     #                  all_vars(!is.na(.))) %>% 
-    # [v3] create a variable that at least has a little chance of being orthogonal to 1.
+    # [V3] create a variable that at least has a little chance of being orthogonal to 1.
     dplyr::mutate(dminus = doy - mean(.$doy, na.rm = TRUE),
                   #factor year for modeling
-                  year_obs = factor(year_obs))
+                  year_epi = factor(year_epi))
   
   #data frame for glmer
   data_mosq_df <- data_mosquito %>% as.data.frame()
   
   # [V3] run a random effect model on orthogonalized data
-  mir_glm <- lme4::glmer(wnv_result ~ poly(dminus, 2) + (poly(dminus, 2)|year_obs),
+  mir_glm <- lme4::glmer(wnv_result ~ poly(dminus, 2) + (poly(dminus, 2)|year_epi),
                          family = binomial(),
                          data = data_mosq_df)
   
   # [V3] create a data frame to store the calculations for the aucs
-  pred_frame <- expand.grid(year_obs = unique(data_mosquito$year_obs),
+  pred_frame <- expand.grid(year_epi = unique(data_mosquito$year_epi),
                             dminus = seq(from = min(data_mosquito$dminus, na.rm=TRUE),
                                          to = max(data_mosquito$dminus, na.rm=TRUE),
                                          length.out = 100))
@@ -897,30 +984,26 @@ if (mosquito_model_clean == "AUC") {
                              type = "response")
   
   # calculate the AUCs
-  # DEV note: Appears to be the sum of the predictions from all dminus values per year [DMN]
+  # [DEV] note: Appears to be the sum of the predictions from all dminus values per year [DMN]
   mosq_mir <- pred_frame %>% 
-    dplyr::group_by(year_obs) %>% 
-    dplyr::summarise(MIRsummarystat_raw = sum(pred, na.rm = TRUE)) %>% 
+    dplyr::group_by(year_epi) %>% 
+    dplyr::summarise(mir_stat_raw = sum(pred, na.rm = TRUE)) %>% 
     #make year numeric again (not factor)
-    dplyr::mutate(year_obs = as.numeric(as.character(year_obs)))
+    dplyr::mutate(year_epi = as.numeric(as.character(year_epi)))
   
   #make year numeric again (not factor)
   data_mosquito <- data_mosquito %>% 
-    dplyr::mutate(year_obs = as.numeric(as.character(year_obs)))
+    dplyr::mutate(year_epi = as.numeric(as.character(year_epi)))
   
 }
 
 if (mosquito_model_clean %in% c("MIGR", "MII")) {
   
-  #<<>> DEV does arbo_ID really have to be a factor? is it used in these regressions??
-  
   data_mosquito <- data_mosquito %>% 
     # [v3] create a variable that at least has a little chance of being orthogonal to 1.
     dplyr::mutate(dminus = doy - mean(.$doy, na.rm = TRUE),
                   #factor year for modeling
-                  year_obs = factor(year_obs),
-                  #arbo_ID (district|county|fips) to factor (for regression)
-                  arbo_ID = factor(arbo_ID))
+                  year_epi = factor(year_epi))
   
   #data frame for glmer
   data_mosq_df <- data_mosquito %>% as.data.frame()
@@ -928,8 +1011,8 @@ if (mosquito_model_clean %in% c("MIGR", "MII")) {
   
   #[V3] run a random effect model on orthogonalized data
   mir_glm <- lme4::glmer(wnv_result ~ 1 + dminus +
-                           (0+1|year_obs) +
-                           (0+dminus|year_obs),
+                           (0+1|year_epi) +
+                           (0+dminus|year_epi),
                          family = binomial(),
                          data = data_mosq_df)
   
@@ -939,27 +1022,27 @@ if (mosquito_model_clean %in% c("MIGR", "MII")) {
   
   #make year numeric & arbo_id character again (not factor)
   data_mosquito <- data_mosquito %>% 
-    dplyr::mutate(year_obs = as.numeric(as.character(year_obs)),
+    dplyr::mutate(year_epi = as.numeric(as.character(year_epi)),
                   arbo_ID = as.character(arbo_ID))
   
   
   if (mosquito_model_clean == "MIGR") {
     
     #[V3] predict random effects for all years
-    mosq_mir <- tibble(year_obs = rownames(nlme::random.effects(mir_glm)$year_obs) %>% 
+    mosq_mir <- tibble(year_obs = rownames(nlme::random.effects(mir_glm)$year_epi) %>% 
                          as.numeric(),
                        #[,1] are intercept values [DMN]
-                       MIRsummarystat_raw = nlme::random.effects(mir_glm)$year_obs[,1]) 
+                       mir_stat_raw = nlme::random.effects(mir_glm)$year_epi[,1]) 
     
     
   }
   if (mosquito_model_clean == "MII") {
     
     #[V3] predict random effects for all years
-    mosq_mir <- tibble(year_obs = rownames(nlme::random.effects(mir_glm)$year_obs) %>%
+    mosq_mir <- tibble(year_epi = rownames(nlme::random.effects(mir_glm)$year_epi) %>%
                          as.numeric(),
                        #[,2] are dminus values [DMN]
-                       MIRsummarystat_raw = nlme::random.effects(mir_glm)$year_obs[,2]) 
+                       mir_stat_raw = nlme::random.effects(mir_glm)$year_epi[,2]) 
     
   }
   
@@ -977,7 +1060,7 @@ if (mosquito_model_clean %in% mosq_strat_models) {
     # [v3] create a variable that at least has a little chance of being orthogonal to 1.
     dplyr::mutate(dminus = doy - mean(.$doy, na.rm = TRUE),
                   #create a stratum per year factor for regression
-                  stratum_year = paste(strata, year_obs, sep = "_") %>% 
+                  stratum_year = paste(strata, year_epi, sep = "_") %>% 
                     factor())
   
   #data frame for glmer
@@ -1001,12 +1084,12 @@ if (mosquito_model_clean %in% mosq_strat_models) {
     #[V3] predict random effects for all years
     mosq_mir <- tibble(stratum_year = rownames(nlme::random.effects(mir_glm)$stratum_year),
                        #[,1] seems to pull the intercept values [DMN]
-                       MIRsummarystat_raw = nlme::random.effects(mir_glm)$stratum_year[,1]) %>% 
+                       mir_stat_raw = nlme::random.effects(mir_glm)$stratum_year[,1]) %>% 
       #split stratum and year back out
-      mutate(year_obs = stringr::str_split_fixed(stratum_year, "_", n = 2)[,2],
+      mutate(year_epi = stringr::str_split_fixed(stratum_year, "_", n = 2)[,2],
              strata = stringr::str_split_fixed(stratum_year, "_", n = 2)[,1],
              #convert year back to numeric
-             year_obs = as.numeric(year_obs),
+             year_epi = as.numeric(year_epi),
              #need to convert strata back to whatever data type as in data_strata
              #    in example is dbl for '101', etc. But could conceivably be numeric or string
              strata = as(strata, class(data_strata$strata))) %>% 
@@ -1019,12 +1102,12 @@ if (mosquito_model_clean %in% mosq_strat_models) {
     #[V3] predict random effects for all years
     mosq_mir <- tibble(stratum_year = rownames(nlme::random.effects(mir_glm)$stratum_year),
                        #[,2] seems to pull the dminus values [DMN]
-                       MIRsummarystat_raw = nlme::random.effects(mir_glm)$stratum_year[,2]) %>% 
+                       mir_stat_raw = nlme::random.effects(mir_glm)$stratum_year[,2]) %>% 
       #split stratum and year back out
-      mutate(year_obs = stringr::str_split_fixed(stratum_year, "_", n = 2)[,2],
+      mutate(year_epi = stringr::str_split_fixed(stratum_year, "_", n = 2)[,2],
              strata = stringr::str_split_fixed(stratum_year, "_", n = 2)[,1],
              #convert year back to numeric
-             year_obs = as.numeric(year_obs),
+             year_epi = as.numeric(year_epi),
              #need to convert strata back to whatever data type as in data_strata
              #    in example is dbl for '101', etc. But could conceivably be numeric or string
              strata = as(strata, class(data_strata$strata))) %>% 
@@ -1039,11 +1122,13 @@ if (mosquito_model_clean %in% mosq_strat_models) {
 # Center the MIR statistic 
 # [V3] Originally done in the plotting code. Carried through to modeling, so done here. 
 mosq_mir <- mosq_mir %>% 
-  dplyr::mutate(MIRsummarystat_ctr = MIRsummarystat_raw - mean(.$MIRsummarystat_raw, na.rm = TRUE))
+  dplyr::mutate(mir_stat_ctr = mir_stat_raw - mean(.$mir_stat_raw, na.rm = TRUE))
 
 
 # # DEV testing output
-# write_csv(mosq_mir, file = file.path("dev", "mosq_mir", paste0(mosquito_model_clean, "_postctr.csv")))
+if (dev_write_output){
+  readr::write_csv(mosq_mir, file = file.path(out_folder, paste0(out_name_base, "_mir_stats.csv")))
+}
 ```
 
 ```{r data_env_latest_history, echo=FALSE} 
@@ -1057,18 +1142,16 @@ mosq_mir <- mosq_mir %>%
 # (post ID set up section to remove extraneous fields before processing)
 
 data_env <- data_env_raw %>% 
-  #trim to just needed data
-  select("arbo_ID", "doy", "year", "file_time", 
-         params$predictor_var1, params$predictor_var2) %>% 
-  #create date field from year and doy
-  dplyr::mutate(date_obs = as.Date(paste(year, doy, sep = "-"),
-                                   "%Y-%j")) %>% 
+  #trim env vars to just predictor vars (removing extra env data)
+  dplyr::select(arbo_ID, date_obs, year_epi, week_epi, date_epi, doy,
+                file_time, 
+                params$predictor_var1, params$predictor_var2) %>% 
   # Group by county and date, 
-  group_by(arbo_ID, date_obs) %>% 
+  dplyr::group_by(arbo_ID, date_obs) %>% 
   # sort by modified time DESC, 
-  arrange(desc(file_time)) %>% 
+  dplyr::arrange(desc(file_time)) %>% 
   # slice(1) to get first/latest (or only if not duplicated)
-  slice(1) %>% 
+  dplyr::slice(1) %>% 
   #drop file time
   dplyr::select(-file_time) %>%
   #ungroup to finish
@@ -1195,7 +1278,7 @@ rm(this_env_mod)
 # this is based on the human case_trim_alpha parameter
 # this is removing outlier human cases that are very early or late in season [DMN]
 #find min&max weeks using the case_trim_alpha parameter
-human_wks_alpha <- quantile(data_human$TBC_weeknum, 
+human_wks_alpha <- quantile(data_human$week_epi, 
                             probs = c(params$case_trim_alpha/2, 
                                       1 - (params$case_trim_alpha/2)), na.rm = TRUE)
 human_wk_min <- human_wks_alpha[1]
@@ -1204,32 +1287,36 @@ human_wk_max <- human_wks_alpha[2]
 
 #Create dataset that will become the complete combined data for modelling input
 #First, use human data (what we are predicting) to set start and end dates
-# need to ensure that the end week is the last week of the year of the requested forecast week, 
-#   so seq.Date is reverse chronological
-weeks_model_list <- seq.Date(from = TBC_maxhumandesireddate, to = TBC_minhumandesireddate, by =-7)
+  # need to ensure that the end week is the last week of the year of the requested forecast week, 
+  #   so seq.Date is reverse chronological
+  # note: no longer needed now that we are solidly on epiweeks, but doesn't impact anything so kept [DMN]
+weeks_model_list <- seq.Date(from = date_max_model, to = date_min_model, by = "-1 week")
 # Create a frame that has entries for all district for all weeks in modelling list
 data_combined_prep <- tidyr::expand_grid(arbo_ID = dx_human_districts,
-                                         mod_wk_dt = weeks_model_list) %>% 
-  #add other useful date fields
-  dplyr::mutate(mod_wk_dt_yr = as.numeric(format(mod_wk_dt, "%Y")),
-                mod_wk_dt_doy = as.numeric(format(mod_wk_dt, "%j")),
-                TBC_mod_wk_dt_week = as.numeric(format(mod_wk_dt, "%U")),
+                                         date_epi = weeks_model_list) %>% 
+  #add useful and needed date-related fields
+  dplyr::mutate(#epi year
+                year_epi = lubridate::epiyear(date_epi),
+                #epiweek
+                week_epi = lubridate::epiweek(date_epi),
+                #also doy
+                doy = lubridate::yday(date_epi),
                 #create a flag if the week was in years between 
                 #  params year_human_start through year_human_end
-                observed = if_else(mod_wk_dt_yr >= params$year_human_start &
-                                     mod_wk_dt_yr <= params$year_human_end,
+                observed = if_else(year_epi >= params$year_human_start &
+                                     year_epi <= params$year_human_end,
                                    TRUE,
                                    FALSE),
                 #create a flag if the week was within the trimmed alpha week range)
-                modeled = if_else(TBC_mod_wk_dt_week >= human_wk_min &
-                                    TBC_mod_wk_dt_week <= human_wk_max,
+                modeled = if_else(week_epi >= human_wk_min &
+                                    week_epi <= human_wk_max,
                                   TRUE,
                                   FALSE))
 
 #count the number of cases that occur in each week for each district
 #   note, if a district had no cases for that week, there will not be a row entry
 data_human_week <- data_human %>% 
-  dplyr::group_by(arbo_ID, year_obs, TBC_weeknum) %>% 
+  dplyr::group_by(arbo_ID, year_epi, week_epi) %>% 
   #each row is a case
   dplyr::summarise(case_count = n(), .groups = "drop") %>% 
   #binary if any cases happened in that week in that district
@@ -1239,7 +1326,7 @@ data_human_week <- data_human %>%
 
 #join, and fill 0s for any district-week that had no cases
 data_combined_prep <- data_combined_prep %>% 
-  left_join(data_human_week, by = c("arbo_ID", "mod_wk_dt_yr" = "year_obs", "TBC_mod_wk_dt_week" = "TBC_weeknum")) %>% 
+  dplyr::left_join(data_human_week, by = c("arbo_ID", "year_epi", "week_epi")) %>% 
   dplyr::mutate(case_count = tidyr::replace_na(case_count, 0),
                 any_cases = tidyr::replace_na(any_cases, 0)) 
 
@@ -1252,22 +1339,22 @@ state_any_cases_total  <- sum(data_combined_prep$any_cases, na.rm=TRUE)
 
 # What percentage of cases we'll likely have seen before the start of this week
 #   based on historical years
-# DEV I believe the logic wasn't quite right in [V3]. [DMN]
+# [DEV] I believe the logic wasn't quite right in [V3]. [DMN]
 #   I am adding a filter to remove the current year from the calculations, and
-#   filtering by date (has been combined into weeks, but by date will yield same result here)  
+#   filtering by week   
 
 cases_before_fc_wk <- data_combined_prep %>% 
-  dplyr::filter(TBC_mod_wk_dt_week < date_request_week) %>% 
-  pull(case_count) %>% 
+  dplyr::filter(week_epi < epiweek_request) %>% 
+  dplyr::pull(case_count) %>% 
   sum(na.rm = TRUE)
 
 cases_perc_obs_hx <- 100 * (cases_before_fc_wk / state_cases_total) %>% round(2)
 
 
 ## Mosquito MIR -------------------------------------------------------
-# mosq_mir is name of dataset from mosquito modeling with MIRsummarystat
-# MIRsummarystat_ctr : field with MIRsummarystat raw values that have been centered
-# MIRsummarystat : created in this block, from _ctr, but also with imputation for needed missing entries
+# mosq_mir is name of dataset from mosquito modeling with mir_stat
+# mir_stat_ctr : field with mir_stat raw values that have been centered
+# mir_stat : created in this block, from _ctr, but also with imputation for needed missing entries
 
 # Create temporary frames of full data, add in mir known, flag for imputation
 #   separated out by stratification models, as that involves the strata column as well 
@@ -1279,16 +1366,16 @@ if (mosquito_model_clean %in% mosq_nonstrat_models){
   #for NON-stratified mosq models
   
   prep_mir_filler <- data_combined_prep %>% 
-    dplyr::select(mod_wk_dt_yr) %>% 
+    dplyr::select(year_epi) %>% 
     #one entry for each year
     dplyr::distinct() %>% 
-    #join with mosq_mir to get 'MIRsummarystat_'s
-    dplyr::left_join(mosq_mir, by = c("mod_wk_dt_yr" = "year_obs")) %>% 
+    #join with mosq_mir to get 'mir_stat_'s
+    dplyr::left_join(mosq_mir, by = c("year_epi")) %>% 
     #add flag if MIR summary stat needs to be imputed (i.e. if that combination is missing)
     # AND if the year in within the human year range 
-    dplyr::mutate(mir_impute = (is.na(MIRsummarystat_ctr) & 
-                                  mod_wk_dt_yr >= params$year_human_start &
-                                  mod_wk_dt_yr <= params$year_human_end))
+    dplyr::mutate(mir_impute = (is.na(mir_stat_ctr) & 
+                                  year_epi >= params$year_human_start &
+                                  year_epi <= params$year_human_end))
   
 } else if (mosquito_model_clean %in% mosq_strat_models){
   
@@ -1297,33 +1384,33 @@ if (mosquito_model_clean %in% mosq_nonstrat_models){
   prep_mir_filler <- tidyr::expand_grid(strata = data_strata %>% 
                                           dplyr::pull(strata) %>% 
                                           unique() %>% sort(),
-                                        mod_wk_dt_yr = data_combined_prep %>% 
-                                          dplyr::pull(mod_wk_dt_yr) %>% 
+                                        year_epi = data_combined_prep %>% 
+                                          dplyr::pull(year_epi) %>% 
                                           #for consistency with data_combined_, 
                                           #keep with reverse chronological
                                           unique() %>% sort(decreasing = TRUE)) %>% 
-    #join with mosq_mir to get 'MIRsummarystat_'s
-    dplyr::left_join(mosq_mir, by = c("strata", "mod_wk_dt_yr" = "year_obs")) %>% 
+    #join with mosq_mir to get 'mir_stat_'s
+    dplyr::left_join(mosq_mir, by = c("strata", "year_epi")) %>% 
     #add flag if MIR summary stat needs to be imputed (i.e. if that combination is missing)
     # AND if the year in within the human year range 
-    dplyr::mutate(mir_impute = (is.na(MIRsummarystat_ctr) & 
-                                  mod_wk_dt_yr >= params$year_human_start &
-                                  mod_wk_dt_yr <= params$year_human_end))
+    dplyr::mutate(mir_impute = (is.na(mir_stat_ctr) & 
+                                  year_epi >= params$year_human_start &
+                                  year_epi <= params$year_human_end))
 }
 
-#replace NA MIRsummarystat_ctr with zero (i.e. average risk, per comment from [V3])
-# creating final MIRsummarystat variable to use in modelling
+#replace NA mir_stat_ctr with zero (i.e. average risk, per comment from [V3])
+# creating final mir_stat variable to use in modelling
 prep_mir_filler <- dplyr::mutate(prep_mir_filler, 
-                                 MIRsummarystat = if_else(mir_impute, 
+                                 mir_stat = if_else(mir_impute, 
                                                           0,
-                                                          MIRsummarystat_ctr))
+                                                          mir_stat_ctr))
 
-# If MIRsummarystat has been imputed, then doing exactfit
+# If mir_stat has been imputed, then doing exactfit
 #   Add appropriate exactfit columns here
 
 yrs_mir_imputed <- prep_mir_filler %>% 
-  filter(mir_impute == TRUE) %>% 
-  pull(mod_wk_dt_yr) %>% unique() %>% sort(decreasing = TRUE)
+  dplyr::filter(mir_impute == TRUE) %>% 
+  dplyr::pull(year_epi) %>% unique() %>% sort(decreasing = TRUE)
 
 #loop over these years to add a column for each year
 # that flags if it will be an exactfit
@@ -1335,7 +1422,7 @@ for (this_yr in yrs_mir_imputed){
     #slight weirdness for dynamic field name on left-hand side (tidyverse)
     #using glue {{}} with := assignment operator
     #https://stackoverflow.com/questions/26003574/use-dynamic-name-for-new-column-variable-in-dplyr
-    mutate({{this_col_name}} := (mod_wk_dt_yr == this_yr))
+    dplyr::mutate({{this_col_name}} := (year_epi == this_yr))
   
 }
 
@@ -1347,12 +1434,12 @@ if (length(yrs_mir_imputed) == 0) {
                                                collapse = ", ")
 }
 
-# Now, add our final MIRsummarystat to the combined data set
+# Now, add our final mir_stat to the combined data set
 if (mosquito_model_clean %in% mosq_nonstrat_models){
   
   data_combined_prep <- data_combined_prep %>% 
-    #MIRsummarystat same for every week and district within a year
-    dplyr::left_join(prep_mir_filler, by = "mod_wk_dt_yr")
+    #mir_stat same for every week and district within a year
+    dplyr::left_join(prep_mir_filler, by = "year_epi")
   
 } else if (mosquito_model_clean %in% mosq_strat_models){
   
@@ -1361,11 +1448,14 @@ if (mosquito_model_clean %in% mosq_nonstrat_models){
     dplyr::left_join(data_strata %>% 
                        select(arbo_ID, strata),
                      by = "arbo_ID") %>% 
-    #MIRsummarystat same for every week and district within a year
-    dplyr::left_join(prep_mir_filler, by = c("mod_wk_dt_yr", "strata"))
+    #mir_stat same for every week and district within a year
+    dplyr::left_join(prep_mir_filler, by = c("year_epi", "strata"))
   
 }
 
+if (dev_write_output){
+  readr::write_csv(data_combined_prep, file = file.path(out_folder, paste0(out_name_base, "_data_combined_prep_humanmosq.csv")))
+}
 
 ## Environmental -------------------------------------------------------
 
@@ -1373,9 +1463,11 @@ if (mosquito_model_clean %in% mosq_nonstrat_models){
 # within known env period, the missing have been replaced 
 #   with bam predictions during anomalization 
 
-#sequence of dates for env data matrix
+#sequence of dates for env data matrix [V3]
 # from Jan 1 of the year BEFORE the start of the requested modeling start year
 # through the end of the requested modeling end year
+#   Note: Creating daily rows here, but will join on weekly date below with data_combined_prep. 
+#         I think we are creating more data than we need to and then discarding the rest? [DMN]
 env_dates <- seq.Date(from = as.Date(paste0(params$year_modeling_start - 1, "-01-01"), 
                                      format = "%Y-%m-%d"),
                       to = as.Date(paste0(params$year_modeling_end, "-12-31"), 
@@ -1389,7 +1481,7 @@ prep_env_filler <- tidyr::expand_grid(arbo_ID = data_env %>%
 
 
 # create a new env dataset to use for modelling
-#     could overwrite old one, but creating new temporarily [DMN]
+#     could overwrite old one like [V3], but creating new since removing data [DMN]
 # subset of env data to add to
 data_env_mod <- data_env %>% 
   # select only variables we are going to use
@@ -1476,7 +1568,7 @@ data_env_lag <- data_env_lag %>%
 data_combined <- data_combined_prep %>% 
   #adding data, here it will still be separate columns for each lag for each var
   dplyr::left_join(data_env_lag,
-                   by = c("arbo_ID", "date_week" = "date_obs")) %>% 
+                   by = c("arbo_ID", "date_epi" = "date_obs")) %>% 
   as.data.frame()
 
 #now convert into a nested matrices
@@ -1636,13 +1728,15 @@ for (this_model in model_names){
 
   #censor predictions outside of the alpha window for human cases 
   # done in [V3] but with a confusing code comment, but this is what it does [DMN]
-  data_combined$pred[data_combined$TBC_mod_wk_dt_week < human_wk_min] <- 0
-  data_combined$pred[data_combined$TBC_mod_wk_dt_week > human_wk_max] <- 0
+  data_combined$pred[data_combined$week_epi < human_wk_min] <- 0
+  data_combined$pred[data_combined$week_epi > human_wk_max] <- 0
 
   #add predictions from the model to all model prediction data frame
   # first generate a temporary data frame with just the data to add
   pred_prep <- data.frame(arbo_ID = data_combined$arbo_ID,
-                          date_week = data_combined$date_week,
+                          date_epi = data_combined$date_epi,
+                          week_epi = data_combined$week_epi,
+                          year_epi = data_combined$year_epi, 
                           any_cases = data_combined$any_cases,
                           case_count = data_combined$case_count,
                           observed = data_combined$observed,
