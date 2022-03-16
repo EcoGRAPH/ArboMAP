@@ -71,11 +71,11 @@ if (!require("pacman")) install.packages("pacman"); library(pacman)
 pacman::p_load(
   #data processing, tidyverse related 
   dplyr, readr, tidyselect, rlang, 
-  tibble, stringr, glue,
+  tibble, stringr, glue, lubridate,
   #add'l data processing
   zoo, 
-  #modeling
-  mgcv, splines,
+  #modeling & evaluation
+  mgcv, splines, parallel, pROC,
   #spatial, maps and graphs
   tigris, sf, ggplot2,
   #report generation and interface
@@ -92,49 +92,192 @@ if (packageVersion("readr") < 2.1){
 
 ```
 
+<!-- Start of internals: data load, processing, forecast modeling, etc. -->
+<!-- Code blocks: -->
+<!--  dev_parameters: check for overrides from named list of dev parameters. Only really accessible if rmd called from script. -->
+<!--  data_load: load all data - human, mosquito, environmenta, spatial, models. No data checks or processing here. -->
+<!--  data_id_fields: add a standardized arbo_ID field based on names or fips code, depending on fields in datasets -->
+<!--  data_human_processing_dx: process the human data, create diagnostics/stats -->
+<!--  data_mosq_processing_dx: process the mosquito data, create diagnostics/stats -->
+<!--  mosquito_resampling: optional section for resampling of mosquito data. NOTE: [DEV] Likely no longer functional from [V3] -->
+<!--  mosquito_infection_model: run selected mosquito model to generate mir_stat used in modeling -->
+<!--  data_env_latest_history: processes the environment data - 1) gets latest updated value for a day, 2) creates historical doy means -->
+<!--  data_env_anomalization: calculates anomalies of environmental data via gam -->
+<!--  data_combine: combine all data and format for passing off for regression -->
+<!--  forecast_modeling: create the forecast models -->
+
 ```{r dev_parameters, include=FALSE}
 #input is named list
 
 #parameters available:
 
-# save_model: TRUE/FALSE: Will create a list of saved model objects (using rest of input params)
-# model_cached: must be named list of model objects, named from modeling file to pattern match
-# model_cached_file: "no cached" <<>>????
-
+##DATA
 # human_data: tbl of human case data (overrides file_human)
 # mosquito_data: tbl of mosquito pool data (overrides file_mosquito)
 # stratification_data: tbl of strata (overrides file_stratification)
 # weather_data: tbl of weather data (overrides folder_weather & processing)
 # district_sf: sf object of counties/districts for state (overrides file_district_sf)
-
 # models_to_run: model formulas to run (overrides file_models)
 
-# reg_function: "GAM" (hook for future possibility)
+##CACHED MODELS
+# save_models: TRUE/FALSE: Will create a list of saved model objects (using rest of input params)
+# models_cached: must be named list of model objects, named from modeling file to pattern match (output of save_models)
 
+##MOSQUITO
 # resampling mosquito data before mosquito model
-# NOTE: resampling code is mostly left as v3, 
-#       and is likely inoperable unless field names are different 
-#       in mosquito file that needs resampling.
+# NOTE: resampling code is mostly left as v3, and is likely inoperable 
+#   unless field names are different in mosquito file that needs resampling.
 #resample_mosquito: TRUE/FALSE
 #resample_file: path and file
 
+##REGRESSION
+# reg_function: "GAM" (hook for future possibility)
 
-#Set up data objects 
-# will use as tests for (possible) file loading in following data_load section
-data_human <- NULL
-data_mosquito <- NULL
-data_strata <- NULL
-data_weather <- NULL
-data_sf_orig <- NULL
-model_formulas <- NULL
+##SAVING (for extra research files)
+#out_folder: "."
+#out_name_base: "ArboMAP_forecast_"
+#dev_write_output: write out a bunch of files into dev folder for testing and checking
 
-#<<>> do overrides. if (length(params$dev_settings > 0). chk epidemiar dev settings DEV
+##EVALUATION
+#model_evaluation: TRUE/FALSE output model evaluation statistics
 
-#set defaults hard until dev settings <<>>
+#NOTE: If not using dev parameter, do NOT include in list or instead set to NULL
+#     The test checks if the value is NULL. Not NA or "" or things like that. 
+# dev_settings itself is set to an empty list in default params above
 
-resample_mosquito <- FALSE
-reg_function <- "GAM"
-impute_human_missing_districts <- FALSE
+if (length(params$dev_settings) > 1){
+  
+  ##DATA
+  if (!is.null(params$dev_settings$data_human)){
+    #override data
+    data_human <- params$dev_settings$data_human
+  } else {
+    #load from file, data_load code block
+    data_human <- NULL
+  }
+  if (!is.null(params$dev_settings$data_mosquito)){
+    #override data
+    data_mosquito <- params$dev_settings$data_mosquito
+  } else {
+    #load from file, data_load code block
+    data_mosquito <- NULL
+  }
+  if (!is.null(params$dev_settings$data_strata)){
+    #override data
+    data_strata <- params$dev_settings$data_strata
+  } else {
+    #load from file, data_load code block
+    data_strata <- NULL
+  }
+  if (!is.null(params$dev_settings$data_weather)){
+    #override data
+    data_weather <- params$dev_settings$data_weather
+  } else {
+    #load from file, data_load code block
+    data_weather <- NULL
+  }
+  if (!is.null(params$dev_settings$data_sf_orig)){
+    #override data
+    data_sf_orig <- params$dev_settings$data_sf_orig
+  } else {
+    #load from file, data_load code block
+    data_sf_orig <- NULL
+  }
+  if (!is.null(params$dev_settings$model_formulas)){
+    #override data
+    model_formulas <- params$dev_settings$model_formulas
+  } else {
+    #load from file, data_load code block
+    model_formulas <- NULL
+  }
+  
+  ##CACHED MODELS
+    if (!is.null(params$dev_settings$save_models)){
+    #use param given
+    save_models <- params$dev_settings$save_models
+  } else {
+    #default is FALSE
+    save_models <- FALSE
+  }
+  #models_cached testing and possible use is done inside of forecast regression section
+    if (!is.null(params$dev_settings$models_cached)){
+    #use param given
+    save_models <- params$dev_settings$models_cached
+  } else {
+    models_cached <- NULL
+  }
+
+
+  ##MOSQUITO
+    if (!is.null(params$dev_settings$resample_mosquito)){
+    #use param given
+    resample_mosquito <- params$dev_settings$resample_mosquito
+  } else {
+    #default is FALSE
+    resample_mosquito <- FALSE
+  }
+  #resample_file: Up to the dev user to provide path&file correctly
+
+  ##REGRESSION
+    if (!is.null(params$dev_settings$reg_function)){
+    #use param given
+    reg_function <- params$dev_settings$reg_function
+  } else {
+    #default is the current and only way via mgcv bam
+    #this is being setup so that more may be added easily in the future [DMN]
+    reg_function <- "GAM"
+  }
+
+  ##SAVING (for extra research files)
+    if (!is.null(params$dev_settings$out_folder)){
+    #use param given
+    out_folder <- params$dev_settings$out_folder
+  } else {
+    out_folder <- "."
+  }
+    if (!is.null(params$dev_settings$out_name_base)){
+    #use param given
+    out_name_base <- params$dev_settings$out_name_base
+  } else {
+    #default 
+    #out_name_base <- "ArboMAP_forecast_"
+    # <<>> DEV testing
+    out_name_base <- paste0(params$mosquito_model, "_", Sys.time() %>% format("%Y%m%d%H%M"))
+  }
+    if (!is.null(params$dev_settings$dev_write_output)){
+    #use param given
+    dev_write_output <- params$dev_settings$dev_write_output
+  } else {
+    dev_write_output <- FALSE
+  }
+
+
+  ##EVALUATION
+    if (!is.null(params$dev_settings$model_evaluation)){
+    #use param given
+    model_evaluation <- params$dev_settings$model_evaluation
+  } else {
+    #default is to not save extra files, 
+    # only currently used in research comparing many models
+    model_evaluation <- FALSE
+  }
+
+  ## OTHER
+  #[V3] [DEV] imputemissingdistricts was hard coded as FALSE in v3 production code
+  # updated names and code, and added dev option for renamed impute_human_missing_districts, default = FALSE
+  # DEV This looks like it samples existing districts as data for the missing districts.
+  #     I can't think of a time where this would be wanted. May be able to delete in future. [DMN]
+    if (!is.null(params$dev_settings$impute_human_missing_districts)){
+    #use param given
+    impute_human_missing_districts <- params$dev_settings$impute_human_missing_districts
+  } else {
+    #should stay FALSE unless you are very sure
+    impute_human_missing_districts <- FALSE
+  }
+
+  
+  
+} # end if (length(params$dev_settings >= 1)
 
 ```
 
@@ -1035,10 +1178,7 @@ rm(this_preds)
 rm(data_env_df)
 #remove large temporary bam model
 rm(this_env_mod)
-
-
 ```
-
 
 ```{r data_combine, echo=FALSE} 
 
@@ -1298,185 +1438,246 @@ data_env_mod <- data_env %>%
       #else use what was there
       !!rlang::sym(paste0(params$predictor_var2, "_anom"))))
 
-# <<>><<>><<>>
-# 
-# datalagger <- expand.grid(unique(fullcasemat$district),
-#                           unique(fullcasemat$weekstartdate),
-#                           seq(from=0, to=laglen-1, by=1))
-# names(datalagger) <- c("district","date","lag")
-# datalagger$laggeddate <- datalagger$date-datalagger$lag
-# 
-# datalagger <- left_join(datalagger, weather,
-#                         by=c("district"="district",
-#                              "laggeddate"="date"))
-# 
-# # garbage collection
-# rm(weather)
-# gc()
-# 
-# # pivot
-# mean1data <- dcast(datalagger, district + date ~ lag, value.var="var1")
-# names(mean1data) <- paste("var1_",names(mean1data),sep="")
-# mean2data <- dcast(datalagger, district + date ~ lag, value.var="var2")
-# names(mean2data) <- paste("var2_",names(mean2data),sep="")
-# 
-# anom_mean1data <- dcast(datalagger, district + date ~ lag, value.var="anom_var1")
-# names(anom_mean1data) <- paste("anom_var1_",names(anom_mean1data),sep="")
-# anom_mean2data <- dcast(datalagger, district + date ~ lag, value.var="anom_var2")
-# names(anom_mean2data) <- paste("anom_var2_",names(anom_mean2data),sep="")
-# 
-# # garbage collection
-# rm(datalagger)
-# gc()
-# 
-# # and put all this lagged info back into the total case matrix
-# fullcasemat <- merge(x=fullcasemat, y=mean1data,
-#                      by.x=c("district", "weekstartdate"),
-#                      by.y=c("var1_district","var1_date"),
-#                      all.x=TRUE)
-# fullcasemat <- merge(x=fullcasemat, y=mean2data,
-#                      by.x=c("district", "weekstartdate"),
-#                      by.y=c("var2_district","var2_date"),
-#                      all.x=TRUE)
-# 
-# # turn these into matrices
-# fullcasemat$var1 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
-#                                                 pattern="var1_",
-#                                                 fixed=TRUE)])
-# fullcasemat$var2 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
-#                                                 pattern="var2_",
-#                                                 fixed=TRUE)])
-# fullcasemat <- merge(x=fullcasemat, y=anom_mean1data,
-#                      by.x=c("district", "weekstartdate"),
-#                      by.y=c("anom_var1_district","anom_var1_date"),
-#                      all.x=TRUE)
-# fullcasemat <- merge(x=fullcasemat, y=anom_mean2data,
-#                      by.x=c("district", "weekstartdate"),
-#                      by.y=c("anom_var2_district","anom_var2_date"),
-#                      all.x=TRUE)
-# 
-# # turn these into matrices too
-# fullcasemat$anom_var1 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
-#                                                      pattern="anom_var1_",
-#                                                      fixed=TRUE)])
-# fullcasemat$anom_var2 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
-#                                                      pattern="anom_var2_",
-#                                                      fixed=TRUE)])
-# 
-# fullcasemat[,grep(x=colnames(fullcasemat), pattern="var1_", fixed=TRUE)] <- NULL
-# fullcasemat[,grep(x=colnames(fullcasemat), pattern="var2_", fixed=TRUE)] <- NULL
-# fullcasemat[,grep(x=colnames(fullcasemat), pattern="anom_var1_", fixed=TRUE)] <- NULL
-# fullcasemat[,grep(x=colnames(fullcasemat), pattern="anom_var2_", fixed=TRUE)] <- NULL
-# 
-# # create lag matrix
-# fullcasemat$lag <- fullcasemat$var1
-# for (curcol in 1:dim(fullcasemat$lag)[2]) {
-#   
-#   fullcasemat$lag[,curcol] <- (curcol-1)
-#   
-# }
-# 
-# # create terms for seasonally-varying distributed lag
-# fullcasemat$doymat <- fullcasemat$lag
-# fullcasemat$doymat[,] <- fullcasemat$doy
-# 
-# fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
-# 
-# # do we have strata?
-# if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
-#   
-#   fullcasemat <- left_join(fullcasemat, strata, by="district")
-#   fullcasemat$stratumyear <- paste(fullcasemat$strata,
-#                                    fullcasemat$year,
-#                                    sep="-")
-#   
-# }
-# 
-# # garbage collection
-# rm(mean1data)
-# rm(mean2data)
-# gc()
 
+# create the large lagged data frame
+data_env_lag <- tidyr::expand_grid(arbo_ID = data_env_mod %>% 
+                                     pull(arbo_ID) %>% unique(),
+                                   date_obs = data_env_mod %>% 
+                                     pull(date_obs) %>% unique(),
+                                   #lag column
+                                   lag = seq(from = 0, 
+                                             to = params$lag_length,
+                                             by = 1)) %>% 
+  #the date of the lag (week value minus 1 day, 2 days, 3 days, etc.)
+  dplyr::mutate(date_lag = date_obs - lag) %>% 
+  #join with data on the LAGGED date
+  dplyr::left_join(data_env_mod, 
+                   by = c("arbo_ID", 
+                          "date_lag" = "date_obs"))
+#[DEV] note: top part of data_env_lag will be many NAs, 
+# if we don't have env data prior to the start of the env data (year_weather_start)
+# Fine as long as running modelling years as at least +1 of env data start
+
+# clean up (often b/c of large data)
+rm(prep_env_filler)
+rm(data_env_mod)
+gc()
+
+#turn into WIDE format
+data_env_lag <- data_env_lag %>% 
+  tidyr::pivot_wider(id_cols = c(arbo_ID, date_obs),
+                     names_from = lag,
+                     values_from = c(var1, var2, var1_anom, var2_anom))
+
+#add into combined dataset 
+# because we are going to have a column be a matrix, 
+# switching to data frame (as opposed to tibble) here
+# this is also necessary (data frame) for bam
+data_combined <- data_combined_prep %>% 
+  #adding data, here it will still be separate columns for each lag for each var
+  dplyr::left_join(data_env_lag,
+                   by = c("arbo_ID", "date_week" = "date_obs")) %>% 
+  as.data.frame()
+
+#now convert into a nested matrices
+#pattern matching on the var prefix followed by the day lag number
+data_combined$var1 <- as.matrix(data_combined[, grep(x=colnames(data_combined),
+                                                pattern="^var1_[0123456789]")])
+data_combined$var2 <- as.matrix(data_combined[, grep(x=colnames(data_combined),
+                                                pattern="^var2_[0123456789]")])
+data_combined$var1_anom <- as.matrix(data_combined[, grep(x=colnames(data_combined),
+                                                pattern="^var1_anom_[0123456789]")])
+data_combined$var2_anom <- as.matrix(data_combined[, grep(x=colnames(data_combined),
+                                                pattern="^var2_anom_[0123456789]")])
+
+#now get rid of the many columns used to create the matrices
+data_combined[,grep(x = colnames(data_combined), 
+                    pattern="^var1_[0123456789]")] <- NULL
+data_combined[,grep(x = colnames(data_combined), 
+                    pattern="^var2_[0123456789]")] <- NULL
+data_combined[,grep(x = colnames(data_combined), 
+                    pattern="^var1_anom_[0123456789]")] <- NULL
+data_combined[,grep(x = colnames(data_combined), 
+                    pattern="^var2_anom_[0123456789]")] <- NULL
+
+#create a matrix for the lag
+#using var1 just as a frame
+data_combined$lag <- data_combined$var1
+#rename (though not necessary, just for clarity)
+colnames(data_combined$lag) <- gsub(x = colnames(data_combined$lag),
+                                    pattern = "var1",
+                                    replacement = "lag")
+#now rewrite values
+for (i in 1:ncol(data_combined$lag)){
+  #starting at 0, so i-1
+  data_combined$lag[, i] <- (i - 1)
+}
+
+#need terms for seasonally-varying distributed lag
+data_combined$doymat <- data_combined$lag
+data_combined$doymat[,] <- data_combined$doy #[V3] uncertain what this does [DMN]
+
+# clean up (often b/c of large data)
+rm(data_env_lag)
+gc()
+
+## Post-combining ---------------------------------------------------
+
+data_combined <- data_combined %>% 
+  #ensure that arbo_ID is a factor (needed for bam)
+  dplyr::mutate(arbo_ID = factor(arbo_ID))
 
 ```
 
-
 ```{r forecast_modeling, echo=FALSE}
 
-#<<>><<>><<>>
-# rem GAM dev switch
-# rem get model cache code from other project
+# This code block does the forecast modeling
+# Switches for if saving model objects
 
-
-# set up list to contain models
-modelplots <- list()
-
-# make sure district is a factor before modeling
-fullcasemat$district <- factor(fullcasemat$district)
-
-# get list of models and run them
-preds <- data.frame()
-modelevals <- data.frame()
-curmodel <- modelnames[1]
-for (curmodel in modelnames) {
-  
-  # get the formula
-  thisformula <- modelformulas[c(curmodel)]
-  
-  # add any exact fits
-  exactfitlist <- colnames(fullcasemat)[grep(x=colnames(fullcasemat),
-                                             pattern="exactfit_",
-                                             fixed=TRUE)]
-  if (length(exactfitlist) > 0) {
-    
-    exactfitlist <- paste(exactfitlist, collapse = " + ")
-    thisformula <- paste(thisformula, exactfitlist, sep= " + ")
-    
-  }
-  myform <- as.formula(thisformula)
-  
-  # main human risk model
-  cl <- makeCluster(detectCores(logical=FALSE)-1)
-  firstreg  <- bam(formula=myform,
-                   family=binomial(), data=fullcasemat,
-                   subset=modeled==1,
-                   cluster=cl)
-  stopCluster(cl)
-  
-  # add model plots to the list
-  modelplots[[curmodel]] <- plot(firstreg, select=1)
-  
-  # predict on this model
-  fullcasemat$pred <- predict(firstreg, newdata=fullcasemat, newlevels=TRUE, type="response")
-  
-  # censor predictions outside of the observed range
-  fullcasemat$pred[fullcasemat$weeknum < minhumanobsweek] <- 0
-  fullcasemat$pred[fullcasemat$weeknum > maxhumanobsweek] <- 0
-  
-  # get data frame of predictions from this model
-  tempdf <- data.frame(weekstartdate = fullcasemat$weekstartdate,
-                       district = fullcasemat$district,
-                       anycases = fullcasemat$anycases,
-                       totalcases = fullcasemat$totalcases,
-                       observed = fullcasemat$observed,
-                       modeled = fullcasemat$modeled,
-                       pred = fullcasemat$pred,
-                       model = curmodel)
-  preds <- bind_rows(preds, tempdf)
-  
-  # evaluate this model fit
-  tempdf <- fullcasemat[fullcasemat$modeled == 1,]
-  tempdf <- data.frame(auc = round_any(roc(response = tempdf$anycases,
-                                           predictor = tempdf$pred,
-                                           na.rm=TRUE,
-                                           auc=TRUE)$auc, 0.01),
-                       aic = round_any(AIC(firstreg)[1], 0.01),
-                       model = curmodel)
-  modelevals <- bind_rows(modelevals, tempdf)
-  
+#Function from plyr with no dplyr equivalent (yet)
+round_any <- function(x, accuracy, f = round){
+  f(x / accuracy) * accuracy
 }
 
+if (save_models){
+  #set up list to contain model objects (created cached models)
+  model_objs <- list()
+}
 
+#set up frame to collect evaluation statistics 
+# note that this is ALWAYS done, whether or not dev parameter is set
+# because a subset of these is in the report itself
+model_evals <- data.frame()
+
+# set up list to contain model plots
+# [DEV] this is the FIRST place plots are generated
+#       this is being done in the loop below because unless the
+#       models are being cached, they are not saved so generating 
+#       these plots after the loop would be impossible
+model_plots <- list()
+
+# set up frame to capture predictions
+preds <- data.frame()
+
+# using list of models, run each one
+for (this_model in model_names){
+  
+  ##
+  # formula set up
+  #
+  #get the formula
+  this_formula_raw <- model_formulas[this_model]
+  
+  #add any exact fits
+  exactfit_list <- colnames(data_combined)[grep(x = colnames(data_combined),
+                                             pattern = "exactfit_",
+                                             fixed = TRUE)]
+  if (length(exactfit_list) > 0) {
+    #create formula terms
+    exactfit_list <- paste(exactfit_list, collapse = " + ")
+    #update formula with new pieces
+    this_formula_raw <- paste(this_formula_raw, exactfit_list, sep= " + ")
+    
+  } #end exactfit additions
+  
+  #final formula (includes any exact fits)
+  this_formula <- as.formula(this_formula_raw)
+
+  ##
+  # forecast human risk model / regression
+  #
+  #USE cached model if given, if it's a lm object
+  if (!is_null(models_cached)){ 
+    
+    #very basic test if reg object. bam: bam, gam, glm, lm
+    if (is(models_cached[[c(this_model)]], "lm")){
+    #get right math model regression object
+    this_reg <- models_cached[[c(this_model)]]
+    } #end if reg obj
+  
+  } else {
+    #if not given a cached model, or cached model given was not an lm,
+    # create model
+    cl <- parallel::makeCluster(parallel::detectCores(logical = FALSE) - 1)
+    
+    #switch for regression type 
+    #[DEV] hook only, left open for development later [DMN]
+    if (reg_function == "GAM"){
+      this_reg  <- mgcv::bam(formula = this_formula,
+                       family = binomial(), 
+                       data = data_combined,
+                       subset = modeled == 1,
+                       cluster = cl)
+      
+    } #end regression switch
+    
+    parallel::stopCluster(cl)
+    
+  } #end cached model/create model
+
+  # if saving models, add model obj to list
+  if (save_models){
+    model_objs[[this_model]] <- this_reg
+  }
+
+  # add model plots to the list
+  # <<>> DEV May need to make better plots? find out where used in report and how it is formatted
+  model_plots[[this_model]] <- plot(this_reg, select=1)
+
+  ##
+  # predictions of this model
+  #
+  
+  # predict on this model
+  # note that this field will be overwritten each model in loop
+  data_combined$pred <- predict(this_reg, 
+                                newdata = data_combined, 
+                                newlevels=TRUE, type="response")
+
+  #censor predictions outside of the alpha window for human cases 
+  # done in [V3] but with a confusing code comment, but this is what it does [DMN]
+  data_combined$pred[data_combined$TBC_mod_wk_dt_week < human_wk_min] <- 0
+  data_combined$pred[data_combined$TBC_mod_wk_dt_week > human_wk_max] <- 0
+
+  #add predictions from the model to all model prediction data frame
+  # first generate a temporary data frame with just the data to add
+  pred_prep <- data.frame(arbo_ID = data_combined$arbo_ID,
+                          date_week = data_combined$date_week,
+                          any_cases = data_combined$any_cases,
+                          case_count = data_combined$case_count,
+                          observed = data_combined$observed,
+                          modeled = data_combined$modeled,
+                          pred = data_combined$pred,
+                          model = this_model)
+  preds <- dplyr::bind_rows(preds, pred_prep)
+  
+  
+  ##
+  # evaluate this model fit
+  #
+  eval_prep <- data_combined[data_combined$modeled == 1,]
+  #for display in report, auc and aic should be rounded (as opposed to more digits here)
+  eval_prep <- data.frame(auc = round_any(pROC::roc(response = eval_prep$any_cases,
+                                                         predictor = eval_prep$pred,
+                                                         na.rm=TRUE,
+                                                         auc=TRUE)$auc, 0.00001),
+                          aic = round_any(AIC(this_reg)[1], 0.00001),
+                          model = this_model)
+  model_evals <- dplyr::bind_rows(model_evals, eval_prep)
+  
+  
+  
+} #end run each model
+
+# if saving models, name and save out
+if (save_models){
+    saveRDS(model_objs, file = file.path(out_folder, paste0(out_name_base, ".rds")))
+}
+
+if (dev_write_output){
+  readr::write_csv(preds, file = file.path(out_folder, paste0(out_name_base, "_predictions.csv")))
+  readr::write_csv(model_evals, file = file.path(out_folder, paste0(out_name_base, "_evals.csv")))
+}
 ```
 
 <!-- End of internals: data load, processing, forecast modeling, etc. -->
@@ -1531,7 +1732,8 @@ for (curmodel in modelnames) {
 ```
 
 
-```{r appendix_switch, child=if (params$create_appendix) 'ArboMAP_forecast_appendix.Rmd'}
+```{r appendix_switch }
+#child=if (params$create_appendix) 'ArboMAP_forecast_appendix.Rmd'
 # Conditionally add the appendix child file (to be created) depending the T/F value of create_appendix 
 #https://bookdown.org/yihui/rmarkdown-cookbook/child-document.html
 
