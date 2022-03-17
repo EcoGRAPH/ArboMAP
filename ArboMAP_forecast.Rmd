@@ -1783,48 +1783,251 @@ if (dev_write_output){
 
 <!-- End of internals: data load, processing, forecast modeling, etc. -->
 <!-- Everything below is report: text and figures. -->
+<!-- Division 1: Forecast Results -->
+<!-- 1.1 Relative risk map [modified] -->
+<!-- 1.2 Absolute risk map [condensed] -->
+<!-- 1.3 Current-year fc chart [mean w/ max/min] PLUS human hx epicurve -->
+<!-- 1.4 Positives-to-cases [condensed: mean w/ range] -->
+<!-- 1.5 Multi-year forecasting chart [mean w/ max/min] -->
 
+<!-- Division 2: Input Data -->
+<!-- 2.1 Mosquito pools [with new] -->
+<!-- 2.2 Weather [observed] -->
+<!-- 2.3 Human cases -->
+<!-- 2.4 Data used descriptions -->
+<!-- 2.5 Spatial data -->
+<!-- 2.6 Run parameters -->
+<!-- 2.7 Reference map -->
 
+# Forecast Results
 
+```{r forecast_summary, echo=FALSE, include=FALSE}
+# Many of the plots displayed in the main report are the AVERAGE of all models, 
+#   so creating summary here for use in multiple places 
 
+#DEV test #filter(arbo_ID == 'anley', date_epi == as.Date("2018-10-20"))
 
+preds_ave <- preds %>% 
+  #specifically NOT grouping by 'model'
+  dplyr::group_by(arbo_ID, 
+                  #keeping all date-related fields, 
+                  # need to at least group on date_epi (or year+week)
+                  date_epi, week_epi, year_epi) %>% 
+  dplyr::summarise(pred = mean(pred, na.rm = TRUE),
+                   #rest are same across models, taking first to keep
+                    #could have grouped by and gotten same result
+                   any_cases = first(any_cases),
+                   case_count = first(case_count),
+                   observed = first(observed),
+                   modeled = first(modeled),
+                   .groups = 'drop')
 
-
-
-```{r , fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
 ```
 
-```{r , fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
+
+## Current-week WNV relative risk map
+
+```{r relative_risk_map, echo=FALSE, include=TRUE, fig.align = 'center', fig.width = 7}
+
+
+
+# #<<>><<>> DEV ??????? why replace year sums of preds that are > 1 with a linear approx? how is this current week?? Is this code just wrong?? [DMN]
+# 
+# fullcasemat$pred <- NULL
+# fullcasemat$var1 <- NULL
+# fullcasemat$var2 <- NULL
+# fullcasemat$anom_var1 <- NULL
+# fullcasemat$anom_var2 <- NULL
+# fullcasemat$doymat <- NULL
+# fullcasemat$lag <- NULL
+# fullcasemat <- left_join(fullcasemat, tempdf, by=c("district", "weekstartdate"))
+# 
+# thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
+# thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
+# thisweek <- thisweek[c("district", "pred", "doy")]
+# 
+# approxdoy <- thisweek$doy[1]
+# 
+# fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
+# 
+# doypreds <- data.frame()
+# for (curyear in unique(fullcasemat$year)) {
+#   
+#   for (curdistrict in unique(fullcasemat$district)) {
+#     
+#     thisdf <- fullcasemat[fullcasemat$year == curyear,]
+#     thisdf <- thisdf[thisdf$district == curdistrict,]
+#     
+#     if(sum(!is.na(thisdf$pred)) > 1) {
+#       
+#       tempdf <- data.frame(district = curdistrict,
+#                            year = curyear,
+#                            pred = approx(x=thisdf$doy,
+#                                          y=thisdf$pred,
+#                                          xout=approxdoy)$y)
+#       
+#       doypreds <- bind_rows(doypreds, tempdf)
+#       
+#     }
+#     
+#   }
+#   
+# }
+# 
+# doypreds2 <- data.frame()
+# for (curdistrict in unique(doypreds$district)) {
+#   
+#   tempdf <- doypreds[doypreds$district == curdistrict,]
+#   tempdf$percentile <- rank(tempdf$pred, ties.method="random") / length(tempdf$pred)
+#   
+#   doypreds2 <- bind_rows(doypreds2, tempdf)
+#   
+# }
+# doypreds <- doypreds2
+# rm(doypreds2)
+# 
+# riskalpha <- 0.25
+# doypreds$riskcategory <- " About average    "
+# doypreds$riskcategory[doypreds$percentile <= riskalpha/2] <- " Lower than usual    "
+# doypreds$riskcategory[doypreds$percentile >= 1-(riskalpha/2)] <- " Higher than usual    "
+# doypredscurrent <- doypreds[doypreds$year == as.numeric(format(weekinquestion, "%Y")),]
+# 
+# projected_districts.df <- left_join(district_shapes, doypredscurrent,
+#                                     by="district")
+# projected_districts.df$riskcategory[is.na(projected_districts.df$riskcategory)] <- " Not able to model    "
+# thisplotrisk <- ggplot(projected_districts.df) +
+#   geom_sf(aes(fill=riskcategory)) +
+#   ggtitle("") +
+#   theme(text=element_text(size=15)) +
+#   theme(plot.title=element_text(size=15),
+#         legend.key=element_rect(fill="white")) +
+#   theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
+#         axis.ticks = element_blank(), axis.text.x = element_blank(),
+#         axis.text.y = element_blank(), axis.title.x=element_blank(),
+#         axis.title.y = element_blank(),
+#         legend.position="bottom",
+#         legend.key.width=unit(1, "cm"),
+#         legend.key.height=unit(0.5,"cm")) +
+#   theme(legend.direction="vertical") +
+#   scale_fill_manual(name=paste("Risk for ", weekinquestionSun, " to ",
+#                                format(weekinquestionSat, "%m-%d"), sep=""),
+#                     values=c(" Lower than usual    "="lightblue",
+#                              " About average    "="yellow",
+#                              " Higher than usual    "="red",
+#                              " Not able to model    "="grey"))
+# 
+# 
+# plot(thisplotrisk)
+# 
+
 ```
 
+## Current-week WNV absolute risk map
 
-```{r , include=TRUE, echo=FALSE, fig.width=6, fig.height=3}
+```{r absolute_risk_map, fig.width=7, echo=FALSE, include=TRUE}
+
+# preds_fc_week <- preds %>% 
+#   filter()
+
+# 
+# # get this week's predictions
+# thisweek <- preds[preds$weekstartdate >= weekinquestion,]
+# thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
+# thisweek <- thisweek[c("model", "district", "pred")]
+# 
+# tempdf2 <- data.frame()
+# for (curmodel in unique(thisweek$model)) {
+#   
+#   tempdf <- district_shapes
+#   tempdf <- left_join(tempdf, thisweek, by="district")
+#   tempdf$pred[is.na(tempdf$pred)] <- min(tempdf$pred, na.rm=TRUE)
+#   tempdf$model <- curmodel
+#   
+#   thisplot <- ggplot(tempdf) +
+#     geom_sf(aes(fill=pred)) + xlab("") + ylab("") +
+#     theme(legend.position="bottom") +
+#     scale_fill_distiller(palette = "Spectral", limits = c(0,1),
+#                          breaks = c(0,1),
+#                          labels = c("Will definitely not\nreport any cases",
+#                                     "Will definitely\nreport some cases"),
+#                          name = "") +
+#     ggtitle(paste("Estimate for week beginning ",
+#                   weekinquestionSun,
+#                   " (", curmodel, ")",
+#                   sep="")) +
+#     theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
+#           axis.ticks = element_blank(), axis.text.x = element_blank(),
+#           axis.text.y = element_blank(), axis.title.x=element_blank(),
+#           axis.title.y = element_blank(),
+#           legend.position="bottom",
+#           legend.key.width=unit(1, "cm"),
+#           legend.key.height=unit(0.25,"cm"))
+#   plot(thisplot)
+# }
+
+
 ```
 
+## Current-year forecast
 
-```{r , echo=FALSE, include=TRUE, fig.width=7, fig.height=3.5}
+```{r current_year_forecast, fig.width=7, echo=FALSE, include=TRUE}
 ```
 
+## Case estimation
 
-```{r , echo=TRUE, warnings=FALSE, include=FALSE}
+```{r positives_to_cases, fig.width=7, echo=FALSE, include=TRUE}
 ```
 
+## Multi-year forecast
 
-```{r , echo=FALSE, include=FALSE}
-
+```{r multi_year_forecast, fig.width=7, echo=FALSE, include=TRUE}
 ```
 
-```{r , echo=FALSE}
+# Data summaries
+
+DEV: Printing a bunch of things - 
+dx_mosq_nrow_0load: `r dx_mosq_nrow_0load`
+dx_human_nrow_0load: `r dx_human_nrow_0load`
+dx_env_nrow_0load, note PRE de-duplication: `r dx_env_nrow_0load`
+dx_human_nrow_1range: `r dx_human_nrow_1range`
+dx_human_nrow_2clean: `r dx_human_nrow_2clean`
+dx_human_districts: `r dx_human_districts`
+state_cases_total: `r state_cases_total`
+state_any_cases_total: `r state_any_cases_total`
+cases_before_fc_wk: `r cases_before_fc_wk`
+cases_perc_obs_hx: `r cases_perc_obs_hx`
+dx_mosq_nrow_1range: `r dx_mosq_nrow_1range` 
+dx_mosq_nrow_2clean: `r dx_mosq_nrow_2clean`
+dx_mosq_nrow_3filtered: `r dx_mosq_nrow_3filtered`
+dx_mosq_districts: `r dx_mosq_districts`
+dx_mosq_nrow_maxyr: `r dx_mosq_nrow_maxyr`
+mosq_pos_num_maxyr: `r mosq_pos_num_maxyr`
+mosq_pos_perc_maxyr: `r mosq_pos_perc_maxyr`
+
+
+
+
+## Mosquito pools
+
+```{r mosquito_pools, fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
 ```
 
+## Weather
 
-```{r , fig.width=7, fig.height=4, echo=FALSE, warnings=FALSE}
+```{r weather_charts, fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
 ```
 
+## Human cases
 
-```{r fig.width=7, fig.height=4, echo=FALSE, warnings=FALSE}
+```{r human_charts, fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
 ```
 
+## Reference map
+
+```{r reference_map, fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
+```
+
+## Parameters
 
 ```{r params_pretty, include=TRUE, echo=FALSE}
 #<<>>
@@ -1833,7 +2036,7 @@ if (dev_write_output){
 ```
 
 
-```{r appendix_switch }
+```{r appendix_switch, echo = FALSE}
 #child=if (params$create_appendix) 'ArboMAP_forecast_appendix.Rmd'
 # Conditionally add the appendix child file (to be created) depending the T/F value of create_appendix 
 #https://bookdown.org/yihui/rmarkdown-cookbook/child-document.html
