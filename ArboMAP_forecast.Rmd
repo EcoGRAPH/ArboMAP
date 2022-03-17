@@ -107,7 +107,7 @@ if (packageVersion("readr") < 2.1){
 <!--  forecast_modeling: create the forecast models -->
 <!-- Note on code comment flags: [V3]: this is what was done in version 3; [DEV] developer note; [DMN] note from Dawn Nekorchuk; DEV: active development -->
 
-```{r dev_parameters, include=FALSE}
+```{r dev_parameters, echo=FALSE, include=FALSE}
 #input is named list
 
 #parameters available:
@@ -282,7 +282,7 @@ if (length(params$dev_settings) > 1){
 
 ```
 
-```{r data_load, include=FALSE}
+```{r data_load, echo=FALSE, include=FALSE}
 #Loads data from file locations given in parameters
 #Note: does NOT do any data checks
 
@@ -374,7 +374,7 @@ dx_env_nrow_0load <- nrow(data_env_raw) #note PRE de-duplication
 
 ```
 
-```{r data_id_fields, echo=FALSE} 
+```{r data_id_fields, echo=FALSE, include=FALSE} 
 
 #ID fields:
 # If FIPS field is in all, will use fips (FULL 5 character version)
@@ -539,7 +539,7 @@ if (confirm_id_fields(field_fips_accepted)){
 }#end arbo_ID setup
 ```
 
-```{r data_dates, echo=FALSE} 
+```{r data_dates, echo=FALSE, include=FALSE} 
 
 # Dates in data
 #   "date_obs" will become the standard date field name of the observed
@@ -740,7 +740,7 @@ date_max_model <- make_date_yw(year = params$year_modeling_end,
 # TBC_minhumandesireddatestr <- strftime(TBC_minhumandesireddate, '%A')
 ```
 
-```{r data_human_processing_dx, echo=FALSE} 
+```{r data_human_processing_dx, echo=FALSE, include=FALSE} 
 ## Human
 
 #Record row count (in human_year_start through human_year_end)
@@ -785,7 +785,7 @@ if (impute_human_missing_districts){
 }
 ```
 
-```{r data_mosq_processing_dx, echo=FALSE} 
+```{r data_mosq_processing_dx, echo=FALSE, include=FALSE} 
 
 ## Mosquito
 # Cleaning, filtering, statistics for report
@@ -838,7 +838,7 @@ mosq_pos_perc_maxyr <- mosq_pos_num_maxyr / dx_mosq_nrow_maxyr * 100 %>%
   round(3)
 ```
 
-```{r mosquito_resampling, echo=FALSE} 
+```{r mosquito_resampling, echo=FALSE, include=FALSE} 
 
 if (resample_mosquito){
   
@@ -906,7 +906,7 @@ if (resample_mosquito){
 } #end if resample
 ```
 
-```{r mosquito_infection_model, echo=FALSE} 
+```{r mosquito_infection_model, echo=FALSE, include=FALSE} 
 
 # Calculates mir_stat (mosquito infection rate), based on mosquito model
 #   Creates mosq_mir : 
@@ -1020,10 +1020,9 @@ if (mosquito_model_clean %in% c("MIGR", "MII")) {
   #data_mosq_df$est <- predict(data_mosq_df, newdata=wnv, type="response")
   #data_mosquito <- data_mosq_df %>% tibble::as_tibble()
   
-  #make year numeric & arbo_id character again (not factor)
+  #make year numeric again (not factor)
   data_mosquito <- data_mosquito %>% 
-    dplyr::mutate(year_epi = as.numeric(as.character(year_epi)),
-                  arbo_ID = as.character(arbo_ID))
+    dplyr::mutate(year_epi = as.numeric(as.character(year_epi))) 
   
   
   if (mosquito_model_clean == "MIGR") {
@@ -1131,7 +1130,7 @@ if (dev_write_output){
 }
 ```
 
-```{r data_env_latest_history, echo=FALSE} 
+```{r data_env_latest_history, echo=FALSE, include=FALSE} 
 
 #This block:
 # 1) picks out latest values when have duplicate values for a particular day
@@ -1195,7 +1194,7 @@ data_env_hx <- data_env %>%
 
 ```
 
-```{r data_env_anomalization, echo=FALSE} 
+```{r data_env_anomalization, echo=FALSE, include=FALSE} 
 
 # This section calculates:
 # bam model for anomalization
@@ -1263,7 +1262,7 @@ rm(data_env_df)
 rm(this_env_mod)
 ```
 
-```{r data_combine, echo=FALSE} 
+```{r data_combine, echo=FALSE, include=FALSE} 
 
 # Human, mosq infection rate, and environmental data together
 #   creating full matrix in prep for forecast modeling
@@ -1553,7 +1552,7 @@ data_env_lag <- tidyr::expand_grid(arbo_ID = data_env_mod %>%
 # clean up (often b/c of large data)
 rm(prep_env_filler)
 rm(data_env_mod)
-gc()
+gc(verbose = FALSE)
 
 #turn into WIDE format
 data_env_lag <- data_env_lag %>% 
@@ -1611,17 +1610,20 @@ data_combined$doymat[,] <- data_combined$doy #[V3] uncertain what this does [DMN
 
 # clean up (often b/c of large data)
 rm(data_env_lag)
-gc()
+gc(verbose = FALSE)
 
 ## Post-combining ---------------------------------------------------
 
+#store arbo_ID data type to unfactor later
+arbo_ID_class <- class(data_combined$arbo_ID)
+
+#ensure that arbo_ID is a factor (needed for bam)
 data_combined <- data_combined %>% 
-  #ensure that arbo_ID is a factor (needed for bam)
   dplyr::mutate(arbo_ID = factor(arbo_ID))
 
 ```
 
-```{r forecast_modeling, echo=FALSE}
+```{r forecast_modeling, echo=FALSE, include=FALSE}
 
 # This code block does the forecast modeling
 # Switches for if saving model objects
@@ -1759,9 +1761,14 @@ for (this_model in model_names){
                           model = this_model)
   model_evals <- dplyr::bind_rows(model_evals, eval_prep)
   
-  
-  
 } #end run each model
+
+# convert results data into tbls for ease later in plotting
+#  and return arbo_ID to original type
+preds <- tibble::as_tibble(preds) %>% 
+  dplyr::mutate(arbo_ID = as.character(arbo_ID) %>% 
+                  as(arbo_ID_class))
+model_evals <- tibble::as_tibble(model_evals)
 
 # if saving models, name and save out
 if (save_models){
