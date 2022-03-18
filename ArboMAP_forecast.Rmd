@@ -333,7 +333,8 @@ if (is.null(data_sf_orig)){
 
 if (is.null(model_formulas)){
   models_raw <- readr::read_csv(params$file_models, 
-                                show_col_types = FALSE, quote = "\"")
+                                col_names = FALSE, show_col_types = FALSE, 
+                                quote = "\"")
   #create named list from tbl
   model_formulas <- models_raw %>% 
     dplyr::pull(2, name = 1)
