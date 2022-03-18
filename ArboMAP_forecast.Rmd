@@ -1628,7 +1628,7 @@ data_combined <- data_combined %>%
 # This code block does the forecast modeling
 # Switches for if saving model objects
 
-#Function from plyr with no dplyr equivalent (yet)
+#Function from plyr with no dplyr equivalent
 round_any <- function(x, accuracy, f = round){
   f(x / accuracy) * accuracy
 }
@@ -1767,7 +1767,9 @@ for (this_model in model_names){
 #  and return arbo_ID to original type
 preds <- tibble::as_tibble(preds) %>% 
   dplyr::mutate(arbo_ID = as.character(arbo_ID) %>% 
-                  as(arbo_ID_class))
+                  as(arbo_ID_class),
+                #also add doy of date_epi, used in graphing
+                doy = lubridate::yday(date_epi))
 model_evals <- tibble::as_tibble(model_evals)
 
 # if saving models, name and save out
@@ -1802,17 +1804,17 @@ if (dev_write_output){
 # Forecast Results
 
 ```{r forecast_summary, echo=FALSE, include=FALSE}
-# Many of the plots displayed in the main report are the AVERAGE of all models, 
-#   so creating summary here for use in multiple places 
 
-#DEV test #filter(arbo_ID == 'anley', date_epi == as.Date("2018-10-20"))
+# Creating various summary tables, calculating model averages,
+#   setting up common theme sets for use in multiple places for display
 
+# average predictions of all models
 preds_ave <- preds %>% 
   #specifically NOT grouping by 'model'
   dplyr::group_by(arbo_ID, 
                   #keeping all date-related fields, 
                   # need to at least group on date_epi (or year+week)
-                  date_epi, week_epi, year_epi) %>% 
+                  date_epi, week_epi, year_epi, doy) %>% 
   dplyr::summarise(pred = mean(pred, na.rm = TRUE),
                    #rest are same across models, taking first to keep
                     #could have grouped by and gotten same result
@@ -1822,6 +1824,21 @@ preds_ave <- preds %>%
                    modeled = first(modeled),
                    .groups = 'drop')
 
+#and the preds_ave of just this forecast week
+preds_ave_fc_wk <- preds_ave %>% 
+  dplyr::filter(week_epi == epiweek_request, year_epi == epiyear_request) 
+
+# Also adding common map themes used in many places
+theme_arbo_map <- theme(
+  # panels
+  panel.grid.major=element_blank(), 
+  panel.grid.minor=element_blank(),
+  #axis
+  axis.ticks = element_blank(), 
+  axis.text.x = element_blank(),
+  axis.text.y = element_blank(), 
+  axis.title.x=element_blank(),
+  axis.title.y = element_blank())
 ```
 
 
@@ -1829,96 +1846,67 @@ preds_ave <- preds %>%
 
 ```{r relative_risk_map, echo=FALSE, include=TRUE, fig.align = 'center', fig.width = 7}
 
+# Want to compare the current risk to the historical/previous years
 
+# [V3] I've tried to be faithful to the algorithm from v3, 
+#       but there were no why-comments, so I had to try to logic it out [DMN]
+# [V3] The following is the v3 algorithm, below this is the new V4 algorithm:
+# V3.1. Take the mean of the predictions across all models for each district-week
+#     Note: using the preds_ave tbl created in forecast-summary code block
+# V3.2. If there are more than 1 predictions in a district-year, 
+#     (just as a check that the calculation will work) 
+#     then find the PRED value that would have occurred approximately 
+#       at the SAME DOY as the current forecast week, for each district-year
+#       (using the ave pred values from step 1.)  
+#       via a linear interpolation (using DOY)
+# V3.3. RANK these pred values (~DOY-of-forecast model-average pred values for each district-year)
+#     and divide by the number of years of values each district has.
+#     This creates a ~percentile of RANKED risk (basically)
+# V3.4. Break percentile into categories
 
-# #<<>><<>> DEV ??????? why replace year sums of preds that are > 1 with a linear approx? how is this current week?? Is this code just wrong?? [DMN]
-# 
-# fullcasemat$pred <- NULL
-# fullcasemat$var1 <- NULL
-# fullcasemat$var2 <- NULL
-# fullcasemat$anom_var1 <- NULL
-# fullcasemat$anom_var2 <- NULL
-# fullcasemat$doymat <- NULL
-# fullcasemat$lag <- NULL
-# fullcasemat <- left_join(fullcasemat, tempdf, by=c("district", "weekstartdate"))
-# 
-# thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
-# thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
-# thisweek <- thisweek[c("district", "pred", "doy")]
-# 
-# approxdoy <- thisweek$doy[1]
-# 
-# fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
-# 
-# doypreds <- data.frame()
-# for (curyear in unique(fullcasemat$year)) {
-#   
-#   for (curdistrict in unique(fullcasemat$district)) {
-#     
-#     thisdf <- fullcasemat[fullcasemat$year == curyear,]
-#     thisdf <- thisdf[thisdf$district == curdistrict,]
-#     
-#     if(sum(!is.na(thisdf$pred)) > 1) {
-#       
-#       tempdf <- data.frame(district = curdistrict,
-#                            year = curyear,
-#                            pred = approx(x=thisdf$doy,
-#                                          y=thisdf$pred,
-#                                          xout=approxdoy)$y)
-#       
-#       doypreds <- bind_rows(doypreds, tempdf)
-#       
-#     }
-#     
-#   }
-#   
-# }
-# 
-# doypreds2 <- data.frame()
-# for (curdistrict in unique(doypreds$district)) {
-#   
-#   tempdf <- doypreds[doypreds$district == curdistrict,]
-#   tempdf$percentile <- rank(tempdf$pred, ties.method="random") / length(tempdf$pred)
-#   
-#   doypreds2 <- bind_rows(doypreds2, tempdf)
-#   
-# }
-# doypreds <- doypreds2
-# rm(doypreds2)
-# 
-# riskalpha <- 0.25
-# doypreds$riskcategory <- " About average    "
-# doypreds$riskcategory[doypreds$percentile <= riskalpha/2] <- " Lower than usual    "
-# doypreds$riskcategory[doypreds$percentile >= 1-(riskalpha/2)] <- " Higher than usual    "
-# doypredscurrent <- doypreds[doypreds$year == as.numeric(format(weekinquestion, "%Y")),]
-# 
-# projected_districts.df <- left_join(district_shapes, doypredscurrent,
-#                                     by="district")
-# projected_districts.df$riskcategory[is.na(projected_districts.df$riskcategory)] <- " Not able to model    "
-# thisplotrisk <- ggplot(projected_districts.df) +
-#   geom_sf(aes(fill=riskcategory)) +
-#   ggtitle("") +
-#   theme(text=element_text(size=15)) +
-#   theme(plot.title=element_text(size=15),
-#         legend.key=element_rect(fill="white")) +
-#   theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
-#         axis.ticks = element_blank(), axis.text.x = element_blank(),
-#         axis.text.y = element_blank(), axis.title.x=element_blank(),
-#         axis.title.y = element_blank(),
-#         legend.position="bottom",
-#         legend.key.width=unit(1, "cm"),
-#         legend.key.height=unit(0.5,"cm")) +
-#   theme(legend.direction="vertical") +
-#   scale_fill_manual(name=paste("Risk for ", weekinquestionSun, " to ",
-#                                format(weekinquestionSat, "%m-%d"), sep=""),
-#                     values=c(" Lower than usual    "="lightblue",
-#                              " About average    "="yellow",
-#                              " Higher than usual    "="red",
-#                              " Not able to model    "="grey"))
-# 
-# 
-# plot(thisplotrisk)
-# 
+# V4 algorithm
+# 1. Take the mean of the predictions across all models for each district-week
+#     Note: using the preds_ave tbl created in forecast-summary code block
+# 2. For each district-year, get the pred value at the same EPI WEEK as the forecast week
+# 3. RANK these pred values and divide by the number of years of values each district has.
+#     This creates a ~percentile of RANKED risk (basically)
+# 4. Percentile values kept as continuous to match style of absolute risk maps
+#     [V3]: <= 12.5% lower than ave, => 87.5% higher than ave
+#     Will need to indicate something similar in legend
+# Note: This is therefore the relative risk of PREDICTED values. 
+#     May want to consider if there is some way to compare forecast-week predicted value
+#       against OBSERVED historical values (any_cases), but not certain how that 
+#       mathematically would work out (as any_cases is {0|1}). [DMN]
+
+rel_risk <- preds_ave %>% 
+  #get all ave-preds at same epiweek (in any year)
+  #   now only 1 row per year
+  dplyr::filter(week_epi == epiweek_request) %>% 
+  # rank within each district
+  dplyr::group_by(arbo_ID) %>% 
+  dplyr::mutate(rank_pred = rank(pred, ties.method = 'random'),
+                #percentile of ranked pred by number of years
+                # note: rank such that lowest pred = 1
+                rank_perc = rank_pred / n()) %>% 
+  #and get this current-year week
+  dplyr::filter(year_epi == epiyear_request)
+
+#join with spatial
+sf_rel_risk <- data_sf_orig %>% 
+  dplyr::left_join(rel_risk, by = "arbo_ID")
+
+p_rel_risk <- ggplot2::ggplot() +
+  ggplot2::geom_sf(data = sf_rel_risk,
+                   aes(fill = rank_perc)) +
+  theme_arbo_map
+
+plot(p_rel_risk)
+
+#fix common theme, take a look at epidemia-demo rnw
+# fix legend
+# don't worry about color scheme yet
+# lower: 0 - 12.5; ave 12.5 - 87.5; higher 87.5 - 100
+# <<>> DEV
 
 ```
 
@@ -1926,51 +1914,14 @@ preds_ave <- preds %>%
 
 ```{r absolute_risk_map, fig.width=7, echo=FALSE, include=TRUE}
 
-# preds_fc_week <- preds %>% 
-#   filter()
-
-# 
-# # get this week's predictions
-# thisweek <- preds[preds$weekstartdate >= weekinquestion,]
-# thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
-# thisweek <- thisweek[c("model", "district", "pred")]
-# 
-# tempdf2 <- data.frame()
-# for (curmodel in unique(thisweek$model)) {
-#   
-#   tempdf <- district_shapes
-#   tempdf <- left_join(tempdf, thisweek, by="district")
-#   tempdf$pred[is.na(tempdf$pred)] <- min(tempdf$pred, na.rm=TRUE)
-#   tempdf$model <- curmodel
-#   
-#   thisplot <- ggplot(tempdf) +
-#     geom_sf(aes(fill=pred)) + xlab("") + ylab("") +
-#     theme(legend.position="bottom") +
-#     scale_fill_distiller(palette = "Spectral", limits = c(0,1),
-#                          breaks = c(0,1),
-#                          labels = c("Will definitely not\nreport any cases",
-#                                     "Will definitely\nreport some cases"),
-#                          name = "") +
-#     ggtitle(paste("Estimate for week beginning ",
-#                   weekinquestionSun,
-#                   " (", curmodel, ")",
-#                   sep="")) +
-#     theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
-#           axis.ticks = element_blank(), axis.text.x = element_blank(),
-#           axis.text.y = element_blank(), axis.title.x=element_blank(),
-#           axis.title.y = element_blank(),
-#           legend.position="bottom",
-#           legend.key.width=unit(1, "cm"),
-#           legend.key.height=unit(0.25,"cm"))
-#   plot(thisplot)
-# }
-
 
 ```
 
 ## Current-year forecast
 
 ```{r current_year_forecast, fig.width=7, echo=FALSE, include=TRUE}
+
+
 ```
 
 ## Case estimation
