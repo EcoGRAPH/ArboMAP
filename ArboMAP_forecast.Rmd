@@ -1974,6 +1974,77 @@ plot(p_abs_risk)
 
 ```{r current_year_forecast, fig.width=7, echo=FALSE, include=TRUE}
 
+#Creates an epicurve of the current forecast year PREDICTIONS
+# Average of models, with ribbon for min/max models
+# Adds the HISTORICAL human epicurve 
+#
+# Note: individual model version moved to Appendix
+
+# [V3] censored pred values displayed to be between 'modeled' period
+#   betwen min/max weeks from alpha calculation.
+# Removed to see what happens <<>> DEV
+
+# DEV
+# <<>> preds pre/post current week line type change: censored pred <<>><<>>
+# <<>> censor weeks to .... human alpha range? (modeled) ... any obs-OR-pred >0? 
+
+preds_ave_fc_yr_st <- preds_ave_fc_yr %>% 
+  #collapse districts into state values 
+  dplyr::group_by(week_epi) %>% 
+  dplyr::summarise(pred_ave = mean(pred_ave, na.rm = TRUE),
+                   pred_min = mean(pred_min, na.rm = TRUE),
+                   pred_max = mean(pred_max, na.rm = TRUE))
+
+p_cur_yr_fc <- ggplot2::ggplot() +
+  #min/max ribbon first so that ave pred plots on top
+  ggplot2::geom_ribbon(data = preds_ave_fc_yr_st,
+                       aes(x = week_epi,
+                           ymin = pred_min,
+                           ymax = pred_max),
+                       fill = 'grey80') + 
+  ggplot2::geom_line(data = preds_ave_fc_yr_st, 
+                      aes(x = week_epi,
+                          y = pred_ave),
+                     color = 'red') 
+
+
+
+plot(p_cur_yr_fc)
+
+# thisplot2 <- ggplot(data=tempdf2) +
+#   geom_line(aes(x=weekstartdate, y=cenobs, group=model, color=model), show.legend=FALSE) +
+#   geom_line(aes(x=weekstartdate, y=pred, group=model, color=model, linetype=model)) +
+#   scale_color_manual("", values = mycolors) +
+#   scale_linetype_manual("", values = mylinetypes) +
+#   ggtitle(paste("Statewide model predictions in ", as.numeric(format(weekinquestion, "%Y")), sep="")) +
+#   xlab("") + ylab("") +
+#   geom_vline(xintercept=weekinquestion) + 
+#   ylab("Proportion of districts positive") +
+#   theme(panel.grid.minor.x=element_blank()) +
+#   theme(axis.text.x = element_text(hjust=-0.225)) +
+#   theme(legend.position="bottom") +
+#   guides(color=guide_legend(), linetype=guide_legend()) +
+#   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(),
+#         legend.key = element_blank()) +
+#   labs(color="model", linetype="model")
+# plot(thisplot2)
+
+
+# fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
+# fullcasemat <- group_by(fullcasemat, weeknum)
+# sumanyhumancases <- dplyr::summarise(fullcasemat, totany = sum(anycases, na.rm=TRUE),
+#                                      .groups="keep")
+# fullcasemat <- ungroup(fullcasemat)
+# 
+# ggplot(sumanyhumancases) + geom_line(aes(x=weeknum, y=totany)) +
+#   ggtitle("positive districts by week, any year") +
+#   xlab("week number") + ylab("total districts positive") +
+#   geom_vline(xintercept=minhumanobsweek, linetype=2) +
+#   geom_vline(xintercept=maxhumanobsweek, linetype=2) +
+#   scale_x_continuous(breaks=seq(from=min(sumanyhumancases$weeknum),
+#                                 to=max(sumanyhumancases$weeknum),
+#                                 by=2))
+
 
 ```
 
