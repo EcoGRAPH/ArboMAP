@@ -1840,6 +1840,20 @@ theme_arbo_map <- theme(
   axis.text.y = element_blank(), 
   axis.title.x=element_blank(),
   axis.title.y = element_blank())
+
+#Named list of short model descriptions / better names
+# includes large set of potential names, less with be used in the actual reports most likely
+model_desc_names <- c(
+  "cub-fx-nonanom" = "Non-anomalized weather with fixed cubic splines",
+  "cub-fx-anom" = "Anomalized weather with fixed cubic splines",
+  "cub-sv-nonanom" = "Non-anomalized weather with seasonally-varying cubic splines",
+  "cub-sv-anom" = "Non-anomalized weather with seasonally-varying cubic splines",
+  "tp-fx-nonanom" = "Non-anomalized weather with fixed thin plate splines",
+  "tp-fx-anom" = "Anomalized weather with fixed thin plate splines",
+  "tp-sv-nonanom" = "Non-anomalized weather with seasonally-varying thin plate splines",
+  "tp-sv-anom" = "Anomalized weather with seasonally-varying thin plate splines")
+#get additional <<>> DEV
+
 ```
 
 
