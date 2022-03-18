@@ -1917,11 +1917,14 @@ p_rel_risk <- ggplot2::ggplot() +
 
 plot(p_rel_risk)
 
-#fix common theme, take a look at epidemia-demo rnw
+#fix common theme, take a look at poster ggplots 
 # fix legend
 # don't worry about color scheme yet
 # lower: 0 - 12.5; ave 12.5 - 87.5; higher 87.5 - 100
 # <<>> DEV
+
+# <<>> DEV Add TABLE of any counties with higher than average risk
+
 
 ```
 
@@ -1951,7 +1954,9 @@ plot(p_abs_risk)
 #                                     "Will definitely\nreport some cases"),
 #                          name = "") +
 
-
+# request for legend to include both 
+# numerical risk/percentage/probabilities
+# AND descriptives
 
 ```
 
