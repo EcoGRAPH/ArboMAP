@@ -50,7 +50,8 @@ params:
   # remove temporal outliers from human cases
   case_trim_alpha: 0.02
   # developer settings
-  dev_settings: !r list()
+  #dev_settings: !r list() 
+  dev_settings: !r list(dev_write_output = TRUE, model_evaluation = TRUE, out_folder = file.path("dev", "20220322"))
 
 title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
 author: "Summary of Model Outputs (v3.1) for `r params$state_name`, `r params$forecast_date`  \nDawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly  \n(mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
@@ -146,139 +147,136 @@ if (packageVersion("readr") < 2.1){
 #     The test checks if the value is NULL. Not NA or "" or things like that. 
 # dev_settings itself is set to an empty list in default params above
 
-if (length(params$dev_settings) > 1){
-  
-  ##DATA
-  if (!is.null(params$dev_settings$data_human)){
-    #override data
-    data_human <- params$dev_settings$data_human
-  } else {
-    #load from file, data_load code block
-    data_human <- NULL
-  }
-  if (!is.null(params$dev_settings$data_mosquito)){
-    #override data
-    data_mosquito <- params$dev_settings$data_mosquito
-  } else {
-    #load from file, data_load code block
-    data_mosquito <- NULL
-  }
-  if (!is.null(params$dev_settings$data_strata)){
-    #override data
-    data_strata <- params$dev_settings$data_strata
-  } else {
-    #load from file, data_load code block
-    data_strata <- NULL
-  }
-  if (!is.null(params$dev_settings$data_weather)){
-    #override data
-    data_weather <- params$dev_settings$data_weather
-  } else {
-    #load from file, data_load code block
-    data_weather <- NULL
-  }
-  if (!is.null(params$dev_settings$data_sf_orig)){
-    #override data
-    data_sf_orig <- params$dev_settings$data_sf_orig
-  } else {
-    #load from file, data_load code block
-    data_sf_orig <- NULL
-  }
-  if (!is.null(params$dev_settings$model_formulas)){
-    #override data
-    model_formulas <- params$dev_settings$model_formulas
-  } else {
-    #load from file, data_load code block
-    model_formulas <- NULL
-  }
-  
-  ##CACHED MODELS
-  if (!is.null(params$dev_settings$save_models)){
-    #use param given
-    save_models <- params$dev_settings$save_models
-  } else {
-    #default is FALSE
-    save_models <- FALSE
-  }
-  #models_cached testing and possible use is done inside of forecast regression section
-  if (!is.null(params$dev_settings$models_cached)){
-    #use param given
-    save_models <- params$dev_settings$models_cached
-  } else {
-    models_cached <- NULL
-  }
-  
-  
-  ##MOSQUITO
-  if (!is.null(params$dev_settings$resample_mosquito)){
-    #use param given
-    resample_mosquito <- params$dev_settings$resample_mosquito
-  } else {
-    #default is FALSE
-    resample_mosquito <- FALSE
-  }
-  #resample_file: Up to the dev user to provide path&file correctly
-  
-  ##REGRESSION
-  if (!is.null(params$dev_settings$reg_function)){
-    #use param given
-    reg_function <- params$dev_settings$reg_function
-  } else {
-    #default is the current and only way via mgcv bam
-    #this is being setup so that more may be added easily in the future [DMN]
-    reg_function <- "GAM"
-  }
-  
-  ##SAVING (for extra research files)
-  if (!is.null(params$dev_settings$out_folder)){
-    #use param given
-    out_folder <- params$dev_settings$out_folder
-  } else {
-    out_folder <- "."
-  }
-  if (!is.null(params$dev_settings$out_name_base)){
-    #use param given
-    out_name_base <- params$dev_settings$out_name_base
-  } else {
-    #default 
-    #out_name_base <- "ArboMAP_forecast_"
-    # <<>> DEV testing
-    out_name_base <- paste0(params$mosquito_model, "_", Sys.time() %>% format("%Y%m%d%H%M"))
-  }
-  if (!is.null(params$dev_settings$dev_write_output)){
-    #use param given
-    dev_write_output <- params$dev_settings$dev_write_output
-  } else {
-    dev_write_output <- FALSE
-  }
-  
-  
-  ##EVALUATION
-  if (!is.null(params$dev_settings$model_evaluation)){
-    #use param given
-    model_evaluation <- params$dev_settings$model_evaluation
-  } else {
-    #default is to not save extra files, 
-    # only currently used in research comparing many models
-    model_evaluation <- FALSE
-  }
-  
-  ## OTHER
-  #[V3] [DEV] imputemissingdistricts was hard coded as FALSE in v3 production code
-  # updated names and code, and added dev option for renamed impute_human_missing_districts, default = FALSE
-  # DEV This looks like it samples existing districts as data for the missing districts.
-  #     I can't think of a time where this would be wanted. May be able to delete in future. [DMN]
-  if (!is.null(params$dev_settings$impute_human_missing_districts)){
-    #use param given
-    impute_human_missing_districts <- params$dev_settings$impute_human_missing_districts
-  } else {
-    #should stay FALSE unless you are very sure
-    impute_human_missing_districts <- FALSE
-  }
-  
-  
-  
-} # end if (length(params$dev_settings >= 1)
+##DATA
+if (!is.null(params$dev_settings$data_human)){
+  #override data
+  data_human <- params$dev_settings$data_human
+} else {
+  #load from file, data_load code block
+  data_human <- NULL
+}
+if (!is.null(params$dev_settings$data_mosquito)){
+  #override data
+  data_mosquito <- params$dev_settings$data_mosquito
+} else {
+  #load from file, data_load code block
+  data_mosquito <- NULL
+}
+if (!is.null(params$dev_settings$data_strata)){
+  #override data
+  data_strata <- params$dev_settings$data_strata
+} else {
+  #load from file, data_load code block
+  data_strata <- NULL
+}
+if (!is.null(params$dev_settings$data_weather)){
+  #override data
+  data_weather <- params$dev_settings$data_weather
+} else {
+  #load from file, data_load code block
+  data_weather <- NULL
+}
+if (!is.null(params$dev_settings$data_sf_orig)){
+  #override data
+  data_sf_orig <- params$dev_settings$data_sf_orig
+} else {
+  #load from file, data_load code block
+  data_sf_orig <- NULL
+}
+if (!is.null(params$dev_settings$model_formulas)){
+  #override data
+  model_formulas <- params$dev_settings$model_formulas
+} else {
+  #load from file, data_load code block
+  model_formulas <- NULL
+}
+
+##CACHED MODELS
+if (!is.null(params$dev_settings$save_models)){
+  #use param given
+  save_models <- params$dev_settings$save_models
+} else {
+  #default is FALSE
+  save_models <- FALSE
+}
+#models_cached testing and possible use is done inside of forecast regression section
+if (!is.null(params$dev_settings$models_cached)){
+  #use param given
+  save_models <- params$dev_settings$models_cached
+} else {
+  models_cached <- NULL
+}
+
+
+##MOSQUITO
+if (!is.null(params$dev_settings$resample_mosquito)){
+  #use param given
+  resample_mosquito <- params$dev_settings$resample_mosquito
+} else {
+  #default is FALSE
+  resample_mosquito <- FALSE
+}
+#resample_file: Up to the dev user to provide path&file correctly
+
+##REGRESSION
+if (!is.null(params$dev_settings$reg_function)){
+  #use param given
+  reg_function <- params$dev_settings$reg_function
+} else {
+  #default is the current and only way via mgcv bam
+  #this is being setup so that more may be added easily in the future [DMN]
+  reg_function <- "GAM"
+}
+
+##SAVING (for extra research files)
+if (!is.null(params$dev_settings$out_folder)){
+  #use param given
+  out_folder <- params$dev_settings$out_folder
+  #create out_folder if necessary
+  dir.create(out_folder, recursive = TRUE)
+} else {
+  out_folder <- "."
+}
+if (!is.null(params$dev_settings$out_name_base)){
+  #use param given
+  out_name_base <- params$dev_settings$out_name_base
+} else {
+  #default 
+  #out_name_base <- "ArboMAP_forecast_"
+  # <<>> DEV testing
+  out_name_base <- paste0(params$mosquito_model, "_", Sys.time() %>% format("%Y%m%d%H%M"))
+}
+if (!is.null(params$dev_settings$dev_write_output)){
+  #use param given
+  dev_write_output <- params$dev_settings$dev_write_output
+} else {
+  dev_write_output <- FALSE
+}
+
+
+##EVALUATION
+if (!is.null(params$dev_settings$model_evaluation)){
+  #use param given
+  model_evaluation <- params$dev_settings$model_evaluation
+} else {
+  #default is to not save extra files, 
+  # only currently used in research comparing many models
+  model_evaluation <- FALSE
+}
+
+## OTHER
+#[V3] [DEV] imputemissingdistricts was hard coded as FALSE in v3 production code
+# updated names and code, and added dev option for renamed impute_human_missing_districts, default = FALSE
+# DEV This looks like it samples existing districts as data for the missing districts.
+#     I can't think of a time where this would be wanted. May be able to delete in future. [DMN]
+if (!is.null(params$dev_settings$impute_human_missing_districts)){
+  #use param given
+  impute_human_missing_districts <- params$dev_settings$impute_human_missing_districts
+} else {
+  #should stay FALSE unless you are very sure
+  impute_human_missing_districts <- FALSE
+}
+
 
 ```
 
