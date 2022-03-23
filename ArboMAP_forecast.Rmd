@@ -1181,6 +1181,7 @@ rm(data_env_raw)
 # [DMN] [V3] Note that in v3 the historical dataset was calculated after 
 #             imputation of explicit missing in known time range
 #             (which granted is no rows using gridmet data)
+# Note: Anomalized historical values are added after anomalization
 
 data_env_hx <- data_env %>%
   dplyr::group_by(arbo_ID, doy) %>%
@@ -1197,8 +1198,25 @@ data_env_hx <- data_env %>%
             #                                   na.rm = TRUE),
             #   {{params$predictor_var2}} := mean({{params$predictor_var2}},
             #                                   na.rm = TRUE),
+            !!rlang::sym(paste0(params$predictor_var1, 
+                                "_med")) := quantile(!!rlang::sym(params$predictor_var1),
+                                                     probs = 0.5, na.rm = TRUE),
+            !!rlang::sym(paste0(params$predictor_var2,
+                                "_med")) := quantile(!!rlang::sym(params$predictor_var2),
+                                                     probs = 0.5, na.rm = TRUE),
+            !!rlang::sym(paste0(params$predictor_var1, 
+                                "_min")) := min(!!rlang::sym(params$predictor_var1),
+                                                na.rm = TRUE),
+            !!rlang::sym(paste0(params$predictor_var2,
+                                "_min")) := min(!!rlang::sym(params$predictor_var2),
+                                                na.rm = TRUE),
+            !!rlang::sym(paste0(params$predictor_var1, 
+                                "_max")) := max(!!rlang::sym(params$predictor_var1),
+                                                na.rm = TRUE),
+            !!rlang::sym(paste0(params$predictor_var2,
+                                "_max")) := max(!!rlang::sym(params$predictor_var2),
+                                                na.rm = TRUE),
             .groups = "drop")
-
 
 ```
 
@@ -1209,6 +1227,7 @@ data_env_hx <- data_env %>%
 #   generating predicted values 
 #   anomaly: observed - predicted
 #   Also fills in missing env data in known period with predicted values
+# adds anomalized historical values to data_env_hx
 
 # Params format reminder/example: 
 #  predictor_var1: "tmeanc"
@@ -1268,6 +1287,58 @@ rm(this_preds)
 rm(data_env_df)
 #remove large temporary bam model
 rm(this_env_mod)
+
+##
+# Historical data
+#add anomalized historical values
+var1_anom_name <- paste0(params$predictor_var1, "_anom")
+var2_anom_name <- paste0(params$predictor_var2, "_anom")
+data_env_anom_hx <- data_env %>%
+  dplyr::group_by(arbo_ID, doy) %>%
+  #dynamic fields: '{var}_anom_{stat}' 
+  #based on the dynamic anom fields: '{var}_anom'  
+  # package glue's {{}} ('curly curly') would have been preferable to !!sym
+  # e.g. {{params$predictor_var1}}, but stopped working unexpectedly [DMN]
+  summarize(
+    # means
+    !!rlang::sym(paste0(var1_anom_name, 
+                        "_mean")) := mean(!!rlang::sym(var1_anom_name), 
+                                          na.rm = TRUE),
+    !!rlang::sym(paste0(var2_anom_name, 
+                        "_mean")) := mean(!!rlang::sym(var2_anom_name), 
+                                          na.rm = TRUE),
+    #medians
+    !!rlang::sym(paste0(var1_anom_name, 
+                        "_med")) := quantile(!!rlang::sym(var1_anom_name),
+                                             probs = 0.5, na.rm = TRUE),
+    !!rlang::sym(paste0(var2_anom_name, 
+                        "_med")) := quantile(!!rlang::sym(var2_anom_name),
+                                             probs = 0.5, na.rm = TRUE),
+    #mins
+    !!rlang::sym(paste0(var1_anom_name, 
+                        "_min")) :=  min(!!rlang::sym(var1_anom_name),
+                                         na.rm = TRUE),
+    !!rlang::sym(paste0(var2_anom_name, 
+                        "_min")) := min(!!rlang::sym(var2_anom_name),
+                                        na.rm = TRUE),
+    #maxs
+    !!rlang::sym(paste0(var1_anom_name, 
+                        "_max")) := max(!!rlang::sym(var1_anom_name),
+                                        na.rm = TRUE),
+    !!rlang::sym(paste0(var2_anom_name, 
+                        "_max")) := max(!!rlang::sym(var2_anom_name),
+                                        na.rm = TRUE),
+    .groups = "drop")
+
+#join to hx dataset
+data_env_hx <- data_env_hx %>%
+  dplyr::left_join(data_env_anom_hx, 
+                   by = c("arbo_ID", "doy"))
+
+if (dev_write_output){
+  readr::write_csv(data_env_hx, file = file.path(out_folder, paste0(out_name_base, "_data_env_hx.csv")))
+}
+
 ```
 
 ```{r data_combine, echo=FALSE, include=FALSE} 
