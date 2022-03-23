@@ -2080,70 +2080,203 @@ plot(p_abs_risk)
 #
 # Note: individual model version moved to Appendix
 
-# [V3] censored pred values displayed to be between 'modeled' period
-#   betwen min/max weeks from alpha calculation.
-# Removed to see what happens <<>> DEV
+# [DEV] Note that human summary data is on a different scale
+#   than forecast, and ggplot2 does NOT allow for 2 different x-axes
+# Rescaled by using the average historical proportion positive
+#   as opposed to the [V3] count of districts positive
 
-# DEV
-# <<>> preds pre/post current week line type change: censored pred <<>><<>>
-# <<>> censor weeks to .... human alpha range? (modeled) ... any obs-OR-pred >0? 
+# <<>> DEV!!
+# 2018 is quite different with new version?? But other years look relatively the same...
 
-preds_ave_fc_yr_st <- preds_ave_fc_yr %>% 
-  #collapse districts into state values 
-  dplyr::group_by(week_epi) %>% 
-  dplyr::summarise(pred_ave = mean(pred_ave, na.rm = TRUE),
-                   pred_min = mean(pred_min, na.rm = TRUE),
-                   pred_max = mean(pred_max, na.rm = TRUE))
 
-p_cur_yr_fc <- ggplot2::ggplot() +
+## Statewide average predictions
+# averaging to state first
+preds_st_ave <- preds %>% 
+  #not grouping by arbo_ID here
+  dplyr::group_by(model, 
+                  #keeping all date-related fields, 
+                  # need to at least group on date_epi (or year+week)
+                  date_epi, week_epi, year_epi, doy) %>% 
+  dplyr::summarise(pred_ave = mean(pred, na.rm = TRUE),
+                   mean_any_cases = mean(any_cases, na.rm = TRUE),
+                   tot_case_count = sum(case_count, na.rm = TRUE), 
+                   .groups = 'drop')
+# now averaging by model, grouping just on date fields
+preds_st_mod_ave <- preds_st_ave %>% 
+  dplyr::group_by(date_epi, week_epi, year_epi, doy) %>% 
+  dplyr::summarise(pred_mod_ave = mean(pred_ave, na.rm = TRUE),
+                   #some stats of all models for graphing
+                   pred_mod_min = min(pred_ave, na.rm = TRUE),
+                   pred_mod_max = max(pred_ave, na.rm = TRUE),
+                   #rest are same for each model, taking first to keep
+                   mean_any_cases = first(mean_any_cases),
+                   tot_case_count = first(tot_case_count),
+                   .groups = 'drop') %>% 
+  #split into two series : pre & post fc_week - for graphing with two different styles
+  #intentionally having fc week be both pre and post, so lines appear connected
+  dplyr::mutate(pred_mod_ave_pre = if_else(year_epi < epiyear_request, #previous years
+                                           pred_mod_ave,
+                                           NA_real_),
+                #earlier in forecast yr, update 
+                pred_mod_ave_pre = if_else(week_epi <= epiweek_request & year_epi == epiyear_request, 
+                                           pred_mod_ave,
+                                           pred_mod_ave_pre),
+                pred_mod_ave_post = if_else(week_epi >= epiweek_request & year_epi == epiyear_request,
+                                            pred_mod_ave,
+                                            NA_real_)) 
+
+#only forecast year (statewide average model predictions)
+preds_st_mod_ave_fc_yr <- preds_st_mod_ave %>% 
+  dplyr::filter(year_epi == epiyear_request) 
+
+#censored to modelled range (with buffer)
+preds_st_mod_ave_fc_yr_censor <- preds_st_mod_ave_fc_yr %>% 
+  #censoring to just modeled period WITH buffer
+  dplyr::filter(week_epi >= (human_wk_min - 1) &
+                  week_epi <= (human_wk_max + 1))
+
+data_human_st_prop <- data_combined %>%
+  #proportion of districts positive in each year by week
+  dplyr::group_by(year_epi, week_epi) %>%
+  dplyr::summarise(tot_any = sum(any_cases, na.rm = TRUE),
+                   prop_pos = tot_any / length(dx_human_districts),
+                   .groups = 'drop') %>%
+  #summary stats by week
+  dplyr::group_by(week_epi) %>%
+  dplyr::summarise(pp_mean = mean(prop_pos, na.rm = TRUE),
+                   pp_med = median(prop_pos, na.rm = TRUE),
+                   pp_min = min(prop_pos, na.rm = TRUE),
+                   pp_max = max(prop_pos, na.rm = TRUE))
+# #DEV quick check
+# ggplot() + 
+#    geom_line(data = data_human_st_prop %>% 
+#                tidyr::pivot_longer(c(pp_mean, pp_med, pp_min, pp_max), 
+#                                    names_to = "stat", values_to = "value"), 
+#              aes(x=week_epi, y = value, color = stat))
+
+#Combined data, long format for ease in plotting, weird with ribbon data
+data_cur_yr <- preds_st_mod_ave_fc_yr_censor %>% 
+  #get human data 
+  dplyr::left_join(data_human_st_prop %>% 
+                     #var for plotting
+                     dplyr::mutate(line_style = "human"), 
+                   by = "week_epi") %>%  
+  #pivot long for ggplot
+  dplyr::select(week_epi, pred_mod_ave_pre, pred_mod_ave_post, pred_mod_min, pred_mod_max, pp_mean) %>% 
+  tidyr::pivot_longer(cols = c(pred_mod_ave_pre,
+                               pred_mod_ave_post,
+                               pp_mean),
+                      names_to = "series",
+                      values_to = "stat_value") %>% 
+  #change order in legend
+  dplyr::mutate(series = factor(series, levels = c("pp_mean", "pred_mod_ave_pre", "pred_mod_ave_post")))
+
+#Current year forecast plot
+p_cur_yr <- ggplot2::ggplot(data = data_cur_yr) +
   #min/max ribbon first so that ave pred plots on top
-  ggplot2::geom_ribbon(data = preds_ave_fc_yr_st,
-                       aes(x = week_epi,
-                           ymin = pred_min,
-                           ymax = pred_max),
-                       fill = 'grey80') + 
-  ggplot2::geom_line(data = preds_ave_fc_yr_st, 
-                      aes(x = week_epi,
-                          y = pred_ave),
-                     color = 'red') 
+  geom_ribbon(aes(x = week_epi,
+                  ymin = pred_mod_min,
+                  ymax = pred_mod_max,
+                  fill = "model_range",
+                  alpha = "model_range")) +
+  geom_line(aes(x = week_epi,
+                y = stat_value,
+                linetype = series,
+                color = series)) +
+  #current week marker
+  geom_vline(xintercept = epiweek_request, linetype="dashed", color = "grey25") +
+  #plot labels and adjustments
+  #linetype and color match to keep line series in one legend
+  scale_linetype_manual("",
+                        values = c("pp_mean" = "solid", 
+                                   "pred_mod_ave_pre" = "solid",
+                                   "pred_mod_ave_post" = 22), #22 is tight dashed
+                        labels = c("pp_mean" = "Historical average proportion", 
+                                   "pred_mod_ave_pre" = "Past forecast",
+                                   "pred_mod_ave_post" = "Future forecast")) +
+  scale_color_manual("",
+                     values = c("pp_mean" = "darkblue", 
+                                "pred_mod_ave_pre" = "darkred",
+                                "pred_mod_ave_post" = "darkred"), 
+                     labels = c("pp_mean" = "Historical average proportion", 
+                                "pred_mod_ave_pre" = "Past forecast",
+                                "pred_mod_ave_post" = "Future forecast")) +
+  #fill and alpha match to keep ribbon in one legend
+  scale_fill_manual("", 
+                    values = c("model_range" = "darkred"),
+                    labels = "Range of all models") +
+  scale_alpha_manual("", 
+                     values = c("model_range" = 0.15),
+                     labels = "Range of all models") +
+  ggtitle(paste("Statewide model predictions in", epiyear_request, "at forecast epiweek", epiweek_request)) + 
+  #[V3] How y-axis labeled in v3, keeping same [DMN]
+  ylab("Proportion of districts positive") + 
+  xlab("Epiweek") +
+  theme_arbo_chart 
+
+plot(p_cur_yr)
+
+#Test to see old V3 epi curve in comparison
+data_human_st <- data_combined %>%
+  #proportion of districts positive by week
+  dplyr::group_by(week_epi) %>%
+  dplyr::summarise(tot_any = sum(any_cases, na.rm = TRUE),
+                   .groups = 'drop')
+p_human_curve <- ggplot() +
+  geom_line(data = data_human_st %>%
+                       #censoring to same just modeled period WITH buffer
+                         dplyr::filter(week_epi >= (human_wk_min - 1) &
+                                         week_epi <= (human_wk_max + 1)),
+            aes(x = week_epi, y = tot_any)) +
+  #current week marker
+  geom_vline(xintercept = epiweek_request, linetype="dashed", color = "grey75") +
+  ggtitle("DEV TEST <<>> [V3] Districts with any number of cases, over all years") +
+  ylab("Count of districts") +
+  xlab("Epiweek") +
+  theme_arbo_chart
+plot(p_human_curve)
 
 
+# <<>> DEV Adding per model version here for the moment to see (will move to appendix)
+preds_st_ave_yr <- preds_st_ave %>% 
+  dplyr::filter(year_epi == epiyear_request) %>% 
+  #mark which are forecast week and beyond (i.e. future)
+  dplyr::mutate(post_fc_wk = if_else(week_epi >= epiweek_request, 
+                                     TRUE,
+                                     FALSE))
 
-plot(p_cur_yr_fc)
+p_apx_cur_yr <- ggplot2::ggplot() +
+  #model predicted values 
+  ggplot2::geom_line(data = preds_st_ave_yr %>% 
+                       #censoring to just modeled period WITH buffer
+                       #  (between human min/max weeks from alpha calc)
+                       dplyr::filter(week_epi >= (human_wk_min - 1) &
+                                       week_epi <= human_wk_max + 1) %>% 
+                       #need to duplicate fc week with post_fc_wk flag set to false 
+                       #so that lines connect
+                       dplyr::bind_rows(preds_st_ave_yr %>% 
+                                          dplyr::filter(week_epi == epiweek_request) %>% 
+                                          dplyr::mutate(post_fc_wk = FALSE)), 
+                     aes(x = week_epi,
+                         y = pred_ave,
+                         linetype = post_fc_wk,
+                         color = model)) +
+  #plot labels and adjustments
+  ggtitle(paste("TEMPORARY DEV <<>> Statewide model predictions in", epiyear_request)) + 
+  #[V3] How y-axis labeled in v3, keeping same [DMN]
+  ylab("Proportion of districts positive") +
+  xlab("Epiweek") +
+  theme_arbo_chart
 
-# thisplot2 <- ggplot(data=tempdf2) +
-#   geom_line(aes(x=weekstartdate, y=cenobs, group=model, color=model), show.legend=FALSE) +
-#   geom_line(aes(x=weekstartdate, y=pred, group=model, color=model, linetype=model)) +
-#   scale_color_manual("", values = mycolors) +
-#   scale_linetype_manual("", values = mylinetypes) +
-#   ggtitle(paste("Statewide model predictions in ", as.numeric(format(weekinquestion, "%Y")), sep="")) +
-#   xlab("") + ylab("") +
-#   geom_vline(xintercept=weekinquestion) + 
-#   ylab("Proportion of districts positive") +
-#   theme(panel.grid.minor.x=element_blank()) +
-#   theme(axis.text.x = element_text(hjust=-0.225)) +
-#   theme(legend.position="bottom") +
-#   guides(color=guide_legend(), linetype=guide_legend()) +
-#   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(),
-#         legend.key = element_blank()) +
-#   labs(color="model", linetype="model")
-# plot(thisplot2)
+plot(p_apx_cur_yr)
 
 
-# fullcasemat$weeknum <- as.numeric(format(fullcasemat$weekstartdate, "%U"))
-# fullcasemat <- group_by(fullcasemat, weeknum)
-# sumanyhumancases <- dplyr::summarise(fullcasemat, totany = sum(anycases, na.rm=TRUE),
-#                                      .groups="keep")
-# fullcasemat <- ungroup(fullcasemat)
-# 
-# ggplot(sumanyhumancases) + geom_line(aes(x=weeknum, y=totany)) +
-#   ggtitle("positive districts by week, any year") +
-#   xlab("week number") + ylab("total districts positive") +
-#   geom_vline(xintercept=minhumanobsweek, linetype=2) +
-#   geom_vline(xintercept=maxhumanobsweek, linetype=2) +
-#   scale_x_continuous(breaks=seq(from=min(sumanyhumancases$weeknum),
-#                                 to=max(sumanyhumancases$weeknum),
-#                                 by=2))
+# DEV code graveyard
+  # geom_label(aes(label = paste("Forecast Week: ", epiweek_request), 
+  #                x = epiweek_request, 
+  #                y = Inf),
+  #            fill = "white") +
+  # coord_cartesian(clip = "off") +
 
 
 ```
@@ -2151,11 +2284,201 @@ plot(p_cur_yr_fc)
 ## Case estimation
 
 ```{r positives_to_cases, fig.width=7, echo=FALSE, include=TRUE}
+
+#Estimates number of cases from positive district-weeks
+# Splits out previous yearly summaries to model
+#   and predicts on current year
+
+#calculate yearly summaries
+pred_yrs <- preds %>% 
+  #summing all districts, all weeks in year
+  dplyr::group_by(year_epi, model) %>% 
+  dplyr::summarise(tot_any = sum(any_cases, na.rm = TRUE),
+                   tot_pred = sum(pred, na.rm = TRUE), #v3 totest temp dev note
+                   tot_cases = sum(case_count, na.rm = TRUE),
+                   .groups = 'drop') %>% 
+  #[V3] 
+  dplyr::mutate(weight = 1)
+
+#this forecast year
+pred_yrs_fc_yr <- pred_yrs %>% 
+  dplyr::filter(year_epi == epiyear_request) %>% 
+  #cases not known in forecast year, copy over predictions to be used to predict
+  dplyr::mutate(tot_any = tot_pred)
+
+#all previous years
+pred_yrs_pre_yr <- pred_yrs %>% 
+  dplyr::filter(year_epi < epiyear_request) %>% 
+  #bind these rows, as in [V3]
+  dplyr::bind_rows(tidyr::expand_grid(tot_any = 0,
+                                      tot_cases = 0,
+                                      weight = 100,
+                                      model = unique(pred_yrs$model))) %>% 
+  #make sure model is a factor (necessary for regression)
+  dplyr::mutate(model = factor(model))
+
+
+# [V3] figure out relationship between positivity and total cases
+pos_reg <- lm(tot_cases ~ poly(x = tot_any, degree = 2), 
+              weights = weight, 
+              data = pred_yrs_pre_yr %>% as.data.frame())
+
+#create a framework to put predictions into 
+# predicting a range from 0 to the max number of observed total of any_cases for a year
+# used in graph in [V3], may move to appendix, may just refer to this dataset from there # DEV <<>>
+pos_cases_pred <- expand.grid(tot_any = seq(from = 0,
+                                      to = max(pred_yrs$tot_any, na.rm=TRUE),
+                                      #creates seq of equally spaced values from 'from' to 'to'
+                                      length.out = 50),
+                         model = unique(pred_yrs$model)) %>% 
+  tibble::as_tibble()
+pos_cases_pred$tot_pred_cases <- predict(pos_reg, newdata = pos_cases_pred)
+
+# predict past cases for comparison
+pred_yrs_pre_yr$tot_pred_cases <- predict(pos_reg, newdata = pred_yrs_pre_yr)
+# and predict this year
+pred_yrs_fc_yr$tot_pred_cases <- predict(pos_reg, newdata = pred_yrs_fc_yr)
+
+# DEV <<>>
+# was going to look at listing all years, but check into why all previous years, the total numbers (any, pred, cases, pred_cases) are all the same across models
+
+#average model (in main report)
+pos_case_preds_ave <- pred_yrs_fc_yr %>% 
+  dplyr::group_by(year_epi) %>% 
+  #current year forecast prediction and estimated total cases
+  dplyr::summarise(ave_tot_pred = mean(tot_pred, na.rm = TRUE),
+                   ave_tot_pred_cases = mean(tot_pred_cases, na.rm = TRUE))
+
+#create table to display
+knitr::kable(pos_case_preds_ave %>% 
+               dplyr::select(year_epi, ave_tot_pred, ave_tot_pred_cases),
+             col.names = c("Year", "Predicted positive district-weeks", "Estimated total cases"),
+             digits = 0, align = "c")
+
+
 ```
 
 ## Multi-year forecast
 
 ```{r multi_year_forecast, fig.width=7, echo=FALSE, include=TRUE}
+
+#Creates a multi-year time series chart of the predicted (model average) vs. 
+#   observed positive district-weeks
+
+multiyr <- preds_st_mod_ave %>% #tbl from beginning of current_year_forecast code block
+  #update mean_any_cases to be NA during forecast year
+  dplyr::mutate(mean_any_cases = if_else(year_epi == epiyear_request,
+                                         NA_real_,
+                                         mean_any_cases)) %>% 
+  #censoring to just modeled period WITH buffer
+  # otherwise graph has long unmodelled/0 stretches
+  dplyr::filter(week_epi >= (human_wk_min - 1) &
+                  week_epi <= (human_wk_max + 1)) %>% 
+  #modified date to deal with skipping weeks between seasons
+  # borrowed from [V3]
+  # year + decimal fraction [DMN]
+  dplyr::mutate(modwk = (week_epi - human_wk_min) / (human_wk_max - human_wk_min + 1),
+                moddate = year_epi + modwk)
+
+#learning from current year graph, splitting into two datasets 
+# for 1) ribbon and 2) the line series
+multiyr_wide <- multiyr %>% 
+  #pull needed 
+  dplyr::select(moddate, 
+                pred_mod_min, pred_mod_max)
+
+multiyr_long <- multiyr  %>% 
+  #pull needed and pivot long
+  dplyr::select(moddate, 
+                pred_mod_ave_pre, pred_mod_ave_post, mean_any_cases) %>% 
+  tidyr::pivot_longer(cols = c(pred_mod_ave_pre, pred_mod_ave_post, mean_any_cases),
+                               names_to = "series",
+                               values_to = "value")
+
+
+p_multiyr <- ggplot() +
+  #min/max ribbon first so that ave pred plots on top
+  geom_ribbon(data = multiyr_wide,
+              aes(x = moddate,
+                  ymin = pred_mod_min,
+                  ymax = pred_mod_max,
+                  fill = "model_range",
+                  alpha = "model_range")) +
+  geom_line(data = multiyr_long,
+            aes(x = moddate, 
+                y = value,
+                color = series,
+                linetype = series)) +
+  #plot labels and adjustments
+  #linetype and color match to keep line series in one legend
+  scale_linetype_manual("",
+                        values = c("mean_any_cases" = "solid", 
+                                   "pred_mod_ave_pre" = "solid",
+                                   "pred_mod_ave_post" = 22), #22 is tight dashed
+                        labels = c("mean_any_cases" = "Observed", 
+                                   "pred_mod_ave_pre" = "Past forecast",
+                                   "pred_mod_ave_post" = "Future forecast")) +
+  scale_color_manual("",
+                     values = c("mean_any_cases" = "black", 
+                                "pred_mod_ave_pre" = "darkred",
+                                "pred_mod_ave_post" = "darkred"), 
+                     labels = c("mean_any_cases" = "Observed",  
+                                "pred_mod_ave_pre" = "Past forecast",
+                                "pred_mod_ave_post" = "Future forecast")) +
+  #fill and alpha match to keep ribbon in one legend
+  scale_fill_manual("", 
+                    values = c("model_range" = "darkred"),
+                    labels = "Range of all models") +
+  scale_alpha_manual("", 
+                     values = c("model_range" = 0.15),
+                     labels = "Range of all models") +
+  #x-axis management to only show the modelled weeks per year 
+  #   borrowed heavily from [V3]
+  scale_x_continuous(breaks = seq(from = params$year_human_start + 0.5,
+                                to = (params$year_human_end + 1.5),
+                                by = 1),
+                     labels = seq(from = params$year_human_start, 
+                                  to = params$year_human_end + 1, 
+                                  by = 1),
+                     limits = c((params$year_human_start),
+                                (params$year_human_end + 2))) +
+  ggtitle(paste("Statewide model predictions")) + 
+  #[V3] How y-axis labeled in v3, keeping same [DMN]
+  ylab("Proportion of districts positive") + 
+  xlab("Epiweek") +
+  theme_arbo_chart 
+
+plot(p_multiyr)
+
+## quick & dirty
+d_multiyr <- preds %>% 
+  dplyr::filter(week_epi >= (human_wk_min - 1) &
+                  week_epi <= (human_wk_max + 1)) %>% 
+  group_by(date_epi, model) %>% 
+  summarize(obs = mean(any_cases, na.rm = TRUE),
+            est = mean(pred, na.rm = TRUE),
+            week_epi = mean(week_epi, na.rm = TRUE),
+            .groups = 'drop')
+thisplot <- ggplot() + 
+  geom_line(data=d_multiyr, aes(x=date_epi, y=obs, group=model)) +
+  geom_line(data=d_multiyr, aes(x=date_epi, y=est, group=model, color=model, linetype=model)) +
+  #geom_line(data=tempdf3, aes(x=newdate, y=est, group=model, color=model), linetype=1, show.legend=FALSE) +
+  #scale_color_manual(values = mycolors) +
+  #scale_linetype_manual(values = mylinetypes) +
+  ggtitle("DEV TEMPORARY <<>> Statewide model predictions") +
+  xlab("") + ylab("") +
+  #scale_x_continuous(breaks=seq(from=minhumandesiredyear+0.5,to=(maxhumandesiredyear+0.5),by=1),
+  #                   labels=seq(from=minhumandesiredyear, to=maxhumandesiredyear, by=1),
+  #                   limits=c((minhumandesiredyear),(maxhumandesiredyear+1))) +
+  ylab("Proportion of districts positive") +
+  theme(panel.grid.minor.x=element_blank()) +
+  theme(legend.position="bottom") +
+  theme(panel.grid.minor = element_blank(), panel.background = element_blank(),
+        legend.key = element_blank(), text=element_text(size=10))
+thisplot
+
+
+
 ```
 
 # Data summaries
