@@ -1882,52 +1882,19 @@ if (dev_write_output){
 
 # Forecast Results
 
-```{r forecast_summary, echo=FALSE, include=FALSE}
+```{r common_themes, echo=FALSE, include=FALSE}
 
-# Creating various summary tables, calculating model averages,
-#   setting up common theme sets for use in multiple places for display
+# common map themes
+theme_arbo_map <- theme_void() 
+# theme()
 
-## Average predictions
-# average predictions of all models
-preds_ave <- preds %>% 
-  #specifically NOT grouping by 'model'
-  dplyr::group_by(arbo_ID, 
-                  #keeping all date-related fields, 
-                  # need to at least group on date_epi (or year+week)
-                  date_epi, week_epi, year_epi, doy) %>% 
-  dplyr::summarise(pred_ave = mean(pred, na.rm = TRUE),
-                   #some stats of all models for graphing
-                   pred_min = min(pred, na.rm = TRUE),
-                   pred_max = max(pred, na.rm = TRUE),
-                   #rest are same across models, taking first to keep
-                    #could have grouped by and gotten same result
-                   any_cases = first(any_cases),
-                   case_count = first(case_count),
-                   observed = first(observed),
-                   modeled = first(modeled),
-                   .groups = 'drop')
-
-# average predictions for current year
-preds_ave_fc_yr <- preds_ave %>% 
-  dplyr::filter(year_epi == epiyear_request)
-
-#and for just this forecast week
-preds_ave_fc_wk <- preds_ave_fc_yr %>% 
-  dplyr::filter(week_epi == epiweek_request) 
-
-
-## Chart-related
-# Also adding common map themes used in many places
-theme_arbo_map <- theme(
-  # panels
-  panel.grid.major=element_blank(), 
-  panel.grid.minor=element_blank(),
-  #axis
-  axis.ticks = element_blank(), 
-  axis.text.x = element_blank(),
-  axis.text.y = element_blank(), 
-  axis.title.x=element_blank(),
-  axis.title.y = element_blank())
+# common chart themes
+theme_arbo_chart <- theme_bw() +
+  theme(
+    # grid
+    panel.grid.major=element_blank(), 
+    panel.grid.minor=element_blank(),
+  )
 
 #Named list of short model descriptions / better names
 # includes large set of potential names, less with be used in the actual reports most likely
