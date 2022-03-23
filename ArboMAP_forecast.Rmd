@@ -2161,14 +2161,14 @@ p_cur_yr <- ggplot2::ggplot(data = data_cur_yr) +
                         values = c("pp_mean" = "solid", 
                                    "pred_mod_ave_pre" = "solid",
                                    "pred_mod_ave_post" = 22), #22 is tight dashed
-                        labels = c("pp_mean" = "Historical average proportion", 
+                        labels = c("pp_mean" = "Historical\naverage proportion", 
                                    "pred_mod_ave_pre" = "Past forecast",
                                    "pred_mod_ave_post" = "Future forecast")) +
   scale_color_manual("",
                      values = c("pp_mean" = "darkblue", 
                                 "pred_mod_ave_pre" = "darkred",
                                 "pred_mod_ave_post" = "darkred"), 
-                     labels = c("pp_mean" = "Historical average proportion", 
+                     labels = c("pp_mean" = "Historical\naverage proportion", 
                                 "pred_mod_ave_pre" = "Past forecast",
                                 "pred_mod_ave_post" = "Future forecast")) +
   #fill and alpha match to keep ribbon in one legend
@@ -2186,67 +2186,67 @@ p_cur_yr <- ggplot2::ggplot(data = data_cur_yr) +
 
 plot(p_cur_yr)
 
-#Test to see old V3 epi curve in comparison
-data_human_st <- data_combined %>%
-  #proportion of districts positive by week
-  dplyr::group_by(week_epi) %>%
-  dplyr::summarise(tot_any = sum(any_cases, na.rm = TRUE),
-                   .groups = 'drop')
-p_human_curve <- ggplot() +
-  geom_line(data = data_human_st %>%
-                       #censoring to same just modeled period WITH buffer
-                         dplyr::filter(week_epi >= (human_wk_min - 1) &
-                                         week_epi <= (human_wk_max + 1)),
-            aes(x = week_epi, y = tot_any)) +
-  #current week marker
-  geom_vline(xintercept = epiweek_request, linetype="dashed", color = "grey75") +
-  ggtitle("DEV TEST <<>> [V3] Districts with any number of cases, over all years") +
-  ylab("Count of districts") +
-  xlab("Epiweek") +
-  theme_arbo_chart
-plot(p_human_curve)
-
-
-# <<>> DEV Adding per model version here for the moment to see (will move to appendix)
-preds_st_ave_yr <- preds_st_ave %>% 
-  dplyr::filter(year_epi == epiyear_request) %>% 
-  #mark which are forecast week and beyond (i.e. future)
-  dplyr::mutate(post_fc_wk = if_else(week_epi >= epiweek_request, 
-                                     TRUE,
-                                     FALSE))
-
-p_apx_cur_yr <- ggplot2::ggplot() +
-  #model predicted values 
-  ggplot2::geom_line(data = preds_st_ave_yr %>% 
-                       #censoring to just modeled period WITH buffer
-                       #  (between human min/max weeks from alpha calc)
-                       dplyr::filter(week_epi >= (human_wk_min - 1) &
-                                       week_epi <= human_wk_max + 1) %>% 
-                       #need to duplicate fc week with post_fc_wk flag set to false 
-                       #so that lines connect
-                       dplyr::bind_rows(preds_st_ave_yr %>% 
-                                          dplyr::filter(week_epi == epiweek_request) %>% 
-                                          dplyr::mutate(post_fc_wk = FALSE)), 
-                     aes(x = week_epi,
-                         y = pred_ave,
-                         linetype = post_fc_wk,
-                         color = model)) +
-  #plot labels and adjustments
-  ggtitle(paste("TEMPORARY DEV <<>> Statewide model predictions in", epiyear_request)) + 
-  #[V3] How y-axis labeled in v3, keeping same [DMN]
-  ylab("Proportion of districts positive") +
-  xlab("Epiweek") +
-  theme_arbo_chart
-
-plot(p_apx_cur_yr)
-
-
-# DEV code graveyard
-  # geom_label(aes(label = paste("Forecast Week: ", epiweek_request), 
-  #                x = epiweek_request, 
-  #                y = Inf),
-  #            fill = "white") +
-  # coord_cartesian(clip = "off") +
+# #Test to see old V3 epi curve in comparison
+# data_human_st <- data_combined %>%
+#   #proportion of districts positive by week
+#   dplyr::group_by(week_epi) %>%
+#   dplyr::summarise(tot_any = sum(any_cases, na.rm = TRUE),
+#                    .groups = 'drop')
+# p_human_curve <- ggplot() +
+#   geom_line(data = data_human_st %>%
+#                        #censoring to same just modeled period WITH buffer
+#                          dplyr::filter(week_epi >= (human_wk_min - 1) &
+#                                          week_epi <= (human_wk_max + 1)),
+#             aes(x = week_epi, y = tot_any)) +
+#   #current week marker
+#   geom_vline(xintercept = epiweek_request, linetype="dashed", color = "grey75") +
+#   ggtitle("DEV TEST <<>> [V3] Districts with any number of cases, over all years") +
+#   ylab("Count of districts") +
+#   xlab("Epiweek") +
+#   theme_arbo_chart
+# plot(p_human_curve)
+# 
+# 
+# # <<>> DEV Adding per model version here for the moment to see (will move to appendix)
+# preds_st_ave_yr <- preds_st_ave %>% 
+#   dplyr::filter(year_epi == epiyear_request) %>% 
+#   #mark which are forecast week and beyond (i.e. future)
+#   dplyr::mutate(post_fc_wk = if_else(week_epi >= epiweek_request, 
+#                                      TRUE,
+#                                      FALSE))
+# 
+# p_apx_cur_yr <- ggplot2::ggplot() +
+#   #model predicted values 
+#   ggplot2::geom_line(data = preds_st_ave_yr %>% 
+#                        #censoring to just modeled period WITH buffer
+#                        #  (between human min/max weeks from alpha calc)
+#                        dplyr::filter(week_epi >= (human_wk_min - 1) &
+#                                        week_epi <= human_wk_max + 1) %>% 
+#                        #need to duplicate fc week with post_fc_wk flag set to false 
+#                        #so that lines connect
+#                        dplyr::bind_rows(preds_st_ave_yr %>% 
+#                                           dplyr::filter(week_epi == epiweek_request) %>% 
+#                                           dplyr::mutate(post_fc_wk = FALSE)), 
+#                      aes(x = week_epi,
+#                          y = pred_ave,
+#                          linetype = post_fc_wk,
+#                          color = model)) +
+#   #plot labels and adjustments
+#   ggtitle(paste("TEMPORARY DEV <<>> Statewide model predictions in", epiyear_request)) + 
+#   #[V3] How y-axis labeled in v3, keeping same [DMN]
+#   ylab("Proportion of districts positive") +
+#   xlab("Epiweek") +
+#   theme_arbo_chart
+# 
+# plot(p_apx_cur_yr)
+# 
+# 
+# # DEV code graveyard
+#   # geom_label(aes(label = paste("Forecast Week: ", epiweek_request), 
+#   #                x = epiweek_request, 
+#   #                y = Inf),
+#   #            fill = "white") +
+#   # coord_cartesian(clip = "off") +
 
 
 ```
@@ -2431,63 +2431,51 @@ p_multiyr <- ggplot() +
 
 plot(p_multiyr)
 
-## quick & dirty
-d_multiyr <- preds %>% 
-  dplyr::filter(week_epi >= (human_wk_min - 1) &
-                  week_epi <= (human_wk_max + 1)) %>% 
-  group_by(date_epi, model) %>% 
-  summarize(obs = mean(any_cases, na.rm = TRUE),
-            est = mean(pred, na.rm = TRUE),
-            week_epi = mean(week_epi, na.rm = TRUE),
-            .groups = 'drop')
-thisplot <- ggplot() + 
-  geom_line(data=d_multiyr, aes(x=date_epi, y=obs, group=model)) +
-  geom_line(data=d_multiyr, aes(x=date_epi, y=est, group=model, color=model, linetype=model)) +
-  #geom_line(data=tempdf3, aes(x=newdate, y=est, group=model, color=model), linetype=1, show.legend=FALSE) +
-  #scale_color_manual(values = mycolors) +
-  #scale_linetype_manual(values = mylinetypes) +
-  ggtitle("DEV TEMPORARY <<>> Statewide model predictions") +
-  xlab("") + ylab("") +
-  #scale_x_continuous(breaks=seq(from=minhumandesiredyear+0.5,to=(maxhumandesiredyear+0.5),by=1),
-  #                   labels=seq(from=minhumandesiredyear, to=maxhumandesiredyear, by=1),
-  #                   limits=c((minhumandesiredyear),(maxhumandesiredyear+1))) +
-  ylab("Proportion of districts positive") +
-  theme(panel.grid.minor.x=element_blank()) +
-  theme(legend.position="bottom") +
-  theme(panel.grid.minor = element_blank(), panel.background = element_blank(),
-        legend.key = element_blank(), text=element_text(size=10))
-thisplot
-
-
 ```
 
 # Data summaries
 
 DEV: Printing a bunch of things - 
+
 dx_mosq_nrow_0load: `r dx_mosq_nrow_0load`
+
 dx_human_nrow_0load: `r dx_human_nrow_0load`
+
 dx_env_nrow_0load, note PRE de-duplication: `r dx_env_nrow_0load`
+
 dx_human_nrow_1range: `r dx_human_nrow_1range`
+
 dx_human_nrow_2clean: `r dx_human_nrow_2clean`
+
 dx_human_districts: `r dx_human_districts`
+
 state_cases_total: `r state_cases_total`
+
 state_any_cases_total: `r state_any_cases_total`
+
 cases_before_fc_wk: `r cases_before_fc_wk`
+
 cases_perc_obs_hx: `r cases_perc_obs_hx`
+
 dx_mosq_nrow_1range: `r dx_mosq_nrow_1range` 
+
 dx_mosq_nrow_2clean: `r dx_mosq_nrow_2clean`
+
 dx_mosq_nrow_3filtered: `r dx_mosq_nrow_3filtered`
+
 dx_mosq_districts: `r dx_mosq_districts`
+
 dx_mosq_nrow_maxyr: `r dx_mosq_nrow_maxyr`
+
 mosq_pos_num_maxyr: `r mosq_pos_num_maxyr`
+
 mosq_pos_perc_maxyr: `r mosq_pos_perc_maxyr`
-
-
 
 
 ## Mosquito pools
 
-```{r mosquito_pools, fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
+```{r mosquito_pools, fig.width=7, echo=FALSE, include=TRUE}
+
 
 
 
@@ -2728,13 +2716,13 @@ p_env_var1_color <- ggplot() +
   scale_color_manual("Year median compared to historical median", 
                      values = c("Higher" = "red",
                                 "Crosses" = "forestgreen",
-                                "Lower" = "blue")) +
+                                "Lower" = "blue3")) +
   xlab("Day of the year") + 
   ylab(params$predictor_var1) +
   ggtitle(paste("Environmental data for", params$predictor_var1, 
                 "in", max(data_env$year_epi, na.rm=TRUE))) +
   theme_arbo_chart 
-  #theme(legend.position = "bottom") #displayed in second chart
+  theme(legend.position = "none") #displayed in second chart
 
 p_env_var2_color <- ggplot() + 
   # min/max ribbon using wide data
@@ -2766,13 +2754,14 @@ p_env_var2_color <- ggplot() +
   scale_color_manual("Year median compared to historical median", 
                      values = c("Higher" = "red",
                                 "Crosses" = "forestgreen",
-                                "Lower" = "blue")) +
+                                "Lower" = "blue3")) +
   xlab("Day of the year") + 
   ylab(params$predictor_var2) +
   ggtitle(paste("Environmental data for", params$predictor_var2, 
                 "in", max(data_env$year_epi, na.rm=TRUE))) +
   theme_arbo_chart +
-  theme(legend.position = "bottom")
+  #legend gets cut off so multiple rows across various aesthetics
+  theme(legend.position="bottom", legend.box="vertical", legend.margin=margin())
 
 plot(p_env_var1_color)
 plot(p_env_var2_color)
@@ -2979,11 +2968,15 @@ p_ref <- ggplot() +
                                y = lat,
                                label = NAME),
                            #keep text closer to centroids
-                            box.padding = 0.01, 
-                            point.padding = 0) +
+                           box.padding = 0.01, 
+                           point.padding = 0) +
   #better colors
   viridis::scale_fill_viridis(alpha = 0.3, option = "turbo", begin = 0.1, end = 0.9, discrete = TRUE) +
-  theme_arbo_map
+  theme_arbo_map +
+  #attempt to make as large as possible
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0))
+
 
 plot(p_ref)
 
