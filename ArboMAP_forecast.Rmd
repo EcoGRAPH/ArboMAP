@@ -538,6 +538,13 @@ if (confirm_id_fields(field_fips_accepted)){
     dplyr::mutate(arbo_ID = simplifynames(NAME))
   
 }#end arbo_ID setup
+
+#Create a crosswalk from arbo_ID to 'pretty' names (data_sf_orig$NAME)
+id_crosswalk <- data_sf_orig %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::select(NAME, arbo_ID)
+
+
 ```
 
 ```{r data_dates, echo=FALSE, include=FALSE} 
