@@ -78,7 +78,7 @@ pacman::p_load(
   #modeling & evaluation
   mgcv, splines, parallel, pROC,
   #spatial, maps and graphs
-  tigris, sf, ggplot2, gridExtra, viridis,
+  tigris, sf, ggplot2, gridExtra, viridis, ggrepel,
   #report generation and interface
   knitr, shiny)
 
@@ -2933,6 +2933,53 @@ plot(p_map_human)
 ## Reference map
 
 ```{r reference_map, fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
+#Creates a reference map of county names
+
+#first, get good locations to put labels
+#calculate better centroids | point on surface 
+#https://stackoverflow.com/questions/52522872/r-sf-package-centroid-within-polygon
+st_centroid_within_poly <- function(poly){
+  
+  # check if centroid is in polygon
+  ctrd <- st_centroid(poly, of_largest_polygon = TRUE)
+  in_poly <- diag(st_within(ctrd, poly, sparse = F))
+  
+  if (in_poly){
+    return(ctrd)
+  }
+  
+  ## For points that were not within polygon get st_point_on_surface()
+  ctrd_inpoly <- st_point_on_surface(poly)
+}
+#get the best points for labeling
+sf_point_ref <- data_sf_orig %>%
+  mutate(lon = purrr::map_dbl(geometry, ~st_centroid_within_poly(.x) %>% 
+                                st_coordinates() %>% 
+                                .[ , "X"]),
+         lat = purrr::map_dbl(geometry, ~st_centroid_within_poly(.x) %>% 
+                                st_coordinates() %>% 
+                                .[ , "Y"]))
+
+#map with labels
+p_ref <- ggplot() +
+  geom_sf(data = data_sf_orig,
+          #so each has a different color
+          aes(fill = arbo_ID),
+          color = "gray50",
+          show.legend = FALSE) +
+  #add text of county names
+  ggrepel::geom_text_repel(data = sf_point_ref,
+                           aes(x = lon, 
+                               y = lat,
+                               label = NAME),
+                           #keep text closer to centroids
+                            box.padding = 0.01, 
+                            point.padding = 0) +
+  #better colors
+  viridis::scale_fill_viridis(alpha = 0.3, option = "turbo", begin = 0.1, end = 0.9, discrete = TRUE) +
+  theme_arbo_map
+
+plot(p_ref)
 
 
 ```
