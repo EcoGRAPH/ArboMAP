@@ -2840,29 +2840,93 @@ plot(p_env_var2_color)
 
 ```
 
-## Human cases
+## Human historical cases
 
-```{r human_charts, fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
+```{r human_map, fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
 
+#Creates a map of human cases: 
+# 1) over all years
+# Statistic will be total case counts, ramped
 
-# #quick & dirty V3 version just to look at <<>> DEV
-# data_human_st <- data_combined %>% 
-#   dplyr::group_by(week_epi) %>% 
-#   dplyr::summarise(tot_any = sum(any_cases, na.rm = TRUE),
-#                    .groups = 'drop')
-# ggplot() + 
-#   geom_line(data = data_human_st, 
-#             aes(x=week_epi, y=tot_any)) +
-#   ggtitle("TEMPORARY <<>> DEV") +
-#   xlab("week number") + ylab("total districts positive") +
-#   geom_vline(xintercept=human_wk_min, linetype=2) +
-#   geom_vline(xintercept=human_wk_max, linetype=2) +
-#   #week range should be full range
-#   scale_x_continuous(breaks=seq(from=min(data_combined$week_epi),
-#                                 to=max(data_combined$week_epi),
-#                                 by=2)) +
-#   theme_arbo_chart
+# potential privacy concerns??? <<>>
+
+# map of all human cases
+h_district <- data_human %>% 
+  #filter by human start and end years
+  dplyr::filter(year_epi >= params$year_human_start &
+                  year_epi <= params$year_human_end) %>% 
+  #summarize to district over all years
+  dplyr::group_by(arbo_ID) %>% 
+  dplyr::summarise(case_count = n(),
+                   .groups = "drop") %>% 
+  #add in zero counties (notice RIGHT join)
+  dplyr::right_join(data_sf_orig %>% 
+                      sf::st_drop_geometry(),
+                    by = "arbo_ID") %>% 
+  #and add zeros for case counts (would be NA from right join)
+  dplyr::mutate(case_count = if_else(is.na(case_count), 0L, case_count))
+
+#create spatial with data
+sf_human <- data_sf_orig %>% 
+  dplyr::left_join(h_district, by = "arbo_ID")
+
+p_map_human <- ggplot() +
+  geom_sf(data = sf_human,
+          aes(fill = case_count)) +
+  viridis::scale_fill_viridis(name = paste0("Total case counts\n", params$year_human_start, " - ", params$year_human_end),
+                              option = "rocket",
+                              na.value = "gray60", #none, but just in case
+                              direction = -1) +
+  theme_arbo_map
+
+plot(p_map_human)
+
+# #[DEV] Considered previous year map, but small case counts could be a privacy concern
+# #   so omitted [DMN]
+# # 2. map of all human cases in previous year
+# #previous year defined as forecast year - 1 IF 
+# #     that year is before/equal to year_human_end & data exists,
+# #     otherwise it is year_human_end if data exists, 
+# #     else last year of known data
 # 
+# prev_human_yr <- if_else(epiyear_request - 1 <= params$year_human_end &
+#                      epiyear_request - 1 <= max(data_human$year_epi, na.rm = TRUE),
+#                    #params$year_human_end if data exist
+#                    if_else(params$year_human_end <= max(data_human$year_epi, na.rm = TRUE),
+#                            params$year_human_end,
+#                            #else last year known data, same data type
+#                            max(data_human$year_epi, na.rm = TRUE) %>% as.integer()),
+#                    #else last year known data
+#                    max(data_human$year_epi, na.rm = TRUE) %>% as.integer())
+# 
+# h_distr_yr <- data_human %>% 
+#   #filter to year
+#   dplyr::filter(year_epi == prev_human_yr) %>% 
+#   #summarize to district
+#   dplyr::group_by(arbo_ID) %>% 
+#   dplyr::summarise(case_count = n(),
+#                    .groups = "drop") %>% 
+#   #add in zero counties (notice RIGHT join)
+#   dplyr::right_join(data_sf_orig %>% 
+#                       sf::st_drop_geometry(),
+#                     by = "arbo_ID") %>% 
+#   #and add zeros for case counts (would be NA from right join)
+#   dplyr::mutate(case_count = if_else(is.na(case_count), 0L, case_count))
+# 
+# #create spatial with data
+# sf_human_yr <- data_sf_orig %>% 
+#   dplyr::left_join(h_distr_yr, by = "arbo_ID")
+# 
+# p_map_human_yr <- ggplot() +
+#   geom_sf(data = sf_human_yr,
+#           aes(fill = case_count)) +
+#   viridis::scale_fill_viridis(name = paste0("Total case counts in year ", prev_human_yr),
+#                               option = "rocket",
+#                               na.value = "gray60", #none, but just in case
+#                               direction = -1) +
+#   theme_arbo_map
+# 
+# plot(p_map_human_yr)
 
 ```
 
