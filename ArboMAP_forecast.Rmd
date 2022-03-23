@@ -2428,7 +2428,9 @@ p_multiyr <- ggplot() +
   #[V3] How y-axis labeled in v3, keeping same [DMN]
   ylab("Proportion of districts positive") + 
   xlab("Epiweek") +
-  theme_arbo_chart 
+  theme_arbo_chart +
+  #move legend to bottom to give more room for chart
+  theme(legend.position = "bottom")
 
 plot(p_multiyr)
 
