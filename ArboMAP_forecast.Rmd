@@ -8,8 +8,8 @@ params:
   ## predictors 
   predictor_var1: "tmeanc"
   predictor_var2: "vpd"
-  ## mosquito settings
-  mosquito_model: "AUC" # "simpleratio", "AUC", "MIGR", "MII", "stratifiedMIGR", "stratifiedMII"
+  ## mosquito settings: "simpleratio", "AUC", "MIGR", "MII", "stratifiedMIGR", "stratifiedMII"
+  mosquito_model: "stratifiedMIGR" 
   mosquito_doy_start: 140
   mosquito_doy_end: 214
   ## input data file locations
@@ -22,9 +22,9 @@ params:
     #if do not want to cache, 
       #set to "always_download" and it will download tigris shapefile each time. Must have internet access.
   file_district_sf: !r file.path("data_spatial", "sd_counties.RDS")
-  #dev, limited models <<>>
-  #file_models: !r file.path("data_models", "models.txt")
-  file_models: !r file.path("dev", "models_tpfx.txt")
+  file_models: !r file.path("data_models", "models.txt")
+  #<<>> DEV limited models
+  #file_models: !r file.path("dev", "models_tpfx.txt")
   folder_weather: "data_weather"
   ## data range settings
   #which years of human data to use
@@ -193,7 +193,7 @@ if (length(params$dev_settings) > 1){
   }
   
   ##CACHED MODELS
-    if (!is.null(params$dev_settings$save_models)){
+  if (!is.null(params$dev_settings$save_models)){
     #use param given
     save_models <- params$dev_settings$save_models
   } else {
@@ -201,16 +201,16 @@ if (length(params$dev_settings) > 1){
     save_models <- FALSE
   }
   #models_cached testing and possible use is done inside of forecast regression section
-    if (!is.null(params$dev_settings$models_cached)){
+  if (!is.null(params$dev_settings$models_cached)){
     #use param given
     save_models <- params$dev_settings$models_cached
   } else {
     models_cached <- NULL
   }
-
-
+  
+  
   ##MOSQUITO
-    if (!is.null(params$dev_settings$resample_mosquito)){
+  if (!is.null(params$dev_settings$resample_mosquito)){
     #use param given
     resample_mosquito <- params$dev_settings$resample_mosquito
   } else {
@@ -218,9 +218,9 @@ if (length(params$dev_settings) > 1){
     resample_mosquito <- FALSE
   }
   #resample_file: Up to the dev user to provide path&file correctly
-
+  
   ##REGRESSION
-    if (!is.null(params$dev_settings$reg_function)){
+  if (!is.null(params$dev_settings$reg_function)){
     #use param given
     reg_function <- params$dev_settings$reg_function
   } else {
@@ -228,15 +228,15 @@ if (length(params$dev_settings) > 1){
     #this is being setup so that more may be added easily in the future [DMN]
     reg_function <- "GAM"
   }
-
+  
   ##SAVING (for extra research files)
-    if (!is.null(params$dev_settings$out_folder)){
+  if (!is.null(params$dev_settings$out_folder)){
     #use param given
     out_folder <- params$dev_settings$out_folder
   } else {
     out_folder <- "."
   }
-    if (!is.null(params$dev_settings$out_name_base)){
+  if (!is.null(params$dev_settings$out_name_base)){
     #use param given
     out_name_base <- params$dev_settings$out_name_base
   } else {
@@ -245,16 +245,16 @@ if (length(params$dev_settings) > 1){
     # <<>> DEV testing
     out_name_base <- paste0(params$mosquito_model, "_", Sys.time() %>% format("%Y%m%d%H%M"))
   }
-    if (!is.null(params$dev_settings$dev_write_output)){
+  if (!is.null(params$dev_settings$dev_write_output)){
     #use param given
     dev_write_output <- params$dev_settings$dev_write_output
   } else {
     dev_write_output <- FALSE
   }
-
-
+  
+  
   ##EVALUATION
-    if (!is.null(params$dev_settings$model_evaluation)){
+  if (!is.null(params$dev_settings$model_evaluation)){
     #use param given
     model_evaluation <- params$dev_settings$model_evaluation
   } else {
@@ -262,20 +262,20 @@ if (length(params$dev_settings) > 1){
     # only currently used in research comparing many models
     model_evaluation <- FALSE
   }
-
+  
   ## OTHER
   #[V3] [DEV] imputemissingdistricts was hard coded as FALSE in v3 production code
   # updated names and code, and added dev option for renamed impute_human_missing_districts, default = FALSE
   # DEV This looks like it samples existing districts as data for the missing districts.
   #     I can't think of a time where this would be wanted. May be able to delete in future. [DMN]
-    if (!is.null(params$dev_settings$impute_human_missing_districts)){
+  if (!is.null(params$dev_settings$impute_human_missing_districts)){
     #use param given
     impute_human_missing_districts <- params$dev_settings$impute_human_missing_districts
   } else {
     #should stay FALSE unless you are very sure
     impute_human_missing_districts <- FALSE
   }
-
+  
   
   
 } # end if (length(params$dev_settings >= 1)
@@ -580,7 +580,7 @@ make_date_yw <- function(year = 1970L, week = 1L, weekday = 7L, system = "CDC") 
   y <- rep_len(as.integer(year), N)
   w <- rep_len(as.integer(week), N)
   d <- rep_len(as.integer(weekday), N)
-
+  
   out <-
     ifelse(
       is.na(y) | is.na(w) | is.na(d), NA,
@@ -656,12 +656,12 @@ data_mosquito <- data_mosquito %>%
 data_human <- data_human %>% 
   #year field for filtering
   dplyr::mutate(#epi year
-                year_epi = lubridate::epiyear(date_obs),
-                #epiweek
-                week_epi = lubridate::epiweek(date_obs),
-                date_epi = make_date_yw(year = year_epi, week = week_epi, weekday = 7),
-                #also doy
-                doy = lubridate::yday(date_obs)) %>% 
+    year_epi = lubridate::epiyear(date_obs),
+    #epiweek
+    week_epi = lubridate::epiweek(date_obs),
+    date_epi = make_date_yw(year = year_epi, week = week_epi, weekday = 7),
+    #also doy
+    doy = lubridate::yday(date_obs)) %>% 
   #filter year range from parameter input
   dplyr::filter(year_epi >= params$year_human_start & 
                   year_epi <= params$year_human_end)
@@ -1136,6 +1136,27 @@ mosq_mir <- mosq_mir %>%
 if (dev_write_output){
   readr::write_csv(mosq_mir, file = file.path(out_folder, paste0(out_name_base, "_mir_stats.csv")))
 }
+
+
+## <<>><<>> DEV: summary things used to display
+# if (!(mosqsummarystyle %in% c("stratifiedMIGR",
+#                               "stratifiedMII"))) {
+#   
+#   mosqmopreds <- expand.grid(year=minmosqbelieveyear:maxmosqbelieveyear,
+#                              doy=seq(from=min(wnv$doy, na.rm=TRUE),
+#                                      to  =max(wnv$doy, na.rm=TRUE), by=1))
+#   mosqmopreds$dminus <- mosqmopreds$doy - mean(wnv$doy, na.rm=TRUE)
+#   mosqmopreds$preds <- predict(infectglm, newdata=mosqmopreds, type="response", allow.new.levels=TRUE)
+#   
+#   mosqmopreds <- group_by(mosqmopreds, dminus, year)
+#   mosqmopreds <- dplyr::summarize(mosqmopreds,
+#                                   preds=mean(preds, na.rm=TRUE),
+#                                   doy=mean(doy, na.rm=TRUE),
+#                                   .groups="keep")
+# }
+
+
+
 ```
 
 ```{r data_env_latest_history, echo=FALSE, include=FALSE} 
@@ -1365,31 +1386,31 @@ human_wk_max <- human_wks_alpha[2]
 
 #Create dataset that will become the complete combined data for modelling input
 #First, use human data (what we are predicting) to set start and end dates
-  # need to ensure that the end week is the last week of the year of the requested forecast week, 
-  #   so seq.Date is reverse chronological
-  # note: no longer needed now that we are solidly on epiweeks, but doesn't impact anything so kept [DMN]
+# need to ensure that the end week is the last week of the year of the requested forecast week, 
+#   so seq.Date is reverse chronological
+# note: no longer needed now that we are solidly on epiweeks, but doesn't impact anything so kept [DMN]
 weeks_model_list <- seq.Date(from = date_max_model, to = date_min_model, by = "-1 week")
 # Create a frame that has entries for all district for all weeks in modelling list
 data_combined_prep <- tidyr::expand_grid(arbo_ID = dx_human_districts,
                                          date_epi = weeks_model_list) %>% 
   #add useful and needed date-related fields
   dplyr::mutate(#epi year
-                year_epi = lubridate::epiyear(date_epi),
-                #epiweek
-                week_epi = lubridate::epiweek(date_epi),
-                #also doy
-                doy = lubridate::yday(date_epi),
-                #create a flag if the week was in years between 
-                #  params year_human_start through year_human_end
-                observed = if_else(year_epi >= params$year_human_start &
-                                     year_epi <= params$year_human_end,
-                                   TRUE,
-                                   FALSE),
-                #create a flag if the week was within the trimmed alpha week range)
-                modeled = if_else(week_epi >= human_wk_min &
-                                    week_epi <= human_wk_max,
-                                  TRUE,
-                                  FALSE))
+    year_epi = lubridate::epiyear(date_epi),
+    #epiweek
+    week_epi = lubridate::epiweek(date_epi),
+    #also doy
+    doy = lubridate::yday(date_epi),
+    #create a flag if the week was in years between 
+    #  params year_human_start through year_human_end
+    observed = if_else(year_epi >= params$year_human_start &
+                         year_epi <= params$year_human_end,
+                       TRUE,
+                       FALSE),
+    #create a flag if the week was within the trimmed alpha week range)
+    modeled = if_else(week_epi >= human_wk_min &
+                        week_epi <= human_wk_max,
+                      TRUE,
+                      FALSE))
 
 #count the number of cases that occur in each week for each district
 #   note, if a district had no cases for that week, there will not be a row entry
@@ -1480,8 +1501,8 @@ if (mosquito_model_clean %in% mosq_nonstrat_models){
 # creating final mir_stat variable to use in modelling
 prep_mir_filler <- dplyr::mutate(prep_mir_filler, 
                                  mir_stat = if_else(mir_impute, 
-                                                          0,
-                                                          mir_stat_ctr))
+                                                    0,
+                                                    mir_stat_ctr))
 
 # If mir_stat has been imputed, then doing exactfit
 #   Add appropriate exactfit columns here
@@ -1500,7 +1521,9 @@ for (this_yr in yrs_mir_imputed){
     #slight weirdness for dynamic field name on left-hand side (tidyverse)
     #using glue {{}} with := assignment operator
     #https://stackoverflow.com/questions/26003574/use-dynamic-name-for-new-column-variable-in-dplyr
-    dplyr::mutate({{this_col_name}} := (year_epi == this_yr))
+    #1 * logical returns 1 (true), 0 (false) [V3] 
+    #   Uncertain if this is necessary over T/F, kept as in V3 [DMN]
+    dplyr::mutate({{this_col_name}} := 1 * (year_epi == this_yr))
   
 }
 
@@ -1652,13 +1675,13 @@ data_combined <- data_combined_prep %>%
 #now convert into a nested matrices
 #pattern matching on the var prefix followed by the day lag number
 data_combined$var1 <- as.matrix(data_combined[, grep(x=colnames(data_combined),
-                                                pattern="^var1_[0123456789]")])
+                                                     pattern="^var1_[0123456789]")])
 data_combined$var2 <- as.matrix(data_combined[, grep(x=colnames(data_combined),
-                                                pattern="^var2_[0123456789]")])
+                                                     pattern="^var2_[0123456789]")])
 data_combined$var1_anom <- as.matrix(data_combined[, grep(x=colnames(data_combined),
-                                                pattern="^var1_anom_[0123456789]")])
+                                                          pattern="^var1_anom_[0123456789]")])
 data_combined$var2_anom <- as.matrix(data_combined[, grep(x=colnames(data_combined),
-                                                pattern="^var2_anom_[0123456789]")])
+                                                          pattern="^var2_anom_[0123456789]")])
 
 #now get rid of the many columns used to create the matrices
 data_combined[,grep(x = colnames(data_combined), 
@@ -1743,8 +1766,8 @@ for (this_model in model_names){
   
   #add any exact fits
   exactfit_list <- colnames(data_combined)[grep(x = colnames(data_combined),
-                                             pattern = "exactfit_",
-                                             fixed = TRUE)]
+                                                pattern = "exactfit_",
+                                                fixed = TRUE)]
   if (length(exactfit_list) > 0) {
     #create formula terms
     exactfit_list <- paste(exactfit_list, collapse = " + ")
@@ -1755,7 +1778,7 @@ for (this_model in model_names){
   
   #final formula (includes any exact fits)
   this_formula <- as.formula(this_formula_raw)
-
+  
   ##
   # forecast human risk model / regression
   #
@@ -1764,10 +1787,10 @@ for (this_model in model_names){
     
     #very basic test if reg object. bam: bam, gam, glm, lm
     if (is(models_cached[[c(this_model)]], "lm")){
-    #get right math model regression object
-    this_reg <- models_cached[[c(this_model)]]
+      #get right math model regression object
+      this_reg <- models_cached[[c(this_model)]]
     } #end if reg obj
-  
+    
   } else {
     #if not given a cached model, or cached model given was not an lm,
     # create model
@@ -1777,26 +1800,26 @@ for (this_model in model_names){
     #[DEV] hook only, left open for development later [DMN]
     if (reg_function == "GAM"){
       this_reg  <- mgcv::bam(formula = this_formula,
-                       family = binomial(), 
-                       data = data_combined,
-                       subset = modeled == 1,
-                       cluster = cl)
+                             family = binomial(), 
+                             data = data_combined,
+                             subset = modeled == 1,
+                             cluster = cl)
       
     } #end regression switch
     
     parallel::stopCluster(cl)
     
   } #end cached model/create model
-
+  
   # if saving models, add model obj to list
   if (save_models){
     model_objs[[this_model]] <- this_reg
   }
-
+  
   # add model plots to the list
   # <<>> DEV May need to make better plots? find out where used in report and how it is formatted
   model_plots[[this_model]] <- plot(this_reg, select=1)
-
+  
   ##
   # predictions of this model
   #
@@ -1806,12 +1829,12 @@ for (this_model in model_names){
   data_combined$pred <- predict(this_reg, 
                                 newdata = data_combined, 
                                 newlevels=TRUE, type="response")
-
+  
   #censor predictions outside of the alpha window for human cases 
   # done in [V3] but with a confusing code comment, but this is what it does [DMN]
   data_combined$pred[data_combined$week_epi < human_wk_min] <- 0
   data_combined$pred[data_combined$week_epi > human_wk_max] <- 0
-
+  
   #add predictions from the model to all model prediction data frame
   # first generate a temporary data frame with just the data to add
   pred_prep <- data.frame(arbo_ID = data_combined$arbo_ID,
@@ -1833,9 +1856,9 @@ for (this_model in model_names){
   eval_prep <- data_combined[data_combined$modeled == 1,]
   #for display in report, auc and aic should be rounded (as opposed to more digits here)
   eval_prep <- data.frame(auc = round_any(pROC::roc(response = eval_prep$any_cases,
-                                                         predictor = eval_prep$pred,
-                                                         na.rm=TRUE,
-                                                         auc=TRUE)$auc, 0.00001),
+                                                    predictor = eval_prep$pred,
+                                                    na.rm=TRUE,
+                                                    auc=TRUE)$auc, 0.00001),
                           aic = round_any(AIC(this_reg)[1], 0.00001),
                           model = this_model)
   model_evals <- dplyr::bind_rows(model_evals, eval_prep)
@@ -1853,7 +1876,7 @@ model_evals <- tibble::as_tibble(model_evals)
 
 # if saving models, name and save out
 if (save_models){
-    saveRDS(model_objs, file = file.path(out_folder, paste0(out_name_base, ".rds")))
+  saveRDS(model_objs, file = file.path(out_folder, paste0(out_name_base, ".rds")))
 }
 
 if (dev_write_output){
@@ -1936,7 +1959,6 @@ model_desc_names <- c(
 
 # V4 algorithm
 # 1. Take the mean of the predictions across all models for each district-week
-#     Note: using the preds_ave tbl created in forecast-summary code block
 # 2. For each district-year, get the pred value at the same EPI WEEK as the forecast week
 # 3. RANK these pred values and divide by the number of years of values each district has.
 #     This creates a ~percentile of RANKED risk (basically)
