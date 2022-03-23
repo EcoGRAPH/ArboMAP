@@ -1194,7 +1194,7 @@ rm(data_env_raw)
 #   these NAs are filled the weather model predicted values
 
 ###
-# Historical env dataset
+# Historical env dataset - by district
 # Creates a mean of the variables by day of year: "{variable name}_mean"
 # This is done BEFORE any type of data filling for missing values
 # [DMN] [V3] Note that in v3 the historical dataset was calculated after 
@@ -1205,37 +1205,21 @@ rm(data_env_raw)
 data_env_hx <- data_env %>%
   dplyr::group_by(arbo_ID, doy) %>%
   # [DMN] package glue's {{}} ('curly curly') 
+  # https://www.tidyverse.org/blog/2020/02/glue-strings-and-tidy-eval/
   #       suddenly stopped working 2022-03-14. 
   #       Using older !!rlang:sym() for now, at least 
-  summarize(!!rlang::sym(paste0(params$predictor_var1, 
-                                "_mean")) := mean(!!rlang::sym(params$predictor_var1),
-                                                  na.rm = TRUE),
-            !!rlang::sym(paste0(params$predictor_var2,
-                                "_mean")) := mean(!!rlang::sym(params$predictor_var2),
-                                                  na.rm = TRUE),
-            #   {{params$predictor_var1}} := mean({{params$predictor_var1}},
-            #                                   na.rm = TRUE),
-            #   {{params$predictor_var2}} := mean({{params$predictor_var2}},
-            #                                   na.rm = TRUE),
-            !!rlang::sym(paste0(params$predictor_var1, 
-                                "_med")) := quantile(!!rlang::sym(params$predictor_var1),
-                                                     probs = 0.5, na.rm = TRUE),
-            !!rlang::sym(paste0(params$predictor_var2,
-                                "_med")) := quantile(!!rlang::sym(params$predictor_var2),
-                                                     probs = 0.5, na.rm = TRUE),
-            !!rlang::sym(paste0(params$predictor_var1, 
-                                "_min")) := min(!!rlang::sym(params$predictor_var1),
-                                                na.rm = TRUE),
-            !!rlang::sym(paste0(params$predictor_var2,
-                                "_min")) := min(!!rlang::sym(params$predictor_var2),
-                                                na.rm = TRUE),
-            !!rlang::sym(paste0(params$predictor_var1, 
-                                "_max")) := max(!!rlang::sym(params$predictor_var1),
-                                                na.rm = TRUE),
-            !!rlang::sym(paste0(params$predictor_var2,
-                                "_max")) := max(!!rlang::sym(params$predictor_var2),
-                                                na.rm = TRUE),
-            .groups = "drop")
+  summarize(
+    !!rlang::sym(paste0(params$predictor_var1,
+                        "_mean")) := mean(!!rlang::sym(params$predictor_var1),
+                                          na.rm = TRUE),
+    !!rlang::sym(paste0(params$predictor_var2,
+                        "_mean")) := mean(!!rlang::sym(params$predictor_var2),
+                                          na.rm = TRUE),
+    # "{{params$predictor_var1}}_mean" := mean({{params$predictor_var1}},
+    #                                 na.rm = TRUE),
+    # "{{params$predictor_var2}}_mean" := mean({{params$predictor_var2}},
+    #                                 na.rm = TRUE),
+    .groups = "drop")
 
 ```
 
@@ -1319,34 +1303,12 @@ data_env_anom_hx <- data_env %>%
   # package glue's {{}} ('curly curly') would have been preferable to !!sym
   # e.g. {{params$predictor_var1}}, but stopped working unexpectedly [DMN]
   summarize(
-    # means
     !!rlang::sym(paste0(var1_anom_name, 
                         "_mean")) := mean(!!rlang::sym(var1_anom_name), 
                                           na.rm = TRUE),
     !!rlang::sym(paste0(var2_anom_name, 
                         "_mean")) := mean(!!rlang::sym(var2_anom_name), 
                                           na.rm = TRUE),
-    #medians
-    !!rlang::sym(paste0(var1_anom_name, 
-                        "_med")) := quantile(!!rlang::sym(var1_anom_name),
-                                             probs = 0.5, na.rm = TRUE),
-    !!rlang::sym(paste0(var2_anom_name, 
-                        "_med")) := quantile(!!rlang::sym(var2_anom_name),
-                                             probs = 0.5, na.rm = TRUE),
-    #mins
-    !!rlang::sym(paste0(var1_anom_name, 
-                        "_min")) :=  min(!!rlang::sym(var1_anom_name),
-                                         na.rm = TRUE),
-    !!rlang::sym(paste0(var2_anom_name, 
-                        "_min")) := min(!!rlang::sym(var2_anom_name),
-                                        na.rm = TRUE),
-    #maxs
-    !!rlang::sym(paste0(var1_anom_name, 
-                        "_max")) := max(!!rlang::sym(var1_anom_name),
-                                        na.rm = TRUE),
-    !!rlang::sym(paste0(var2_anom_name, 
-                        "_max")) := max(!!rlang::sym(var2_anom_name),
-                                        na.rm = TRUE),
     .groups = "drop")
 
 #join to hx dataset
