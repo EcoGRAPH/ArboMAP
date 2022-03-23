@@ -106,7 +106,7 @@ if (packageVersion("readr") < 2.1){
 <!--  data_env_anomalization: calculates anomalies of environmental data via gam -->
 <!--  data_combine: combine all data and format for passing off for regression -->
 <!--  forecast_modeling: create the forecast models -->
-<!-- Note on code comment flags: [V3]: this is what was done in version 3; [DEV] developer note; [DMN] note from Dawn Nekorchuk; DEV: active development -->
+<!-- Note on code comment flags: [V3]: this is what was done in version 3; [DEV] developer note; [DMN] note from Dawn Nekorchuk; DEV or <<>>: active development -->
 
 ```{r dev_parameters, echo=FALSE, include=FALSE}
 #input is named list
@@ -1901,7 +1901,7 @@ model_desc_names <- c(
 
 # Want to compare the current risk to the historical/previous years
 
-# [V3] I've tried to be faithful to the algorithm from v3, 
+# [V3] I've tried to be faithful to the intent of the algorithm from v3, 
 #       but there were no why-comments, so I had to try to logic it out [DMN]
 # [V3] The following is the v3 algorithm, below this is the new V4 algorithm:
 # V3.1. Take the mean of the predictions across all models for each district-week
@@ -2542,6 +2542,12 @@ data_env_fc_yr <- data_env %>%
                         "_med_yr")) := quantile(!!rlang::sym(params$predictor_var2),
                                              probs = 0.5, na.rm = TRUE))
 
+if (dev_write_output){
+  readr::write_csv(data_env_doy, file = file.path(out_folder, paste0(out_name_base, "_data_env_doy.csv")))
+  readr::write_csv(data_env_fc_yr, file = file.path(out_folder, paste0(out_name_base, "_data_env_fc_yr.csv")))
+}
+
+### OPTION 1
 #some ugly manipulation to get all line series in one long dataset for ggplot2
 data_env_plotlines <- data_env_fc_yr %>% 
   dplyr::left_join(data_env_doy %>% 
@@ -2647,7 +2653,7 @@ p_env_var2 <- ggplot() +
 plot(p_env_var1)
 plot(p_env_var2)
 
-
+### OPTION 2
 #DEV attempt at segments for above/below median
 print("DEV EXPERIMENTAL")
 
