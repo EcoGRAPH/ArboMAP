@@ -2450,7 +2450,6 @@ thisplot <- ggplot() +
 thisplot
 
 
-
 ```
 
 # Data summaries
@@ -2703,8 +2702,6 @@ knitr::kable(param_table,
 #additional table IF developer parameters were used
 if (length(params_dev >= 1)){
   param_dev_table <- tibble::tibble(Parameter = names(params_dev), Value = unlist(params_dev))
-  #add some space
-  cat('\n\n<!-- -->\n\n')
   knitr::kable(param_dev_table, 
                caption = "Developer overrides and parameters",
                row.names = FALSE)
