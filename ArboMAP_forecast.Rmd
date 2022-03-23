@@ -2489,55 +2489,154 @@ mosq_pos_perc_maxyr: `r mosq_pos_perc_maxyr`
 
 ```{r weather_charts, fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
 
+#Create environmental data plots for the current year 
+#   with historical doy information in background
+# [V3] used medians, so retained in [V4]
+
+# historical data - state-wide 
+#   as opposed to by district data_env_hx
+data_env_doy <- data_env %>% 
+  #summarize to state
+  dplyr::group_by(doy) %>% 
+  dplyr::summarise(            
+    #medians
+    !!rlang::sym(paste0(params$predictor_var1, 
+                        "_med")) := quantile(!!rlang::sym(params$predictor_var1),
+                                             probs = 0.5, na.rm = TRUE),
+    !!rlang::sym(paste0(params$predictor_var2,
+                        "_med")) := quantile(!!rlang::sym(params$predictor_var2),
+                                             probs = 0.5, na.rm = TRUE),
+    #mins
+    !!rlang::sym(paste0(params$predictor_var1, 
+                        "_min")) := min(!!rlang::sym(params$predictor_var1),
+                                        na.rm = TRUE),
+    !!rlang::sym(paste0(params$predictor_var2,
+                        "_min")) := min(!!rlang::sym(params$predictor_var2),
+                                        na.rm = TRUE),
+    #maxs
+    !!rlang::sym(paste0(params$predictor_var1, 
+                        "_max")) := max(!!rlang::sym(params$predictor_var1),
+                                        na.rm = TRUE),
+    !!rlang::sym(paste0(params$predictor_var2,
+                        "_max")) := max(!!rlang::sym(params$predictor_var2),
+                                        na.rm = TRUE))
+
+# this year data - state-wide
+data_env_fc_yr <- data_env %>% 
+  dplyr::filter(year_epi == epiyear_request) %>% 
+  #summarize to state using medians
+  dplyr::group_by(doy) %>% 
+  dplyr::summarise(            
+    !!rlang::sym(paste0(params$predictor_var1, 
+                        "_med_yr")) := quantile(!!rlang::sym(params$predictor_var1),
+                                             probs = 0.5, na.rm = TRUE),
+    !!rlang::sym(paste0(params$predictor_var2,
+                        "_med_yr")) := quantile(!!rlang::sym(params$predictor_var2),
+                                             probs = 0.5, na.rm = TRUE))
+
+#some ugly manipulation to get all line series in one long dataset for ggplot2
+data_env_plotlines <- data_env_fc_yr %>% 
+  dplyr::left_join(data_env_doy %>% 
+                     dplyr::select(doy, ends_with("_med")),
+                   by = "doy") %>% 
+  #make long
+  tidyr::pivot_longer(cols = c(contains("_med")),
+                      names_to = "env_var",
+                      values_to = "value")
+
+#colors, sizes, and labels of dynamic names
+env1_colors <- c("black", "red2")
+names(env1_colors) <- c(paste0(params$predictor_var1, "_med"), paste0(params$predictor_var1, "_med_yr"))
+env2_colors <- c("black", "red2")
+names(env2_colors) <- c(paste0(params$predictor_var2, "_med"), paste0(params$predictor_var2, "_med_yr"))
+
+env1_sizes <- c(0.8, 1.1)
+names(env1_sizes) <- c(paste0(params$predictor_var1, "_med"), paste0(params$predictor_var1, "_med_yr"))
+env2_sizes <- c(0.8, 1.1)
+names(env2_sizes) <- c(paste0(params$predictor_var2, "_med"), paste0(params$predictor_var2, "_med_yr"))
+
+env1_labels <- c("Historical median", "Year median")
+names(env1_labels) <- c(paste0(params$predictor_var1, "_med"), paste0(params$predictor_var1, "_med_yr"))
+env2_labels <- c("Historical median", "Year median")
+names(env2_labels) <- c(paste0(params$predictor_var2, "_med"), paste0(params$predictor_var2, "_med_yr"))
+
+#plot  
 p_env_var1 <- ggplot() + 
-  #historical min/max
-  geom_line(data=data_env_hx, 
-            aes(x=doy, y=!!rlang::sym(paste0(params$predictor_var1, "_mean")))) +
-  #geom_ribbon(data=doymet, 
-  #            aes(x=doy, ymin=min_var1, ymax=max_var1), alpha=0.3) +
-  #observed
-  geom_line(data=data_env %>% filter(year_epi == epiyear_request), 
-            aes(x=doy, y=!!rlang::sym(params$predictor_var1)), 
-            color="red", size=1) +
-  xlab("Day of the year") + ylab(params$predictor_var1) +
-  ggtitle(paste(params$predictor_var1, 
-                max(data_env$year_epi, na.rm=TRUE),
-                "FIXME_DEV_<<>>",
-                sep=" "))
+  # min/max ribbon using wide data
+  geom_ribbon(data = data_env_doy, 
+             aes(x = doy, 
+                 ymin = !!rlang::sym(paste0(params$predictor_var1, "_min")), 
+                 ymax = !!rlang::sym(paste0(params$predictor_var1, "_max")),
+                 fill = "minmax")) +
+  #series
+  geom_line(data = data_env_plotlines %>% 
+              #filter to this variable
+              dplyr::filter(grepl(params$predictor_var1, env_var)),
+            aes(x = doy, 
+                y = value,
+                color = env_var, 
+                size = env_var)) +
+  #vertical line at the doy of requested date #linetype inside of aes to trigger legend
+  geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
+  #scales
+  scale_fill_manual("",
+                    values = c("minmax" = "grey80"),
+                    labels = "Range over all years") +
+  scale_color_manual("", 
+                     values = env1_colors,
+                     labels = env1_labels) +
+  scale_size_manual("",
+                    values = env1_sizes,
+                    labels = env1_labels) +
+  scale_linetype_manual("",
+                        values = c("forecast_doy" = "dashed"),
+                        labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
+  xlab("Day of the year") + 
+  ylab(params$predictor_var1) +
+  ggtitle(paste("Environmental data for", params$predictor_var1, 
+                "in", max(data_env$year_epi, na.rm=TRUE))) +
+  theme_arbo_chart +
+  theme(legend.position = "none") #shown in second graph
+
+
 p_env_var2 <- ggplot() + 
-  #historical min/max
-  geom_line(data=data_env_hx, 
-            aes(x=doy, y=!!rlang::sym(paste0(params$predictor_var2, "_mean")))) +
-  #geom_ribbon(data=doymet, 
-  #            aes(x=doy, ymin=min_var1, ymax=max_var1), alpha=0.3) +
-  #observed
-  geom_line(data=data_env %>% filter(year_epi == epiyear_request), 
-            aes(x=doy, y=!!rlang::sym(params$predictor_var2)), 
-            color="red", size=1) +
-  ggtitle(paste(params$predictor_var2,
-                max(data_env$year_epi, na.rm=TRUE),
-                sep=" ")) +
-  xlab("Day of the year") + ylab(params$predictor_var2)
+  # min/max ribbon using wide data
+  geom_ribbon(data = data_env_doy, 
+             aes(x = doy, 
+                 ymin = !!rlang::sym(paste0(params$predictor_var2, "_min")), 
+                 ymax = !!rlang::sym(paste0(params$predictor_var2, "_max")),
+                 fill = "minmax")) +
+  #series
+  geom_line(data = data_env_plotlines %>% 
+              #filter to this variable
+              dplyr::filter(grepl(params$predictor_var2, env_var)),
+            aes(x = doy, 
+                y = value,
+                color = env_var, 
+                size = env_var)) +
+  #vertical line at the doy of requested date #linetype inside of aes to trigger legend
+  geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
+  #scales
+  scale_fill_manual("",
+                    values = c("minmax" = "grey80"),
+                    labels = "Range over all years") +
+  scale_color_manual("", 
+                     values = env2_colors,
+                     labels = env2_labels) +
+  scale_size_manual("",
+                    values = env2_sizes,
+                    labels = env2_labels) +
+  scale_linetype_manual("",
+                        values = c("forecast_doy" = "dashed"),
+                        labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
+  xlab("Day of the year") + 
+  ylab(params$predictor_var2) +
+  ggtitle(paste("Environmental data for", params$predictor_var2, 
+                "in", max(data_env$year_epi, na.rm=TRUE))) +
+  theme_arbo_chart +
+  theme(legend.position = "bottom")
 
 grid.arrange(p_env_var1, p_env_var2, nrow=2)
-
-#<<>> median values not directly
-# plot1 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=med_var1)) +
-#   geom_ribbon(data=doymet, aes(x=doy, ymin=min_var1, ymax=max_var1), alpha=0.3) +
-#   geom_line(data=thisyear, aes(x=doy, y=med_var1), color="red", size=1) +
-#   xlab("Day of the year") + ylab(var1name) +
-#   ggtitle(paste(var1name, 
-#                 max(weather$year, na.rm=TRUE),
-#                 sep=" "))
-# plot2 <- ggplot() + geom_line(data=doymet, aes(x=doy, y=med_var2)) +
-#   geom_ribbon(data=doymet, aes(x=doy, ymin=min_var2, ymax=max_var2), alpha=0.3) +
-#   geom_line(data=thisyear, aes(x=doy, y=med_var2), color="red", size=1) +
-#   ggtitle(paste(var2name,
-#                 max(weather$year, na.rm=TRUE),
-#                 sep=" ")) +
-#   xlab("Day of the year") + ylab(var2name)
-# grid.arrange(plot1, plot2, nrow=2)
-
 
 
 ```
