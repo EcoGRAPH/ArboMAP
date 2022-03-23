@@ -2317,12 +2317,21 @@ pos_case_preds_ave <- pred_yrs_fc_yr %>%
   dplyr::group_by(year_epi) %>% 
   #current year forecast prediction and estimated total cases
   dplyr::summarise(ave_tot_pred = mean(tot_pred, na.rm = TRUE),
-                   ave_tot_pred_cases = mean(tot_pred_cases, na.rm = TRUE))
+                   ave_tot_pred_cases = mean(tot_pred_cases, na.rm = TRUE),
+                   min_tot_pred_cases = min(tot_pred_cases, na.rm = TRUE),
+                   max_tot_pred_cases = max(tot_pred_cases, na.rm = TRUE),
+                   sd_tot_pred_cases = sd(tot_pred_cases, na.rm = TRUE)) %>% 
+  #strings for table
+  # rounding mostly to ceiling because you cannot have a fractional case (in reality)
+  dplyr::mutate(range_pred_cases = paste0(round_any(min_tot_pred_cases, 1, floor), 
+                                          " - ", round_any(max_tot_pred_cases, 1, ceiling)),
+                ave_sd_pred_cases = paste0(round_any(ave_tot_pred_cases, 1, ceiling), 
+                                           " (+/-", round_any(sd_tot_pred_cases, 1, ceiling), ")"))
 
 #create table to display
 knitr::kable(pos_case_preds_ave %>% 
-               dplyr::select(year_epi, ave_tot_pred, ave_tot_pred_cases),
-             col.names = c("Year", "Predicted positive district-weeks", "Estimated total cases"),
+               dplyr::select(year_epi, ave_tot_pred, ave_sd_pred_cases, range_pred_cases),
+             col.names = c("Year", "Predicted positive district-weeks", "Average estimated cases (standard dev)", "Range of estimated cases"),
              digits = 0, align = "c")
 
 
