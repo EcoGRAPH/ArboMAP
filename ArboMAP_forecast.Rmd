@@ -72,7 +72,7 @@ if (!require("pacman")) install.packages("pacman"); library(pacman)
 pacman::p_load(
   #data processing, tidyverse related 
   dplyr, readr, tidyselect, rlang, tidyr, 
-  tibble, stringr, glue, lubridate,
+  tibble, stringr, glue, lubridate, purrr,
   #add'l data processing
   zoo, 
   #modeling & evaluation
@@ -2626,9 +2626,39 @@ grid.arrange(p_env_var1, p_env_var2, nrow=2)
 ## Parameters
 
 ```{r params_pretty, include=TRUE, echo=FALSE}
-#<<>>
-# rem to remove override data and reg objs
-# rem model list and names? 
+
+#Creates table(s) to display parameter settings
+# Main report parameters always display and
+# developer parameters in a separate table, only if it exists
+
+#Split out dev_settings to handle separately
+params_main <- params %>% purrr::list_modify("dev_settings" = NULL)
+#dev settings, removing data objects & replacing with notifier
+params_dev <- params$dev_settings
+if (!is.null(params_dev$data_human)){params_dev$data_human <-"Override data given"} 
+if (!is.null(params_dev$data_mosquito)){params_dev$data_mosquito <-"Override data given"}
+if (!is.null(params_dev$data_strata)){params_dev$data_strata <-"Override data given"}
+if (!is.null(params_dev$data_weather)){params_dev$data_weather <-"Override data given"}
+if (!is.null(params_dev$data_sf_orig)){params_dev$data_sf_orig <-"Override data given"}
+if (!is.null(params_dev$model_formulas)){params_dev$model_formulas <-"Override data given"}
+if (!is.null(params_dev$models_cached)){params_dev$models_cached <-"Override data given"}
+
+#table of main report parameters
+param_table <- tibble::tibble(Parameter = names(params_main), Value = unlist(params_main)) 
+knitr::kable(param_table, 
+      caption = "Parameters used",
+      row.names = FALSE)
+
+#additional table IF developer parameters were used
+if (length(params_dev >= 1)){
+  param_dev_table <- tibble::tibble(Parameter = names(params_dev), Value = unlist(params_dev))
+  #add some space
+  cat('\n\n<!-- -->\n\n')
+  knitr::kable(param_dev_table, 
+               caption = "Developer overrides and parameters",
+               row.names = FALSE)
+}
+
 
 
 ```
