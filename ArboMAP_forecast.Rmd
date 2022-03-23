@@ -2045,28 +2045,28 @@ knitr::kable(rel_risk %>%
 # Creates a map of absolute risk of the requested forecast week
 # Average of all models here (each model in appendix)
 
+# average predictions for all models per district 
+#   in the forecast week (and year)
+preds_mod_ave_fc_wk <- preds_mod_ave %>% 
+  dplyr::filter(year_epi == epiyear_request & week_epi == epiweek_request)
+
 #join with spatial
 sf_abs_risk <- data_sf_orig %>% 
-  dplyr::left_join(preds_ave_fc_wk, by = "arbo_ID")
+  dplyr::left_join(preds_mod_ave_fc_wk, by = "arbo_ID")
 
 p_abs_risk <- ggplot2::ggplot() +
   ggplot2::geom_sf(data = sf_abs_risk,
                    aes(fill = pred_ave)) +
+  viridis::scale_fill_viridis("", #"Risk\n", #\n for extra vertical space
+                              #limits always 0 - 1
+                              limits = c(0, 1),
+                              breaks = c(0, 1),
+                              labels = c("0: Less likely to report any cases", 
+                                         "1: More likety to report at least one case")) +
+  ggtitle("Absolute risk in forecast week") +
   theme_arbo_map
 
 plot(p_abs_risk)
-
-#<<>> DEV make pretty, coordinate color schemes ish with p_rel_risk
-
-#     scale_fill_distiller(palette = "Spectral", limits = c(0,1),
-#                          breaks = c(0,1),
-#                          labels = c("Will definitely not\nreport any cases",
-#                                     "Will definitely\nreport some cases"),
-#                          name = "") +
-
-# request for legend to include both 
-# numerical risk/percentage/probabilities
-# AND descriptives
 
 ```
 
