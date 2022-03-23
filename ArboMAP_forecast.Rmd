@@ -2006,18 +2006,6 @@ knitr::kable(rel_risk %>%
              caption = "Counties with higher than average risk")
 
 
-knitr::kable(rel_risk %>% 
-  #<<>>  >= HIGHER_RISK, but testing  DEV
-  dplyr::filter(pred_ave < higher_risk) %>% 
-  #join with crosswalk to get pretty names
-  dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
-    dplyr::select(NAME, pred_ave),
-             col.names = c("Name", "Risk"),
-             digits = 2,
-             caption = "Counties with higher than average risk",
-             label = "DEV <<>> LOWER THEN HIGHER TO TEST")
-
-
 ```
 
 ## Current-week WNV absolute risk map
