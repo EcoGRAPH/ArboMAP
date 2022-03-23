@@ -1948,7 +1948,28 @@ model_desc_names <- c(
 #       against OBSERVED historical values (any_cases), but not certain how that 
 #       mathematically would work out (as any_cases is {0|1}). [DMN]
 
-rel_risk <- preds_ave %>% 
+## Average predictions 
+# average predictions of all models per district
+preds_mod_ave <- preds %>% 
+  #specifically NOT grouping by 'model'
+  dplyr::group_by(arbo_ID, 
+                  #keeping all date-related fields, 
+                  # need to at least group on date_epi (or year+week)
+                  date_epi, week_epi, year_epi, doy) %>% 
+  dplyr::summarise(pred_ave = mean(pred, na.rm = TRUE),
+                   #some stats of all models for graphing
+                   pred_min = min(pred, na.rm = TRUE),
+                   pred_max = max(pred, na.rm = TRUE),
+                   #rest are same across models, taking first to keep
+                   #could have grouped by and gotten same result
+                   any_cases = first(any_cases),
+                   case_count = first(case_count),
+                   observed = first(observed),
+                   modeled = first(modeled),
+                   .groups = 'drop')
+
+
+rel_risk <- preds_mod_ave %>% 
   #get all ave-preds at same epiweek (in any year)
   #   now only 1 row per year
   dplyr::filter(week_epi == epiweek_request) %>% 
@@ -1957,28 +1978,62 @@ rel_risk <- preds_ave %>%
   dplyr::mutate(rank_pred = rank(pred_ave, ties.method = 'random'),
                 #percentile of ranked pred by number of years
                 # note: rank such that lowest pred = 1
-                rank_perc = rank_pred / n()) %>% 
+                rank_perc = rank_pred / n() * 100) %>% 
   #and get this current-year week
-  dplyr::filter(year_epi == epiyear_request)
+  dplyr::filter(year_epi == epiyear_request) %>% 
+  #ungroup to finish
+  dplyr::ungroup()
 
 #join with spatial
 sf_rel_risk <- data_sf_orig %>% 
   dplyr::left_join(rel_risk, by = "arbo_ID")
 
+#plot
+#same breaks as [V3]
+lower_risk <- 12.5
+higher_risk <- 87.5
 p_rel_risk <- ggplot2::ggplot() +
+  #by rank percentile
   ggplot2::geom_sf(data = sf_rel_risk,
                    aes(fill = rank_perc)) +
+  viridis::scale_fill_viridis("", #"Risk\n", #\n for extra vertical space
+                              #limits always 0 - 100
+                              limits = c(0, 100),
+                              #using [V3] breaks
+                              breaks = c(0, lower_risk, 50, higher_risk, 100),
+                              labels = c("0",
+                                         paste(lower_risk, ": Lower than average risk"),
+                                         "50: Average risk",
+                                         paste(higher_risk, ": Higher than average risk"),
+                                         "100")) +
+  ggtitle("Risk in forecast week relative to the same epiweek in previous years") +
   theme_arbo_map
 
 plot(p_rel_risk)
 
-#fix common theme, take a look at poster ggplots 
-# fix legend
-# don't worry about color scheme yet
-# lower: 0 - 12.5; ave 12.5 - 87.5; higher 87.5 - 100
-# <<>> DEV
 
-# <<>> DEV Add TABLE of any counties with higher than average risk
+#Table of counties with higher than average risk
+knitr::kable(rel_risk %>% 
+  #<<>>  >= HIGHER_RISK, but testing  DEV
+  dplyr::filter(pred_ave >= higher_risk) %>% 
+  #join with crosswalk to get pretty names
+  dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
+    dplyr::select(NAME, pred_ave),
+             col.names = c("Name", "Risk"),
+             digits = 2,
+             caption = "Counties with higher than average risk")
+
+
+knitr::kable(rel_risk %>% 
+  #<<>>  >= HIGHER_RISK, but testing  DEV
+  dplyr::filter(pred_ave < higher_risk) %>% 
+  #join with crosswalk to get pretty names
+  dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
+    dplyr::select(NAME, pred_ave),
+             col.names = c("Name", "Risk"),
+             digits = 2,
+             caption = "Counties with higher than average risk",
+             label = "DEV <<>> LOWER THEN HIGHER TO TEST")
 
 
 ```
