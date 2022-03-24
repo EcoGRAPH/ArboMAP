@@ -1885,13 +1885,20 @@ if (dev_write_output){
 <!-- 2.6 Run parameters -->
 <!-- 2.7 Reference map -->
 
+# Introduction
+
+
 # Forecast Results
 
 ```{r common_themes, echo=FALSE, include=FALSE}
 
+#   Note: because the custom themes call theme_void()/theme_bw() 
+#     make sure to add this theme first, 
+#     before doing any theme() adjustments for the individual plot
+
 # common map themes
-theme_arbo_map <- theme_void() 
-# theme()
+theme_arbo_map <- theme_void() +
+  theme(plot.margin = unit(c(0, 0, 0, 0), "mm"))
 
 # common chart themes
 theme_arbo_chart <- theme_bw() +
@@ -1919,7 +1926,7 @@ model_desc_names <- c(
 
 ## Current-week WNV relative risk map
 
-```{r relative_risk_map, echo=FALSE, include=TRUE, fig.align = 'center', fig.width = 7}
+```{r relative_risk_map, echo=FALSE, include=TRUE, fig.align='center', fig.width=7}
 
 # Want to compare the current risk to the historical/previous years
 
@@ -2018,12 +2025,11 @@ plot(p_rel_risk)
 
 #Table of counties with higher than average risk
 knitr::kable(rel_risk %>% 
-  #<<>>  >= HIGHER_RISK, but testing  DEV
   dplyr::filter(pred_ave >= higher_risk) %>% 
   #join with crosswalk to get pretty names
   dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
     dplyr::select(NAME, pred_ave),
-             col.names = c("Name", "Risk"),
+             col.names = c("County", "Risk"),
              digits = 2,
              caption = "Counties with higher than average risk")
 
@@ -2032,7 +2038,7 @@ knitr::kable(rel_risk %>%
 
 ## Current-week WNV absolute risk map
 
-```{r absolute_risk_map, fig.width=7, echo=FALSE, include=TRUE}
+```{r absolute_risk_map, echo=FALSE, include=TRUE, fig.align='center', fig.width=7}
 
 # Creates a map of absolute risk of the requested forecast week
 # Average of all models here (each model in appendix)
@@ -2064,7 +2070,7 @@ plot(p_abs_risk)
 
 ## Current-year forecast
 
-```{r current_year_forecast, fig.width=7, echo=FALSE, include=TRUE}
+```{r current_year_forecast, echo=FALSE, include=TRUE, fig.align='center', fig.width=7}
 
 #Creates an epicurve of the current forecast year PREDICTIONS
 # Average of models, with ribbon for min/max models
@@ -2275,7 +2281,7 @@ plot(p_cur_yr)
 
 ## Case estimation
 
-```{r positives_to_cases, fig.width=7, echo=FALSE, include=TRUE}
+```{r positives_to_cases, echo=FALSE, include=TRUE, fig.align='center', fig.width=7}
 
 #Estimates number of cases from positive district-weeks
 # Splits out previous yearly summaries to model
@@ -2434,7 +2440,8 @@ p_multiyr <- ggplot() +
                     values = c("model_range" = "darkred"),
                     labels = "Range of all models") +
   scale_alpha_manual("", 
-                     values = c("model_range" = 0.15),
+                     #darker (higher alpha) than current yr so that shows up better here
+                     values = c("model_range" = 0.25), 
                      labels = "Range of all models") +
   #x-axis management to only show the modelled weeks per year 
   #   borrowed heavily from [V3]
