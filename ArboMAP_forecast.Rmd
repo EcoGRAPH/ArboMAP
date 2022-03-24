@@ -70,7 +70,7 @@ if (!require("pacman")) install.packages("pacman"); library(pacman)
 
 #load packages, install if not installed
 pacman::p_load(
-  #data processing, tidyverse related 
+  #data processing, tidyverse 
   dplyr, readr, tidyselect, rlang, tidyr, 
   tibble, stringr, glue, lubridate, purrr,
   #add'l data processing
@@ -78,7 +78,8 @@ pacman::p_load(
   #modeling & evaluation
   mgcv, splines, parallel, pROC,
   #spatial, maps and graphs
-  tigris, sf, ggplot2, gridExtra, viridis, ggrepel,
+  tigris, sf, ggplot2, gridExtra, 
+  viridis, ggrepel, forcats,
   #report generation and interface
   knitr, shiny)
 
@@ -89,7 +90,6 @@ if (packageVersion("readr") < 2.1){
 
 #Single use functions are found in their section 
 # for convenience when reviewing/editing code
-# Most are found in the 'data_id_fields' section
 
 ```
 
