@@ -277,6 +277,13 @@ if (!is.null(params$dev_settings$impute_human_missing_districts)){
   impute_human_missing_districts <- FALSE
 }
 
+#Important references
+#https://stackoverflow.com/questions/25407102/conditionally-display-a-block-of-text-in-r-markdown/46686678#46686678
+#https://stackoverflow.com/questions/25240541/how-to-add-newpage-in-rmarkdown-in-a-smart-way
+#https://stackoverflow.com/questions/25849814/rstudio-rmarkdown-both-portrait-and-landscape-layout-in-a-single-pdf
+#https://bookdown.org/yihui/rmarkdown-cookbook/child-document.html
+#https://yihui.org/knitr/
+
 
 ```
 
