@@ -2503,14 +2503,256 @@ mosq_pos_perc_maxyr: `r mosq_pos_perc_maxyr`
 
 ```{r mosquito_pools, fig.width=7, echo=FALSE, include=TRUE}
 
+#Creates summaries of the input mosquito data: 4 parts
+# 1. Map of the positive pools in last 2 weeks, differentiating between non-reporting and 0 positive pools. Note: 2 weeks asked for in multi-state meeting.
+# 2. Table of count of pos & neg pools: last 2 weeks & year to date (year to and including forecast week)
+# 3. Vector pool positive rate timeseries with year comparisons
+# 4. Relative risk due to vector infection rate
 
+## Data for past 2 weeks
+# "past two weeks" was the request. 
+# If data exists in the current forecast epiweek, then 'past two' will be last epiweek and this epiweek. 
+# If data does NOT exist in the current forecast epiweek, then 'past two' will the two epiweeks PRIOR to this week
+
+# First, data check for current epiweek
+mosq_fcwk_exists <- data_mosquito %>% 
+  #filter to forecast epiweek
+  filter(year_epi == epiyear_request &
+           week_epi == epiweek_request) %>% 
+  #test if there are rows: TRUE if there is, FALSE if not
+  nrow() > 0
+
+#create appropriate two week dataset  
+if (mosq_fcwk_exists) {
+  
+  #this epiweek and one previous
+  #week numbers, chronological order
+  mosq_2wks <- c(epiweek_request - 1,
+                 epiweek_request) 
+  #dataset
+  data_mosq_2wk <- data_mosquito %>% 
+    #filter to forecast year
+    dplyr::filter(year_epi == epiyear_request,
+                  #and filter weeks
+                  week_epi %in% mosq_2wks)
+} else {
+  #week before forecast week and week before that
+  
+  #week numbers, chronological order
+  mosq_2wks <- c(epiweek_request - 2,
+                 epiweek_request - 1) 
+  #dataset
+    data_mosq_2wk <- data_mosquito %>% 
+    #filter to forecast year
+    dplyr::filter(year_epi == epiyear_request,
+                  #and filter weeks
+                  week_epi %in% mosq_2wks)
+} #end mosq_2wks creation
+
+
+#dates based on epiweeks 
+# FIRST day of first epiweek to LAST day of second epiweek
+mosq_2wks_dts <- c(make_date_yw(year = epiyear_request, week = mosq_2wks[1], weekday = 1),
+                   make_date_yw(year = epiyear_request, week = mosq_2wks[2], weekday = 1))
+
+mosq_2wks_dts_str <- paste0(format(mosq_2wks_dts[1], "%m/%d/%y"),
+                            " through ",
+                            format(mosq_2wks_dts[2], "%m/%d/%y"))
+
+#actual beginning - end dates in dataset, not purely epiweek based
+mosq_2wks_dat_dts <- c(min(data_mosq_2wk$date_obs, na.rm = TRUE),
+                   max(data_mosq_2wk$date_obs, na.rm = TRUE))
+
+mosq_2wks_dat_dts_str <- paste0(format(mosq_2wks_dat_dts[1], "%m/%d/%y"),
+                            " through ",
+                            format(mosq_2wks_dat_dts[2], "%m/%d/%y"))
+
+
+# DEV <<>> Remember to add explanation in report text, so that it's clear WHY these dates 
+
+## 1. Map of mosquito pools last 2 weeks
+
+#summarize by district
+data_m2wk_sum <- data_mosq_2wk %>% 
+  dplyr::group_by(arbo_ID) %>% 
+  dplyr::summarise(pools_count = n(),
+                   pools_pos = sum(wnv_result)) %>% 
+  #turn into a factor for legend with NA level
+  dplyr::mutate(pools_pos_disp = factor(pools_pos),
+                pools_pos_disp = factor(pools_pos_disp, 
+                                        levels = rev(levels(pools_pos_disp)))) %>% 
+  # add in non-reporting counties (for these two weeks) via RIGHT join
+  dplyr::right_join(data_sf_orig %>% 
+                      sf::st_drop_geometry(),
+                    by = "arbo_ID") %>% 
+  dplyr::mutate(pools_pos_disp = forcats::fct_explicit_na(pools_pos_disp,
+                                                          na_level = "No pools reported"))
+
+#join to sf data
+sf_mosq2wk <- data_sf_orig %>% 
+  dplyr::left_join(data_m2wk_sum, by = "arbo_ID")
+
+#map
+p_map_mosq2wk <- ggplot() +
+  geom_sf(data = sf_mosq2wk,
+          aes(fill = pools_pos_disp)) +
+  #some interesting convolutions to get no-pool counties to show up in grey with special label
+  scale_fill_manual("Positive pools",
+    values = c(
+      #colors for values (number of factors minus 1)
+      viridis::viridis_pal(option = "magma")(nlevels(data_m2wk_sum$pools_pos_disp) - 1),
+      #na color
+      "grey80")) +
+  ggtitle(paste0("Count of WNV positive mosquito pools in past two weeks"),
+          subtitle = paste0("Date range: ", mosq_2wks_dts_str)) +
+  theme_arbo_map
+
+plot(p_map_mosq2wk)
+
+#<<>> DEV
+#put in text paste0("Range of dates present in data within two week range: ", mosq_2wks_dat_dts_str)
+
+## 2. Table of positive pools
+# attempting YEAR & 2 weeks
+# join yr and wk
+# need to keep rows in EITHER, so full join
+data_mosq_yr2wk <- data_mosquito %>% 
+  #filter to forecast epiyear and up to this forecast week
+  filter(year_epi == epiyear_request &
+           week_epi <= epiweek_request) %>% 
+  #summarize to district
+  dplyr::group_by(arbo_ID) %>% 
+  dplyr::summarise(pools_count_yr = n(),
+                   pools_pos_yr = sum(wnv_result)) %>%
+  #full join with 2 week summary
+  dplyr::full_join(data_mosq_2wk %>% 
+                     dplyr::group_by(arbo_ID) %>% 
+                     dplyr::summarise(pools_count = n(),
+                                      pools_pos = sum(wnv_result)),
+                   by = "arbo_ID")
+
+knitr::kable(data_mosq_yr2wk %>% 
+  #join with crosswalk to get pretty names
+  dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
+    dplyr::select(NAME, 
+                  pools_count, pools_pos, 
+                  pools_count_yr, pools_pos_yr),
+             col.names = c("County", 
+                           "Pools reported last 2 weeks", "Pools positive last 2 weeks",
+                           "Pools reported YTD", "Pools positive YTD"),
+             digits = 2,
+             caption = "Total reported and WNV positive mosquito pools: Past two weeks, and year to forecast week (YTD)")
+
+
+## 3. Vector pool positive rate timeseries with year comparisons
+
+
+
+
+# if (!(mosqsummarystyle %in% c("stratifiedMIGR",
+#                               "stratifiedMII"))) {
+#   
+#   mosqmopreds <- expand.grid(year=minmosqbelieveyear:maxmosqbelieveyear,
+#                              doy=seq(from=min(wnv$doy, na.rm=TRUE),
+#                                      to  =max(wnv$doy, na.rm=TRUE), by=1))
+#   mosqmopreds$dminus <- mosqmopreds$doy - mean(wnv$doy, na.rm=TRUE)
+#   mosqmopreds$preds <- predict(infectglm, newdata=mosqmopreds, type="response", allow.new.levels=TRUE)
+#   
+#   mosqmopreds <- group_by(mosqmopreds, dminus, year)
+#   mosqmopreds <- dplyr::summarize(mosqmopreds,
+#                                   preds=mean(preds, na.rm=TRUE),
+#                                   doy=mean(doy, na.rm=TRUE),
+#                                   .groups="keep")
+#   thisyear1   <- mosqmopreds[mosqmopreds$year == maxmosqbelieveyear,]
+#   comparison1 <- mosqmopreds[mosqmopreds$year == compyear1,]
+#   comparison2 <- mosqmopreds[mosqmopreds$year == compyear2,]
+#   
+#   thisyeardot <- wnv[wnv$year == maxmosqbelieveyear,]
+#   
+#   if (sum(!is.na(thisyeardot$doy)) > 20) {
+#     
+#     thisyeardot$rounddoy <- cut2(thisyeardot$doy, g=6)
+#     thisyeardot <- group_by(thisyeardot, rounddoy)
+#     thisyeardot <- dplyr::summarize(thisyeardot,
+#                                     meanpos = mean(wnv_result, na.rm=TRUE),
+#                                     meandoy = mean(doy, na.rm=TRUE),
+#                                     .groups="keep")
+#     thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
+#                                                      color="grey", alpha=0.5) +
+#       geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
+#       geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
+#       geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
+#       geom_point(data=thisyeardot, aes(x=meandoy, y=meanpos), color="red") +
+#       xlab("day of the year") + ylab("Vector pool positive rate") +
+#       theme(panel.grid.major = element_blank(),
+#             panel.grid.minor = element_blank(),
+#             panel.background = element_blank(),
+#             axis.line = element_line(colour = "black"))
+#     
+#   } else {
+#     
+#     thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
+#                                                      color="grey", alpha=0.5) +
+#       geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
+#       geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
+#       geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
+#       xlab("day of the year") + ylab("Vector pool positive rate") +
+#       theme(panel.grid.major = element_blank(),
+#             panel.grid.minor = element_blank(),
+#             panel.background = element_blank(),
+#             axis.line = element_line(colour = "black"))
+#     
+#   }
+#   plot(thisplot)
+#   
+# }
+# 
+
+
+## 4. Relative risk due to vector infection rate
+
+# if (mosqsummarystyle %in% c("MIGR", "MII", "AUC", "simpleratio")) {
+#   
+#   # center these statistics
+#   randeffs$MIRsummarystat <- randeffs$MIRsummarystat - mean(randeffs$MIRsummarystat, na.rm=TRUE)
+#   randeffs$MIRsummarystat[is.na(randeffs$MIRsummarystat)] <- 0
+#   
+#   # plot
+#   thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=MIRsummarystat)) +
+#     geom_abline(slope=0, intercept=0, linetype=2) +
+#     scale_x_continuous(breaks=minmosqbelieveyear:maxmosqbelieveyear) +
+#     theme(axis.text.x=element_text(angle=45, hjust=1),
+#           panel.grid.minor=element_blank(),
+#           panel.grid.major.y=element_blank())+
+#     xlab("") + ylab("Relative risk due to\nvector infection rate")
+#   plot(thisplot)
+#   write.csv(randeffs, file="randeffs.csv")
+#   
+# }
+# if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
+#   
+#   # center these statistics
+#   randeffs$MIRsummarystat <- randeffs$MIRsummarystat - mean(randeffs$MIRsummarystat, na.rm=TRUE)
+#   
+#   # plot
+#   thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=MIRsummarystat, group=stratum, color=stratum)) +
+#     geom_abline(slope=0, intercept=0, linetype=2) +
+#     scale_x_continuous(breaks=minmosqbelieveyear:maxmosqbelieveyear) +
+#     theme(axis.text.x=element_text(angle=45, hjust=1),
+#           panel.grid.minor=element_blank(),
+#           panel.grid.major.y=element_blank())+
+#     xlab("") + ylab("Relative risk due to\nvector infection rate")
+#   plot(thisplot)
+#   write.csv(randeffs, file="randeffs.csv")
+#   
+# }
 
 
 ```
 
 ## Weather
 
-```{r weather_charts, fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
+```{r weather_charts, echo=FALSE, include=TRUE, fig.align='center', fig.width=7, fig.height=c(3,4,3,5)}
 
 #Create environmental data plots for the current year 
 #   with historical doy information in background
@@ -2563,7 +2805,7 @@ if (dev_write_output){
 }
 
 ### OPTION 1
-#some ugly manipulation to get all line series in one long dataset for ggplot2
+#some manipulation to get all line series in one long dataset for ggplot2
 data_env_plotlines <- data_env_fc_yr %>% 
   dplyr::left_join(data_env_doy %>% 
                      dplyr::select(doy, ends_with("_med")),
@@ -2670,7 +2912,6 @@ plot(p_env_var2)
 
 ### OPTION 2
 #DEV attempt at segments for above/below median
-print("DEV EXPERIMENTAL")
 
 data_env_colors <- data_env_fc_yr %>% 
   dplyr::left_join(data_env_doy %>% 
@@ -2748,7 +2989,7 @@ p_env_var1_color <- ggplot() +
   ylab(params$predictor_var1) +
   ggtitle(paste("Environmental data for", params$predictor_var1, 
                 "in", max(data_env$year_epi, na.rm=TRUE))) +
-  theme_arbo_chart 
+  theme_arbo_chart +
   theme(legend.position = "none") #displayed in second chart
 
 p_env_var2_color <- ggplot() + 
@@ -2761,8 +3002,9 @@ p_env_var2_color <- ggplot() +
   #historical median series
   geom_line(data = data_env_colors,
             aes(x = doy, 
-                y = !!rlang::sym(paste0(params$predictor_var2, "_med"))),
-            color = "grey20") +
+                y = !!rlang::sym(paste0(params$predictor_var2, "_med")),
+                color = "Historical median")) +
+            #color = "grey20") +
   #line segment for year median with different colors
   geom_segment(data = data_env_colors,
                aes(x = var_x, xend = var_xend,
@@ -2781,90 +3023,33 @@ p_env_var2_color <- ggplot() +
   scale_color_manual("Year median compared to historical median", 
                      values = c("Higher" = "red",
                                 "Crosses" = "forestgreen",
-                                "Lower" = "blue3")) +
+                                "Lower" = "blue3",
+                                "Historical median" = "gray20")) +
   xlab("Day of the year") + 
   ylab(params$predictor_var2) +
   ggtitle(paste("Environmental data for", params$predictor_var2, 
                 "in", max(data_env$year_epi, na.rm=TRUE))) +
   theme_arbo_chart +
-  #legend gets cut off so multiple rows across various aesthetics
-  theme(legend.position="bottom", legend.box="vertical", legend.margin=margin())
+  theme(legend.position="bottom", 
+        #legend gets cut off so multiple rows across various aesthetics
+        legend.box="horizontal", 
+        legend.direction = "vertical",
+        #compact
+        legend.margin = margin(),
+        legend.key.height = unit(0.15, 'in')) +
+  #changing order of legend
+  guides(
+    color = guide_legend(order = 1),
+    linetype = guide_legend(order = 3),
+    fill = guide_legend(order = 2))
 
 plot(p_env_var1_color)
 plot(p_env_var2_color)
-
-# data_env_var1 <- data_env_fc_yr %>% 
-#    dplyr::left_join(data_env_doy %>% 
-#                       dplyr::select(doy, ends_with("_med")),
-#                     by = "doy") %>% 
-#   dplyr::select(doy, contains(params$predictor_var1)) %>% 
-#   #line segments are drawn x to xend, y to yend
-#   # going to do day by day: x segments are doy to doy+1
-#   #   y segments are value + lead(1) value
-#   dplyr::mutate(var1_x = doy, 
-#                 var1_xend = dplyr::lead(var1_x, n = 1),
-#                 var1_y = !!rlang::sym(paste0(params$predictor_var1, "_med_yr")),
-#                 var1_yend = dplyr::lead(var1_y, n = 1)) %>% 
-#   #now flag if y - yend is above, below, or crosses historical median
-#   dplyr::mutate(color_flag = case_when(
-#     var1_y >= !!rlang::sym(paste0(params$predictor_var1, "_med")) & 
-#       var1_yend >= !!rlang::sym(paste0(params$predictor_var1, "_med")) ~ "Higher",
-#     var1_y >= !!rlang::sym(paste0(params$predictor_var1, "_med")) & 
-#       var1_yend <= !!rlang::sym(paste0(params$predictor_var1, "_med")) ~ "Crosses",
-#     var1_y <= !!rlang::sym(paste0(params$predictor_var1, "_med")) & 
-#       var1_yend >= !!rlang::sym(paste0(params$predictor_var1, "_med")) ~ "Crosses",
-#     var1_y <= !!rlang::sym(paste0(params$predictor_var1, "_med")) & 
-#       var1_yend <= !!rlang::sym(paste0(params$predictor_var1, "_med")) ~ "Lower",
-#     TRUE ~ "forgotsomething")) %>% 
-#   #lead(1) does not exist for last day in environmental data, so removing improper last entry
-#   dplyr::filter(!doy == max(data_env_fc_yr))
-#   
-# 
-# p_env_var1_exp <- ggplot() + 
-#   # min/max ribbon using wide data
-#   geom_ribbon(data = data_env_doy, 
-#              aes(x = doy, 
-#                  ymin = !!rlang::sym(paste0(params$predictor_var1, "_min")), 
-#                  ymax = !!rlang::sym(paste0(params$predictor_var1, "_max")),
-#                  fill = "minmax")) +
-#   #historical median series
-#   geom_line(data = data_env_var1,
-#             aes(x = doy, 
-#                 y = !!rlang::sym(paste0(params$predictor_var1, "_med"))),
-#             color = "grey20") +
-#   #line segment for year median with different colors
-#   geom_segment(data = data_env_var1,
-#                aes(x = var1_x, xend = var1_xend,
-#                    y = var1_y, yend = var1_yend,
-#                    color = color_flag),
-#                size = 1) +
-#   #vertical line at the doy of requested date #linetype inside of aes to trigger legend
-#   geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
-#   #scales
-#   scale_fill_manual("",
-#                     values = c("minmax" = "grey80"),
-#                     labels = "Range over all years") +
-#   scale_linetype_manual("",
-#                         values = c("forecast_doy" = "dashed"),
-#                         labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
-#   scale_color_manual("Year median compared to historical median", 
-#                      values = c("Higher" = "red",
-#                                 "Crosses" = "forestgreen",
-#                                 "Lower" = "blue")) +
-#   xlab("Day of the year") + 
-#   ylab(params$predictor_var1) +
-#   ggtitle(paste("Environmental data for", params$predictor_var1, 
-#                 "in", max(data_env$year_epi, na.rm=TRUE))) +
-#   theme_arbo_chart +
-#   theme(legend.position = "bottom")
-# 
-# plot(p_env_var1_exp)
-
 ```
 
 ## Human historical cases
 
-```{r human_map, fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
+```{r human_map, echo=FALSE, include=TRUE, fig.align='center', fig.width=7}
 
 #Creates a map of human cases: 
 # 1) over all years
