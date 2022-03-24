@@ -51,11 +51,15 @@ params:
   case_trim_alpha: 0.02
   # developer settings
   #dev_settings: !r list() 
-  dev_settings: !r list(dev_write_output = TRUE, model_evaluation = TRUE, out_folder = file.path("dev", "20220322"))
+  dev_settings: !r list(dev_write_output = TRUE, model_evaluation = TRUE, out_folder = file.path("dev", "20220323"))
 
 title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
 author: "Summary of Model Outputs (v3.1) for `r params$state_name`, `r params$forecast_date`  \nDawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly  \n(mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
 date: "Updated `r format(Sys.time(), '%B %d, %Y')`"
+header-includes:
+- \usepackage{pdflscape}
+- \newcommand{\blandscape}{\begin{landscape}}
+- \newcommand{\elandscape}{\end{landscape}}
 output: pdf_document
 ---
 
@@ -333,7 +337,18 @@ if (is.null(data_sf_orig)){
     
   }
 }#end is.null
-
+#determine if spatial data is wider than it is tall
+data_sf_box <- data_sf_orig %>% 
+  #get bounding box with xmin, xmax, ymin, ymax
+  sf::st_bbox() %>% 
+  #convert into tibble for calcs
+  as.list() %>% 
+  as_tibble_row() %>% 
+  #calc x length and y length
+  dplyr::mutate(x_len = abs(xmax - xmin),
+                y_len = abs(ymax - ymin))
+#TRUE if wider, to be used with dynamic sizing/page orientation #[DEV] 
+sf_wider <- data_sf_box$x_len > data_sf_box$y_len
 
 
 if (is.null(model_formulas)){
@@ -2344,9 +2359,12 @@ knitr::kable(pos_case_preds_ave %>%
 
 ```
 
+
+\blandscape
 ## Multi-year forecast
 
-```{r multi_year_forecast, fig.width=7, echo=FALSE, include=TRUE}
+
+```{r multi_year_forecast, echo=FALSE, include=TRUE, fig.align='center', fig.width=10}
 
 #Creates a multi-year time series chart of the predicted (model average) vs. 
 #   observed positive district-weeks
@@ -2439,6 +2457,8 @@ p_multiyr <- ggplot() +
 plot(p_multiyr)
 
 ```
+
+\elandscape
 
 # Data summaries
 
@@ -2932,9 +2952,15 @@ plot(p_map_human)
 
 ```
 
+
+
+```{r cond_rotate_ref_map_start, echo=FALSE, results='asis', eval=sf_wider}
+cat("\\blandscape")
+```
+
 ## Reference map
 
-```{r reference_map, fig.width=7, fig.height=3, echo=FALSE, include=TRUE}
+```{r reference_map, echo=FALSE, include=TRUE, fig.align='center', fig.width=if (sf_wider) 10 else 7.5}
 #Creates a reference map of county names
 
 #first, get good locations to put labels
@@ -2982,13 +3008,18 @@ p_ref <- ggplot() +
   theme_arbo_map +
   #attempt to make as large as possible
   scale_x_continuous(expand = c(0,0)) +
-  scale_y_continuous(expand = c(0,0))
+  scale_y_continuous(expand = c(0,0)) 
 
 
 plot(p_ref)
 
 
 ```
+
+```{r cond_rotate_ref_map_end, echo = FALSE, results = 'asis', eval = sf_wider}
+cat("\\elandscape")
+```
+
 
 ## Parameters
 
