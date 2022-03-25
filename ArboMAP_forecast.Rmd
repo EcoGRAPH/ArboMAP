@@ -2333,15 +2333,19 @@ pos_cases_pred <- expand.grid(tot_any = seq(from = 0,
 pos_cases_pred$tot_pred_cases <- predict(pos_reg, newdata = pos_cases_pred)
 
 # predict past cases for comparison
+# Note that exact fit years have the same predictions in all models in these years
 pred_yrs_pre_yr$tot_pred_cases <- predict(pos_reg, newdata = pred_yrs_pre_yr)
 # and predict this year
 pred_yrs_fc_yr$tot_pred_cases <- predict(pos_reg, newdata = pred_yrs_fc_yr)
 
-# DEV <<>>
-# was going to look at listing all years, but check into why all previous years, the total numbers (any, pred, cases, pred_cases) are all the same across models
-
 #average model (in main report)
-pos_case_preds_ave <- pred_yrs_fc_yr %>% 
+#combine this year and past years
+pos_case_preds_ave <- pred_yrs_pre_yr %>% 
+  #remove NA rows (the weight = 100 rows, uncertain why these were added earlier [DMN])
+  dplyr::filter(!is.na(year_epi)) %>% 
+  #add this year
+  dplyr::bind_rows(pred_yrs_fc_yr) %>% 
+  #summarize across models
   dplyr::group_by(year_epi) %>% 
   #current year forecast prediction and estimated total cases
   dplyr::summarise(ave_tot_pred = mean(tot_pred, na.rm = TRUE),
@@ -2350,18 +2354,37 @@ pos_case_preds_ave <- pred_yrs_fc_yr %>%
                    max_tot_pred_cases = max(tot_pred_cases, na.rm = TRUE),
                    sd_tot_pred_cases = sd(tot_pred_cases, na.rm = TRUE)) %>% 
   #strings for table
-  # rounding mostly to ceiling because you cannot have a fractional case (in reality)
-  dplyr::mutate(range_pred_cases = paste0(round_any(min_tot_pred_cases, 1, floor), 
-                                          " - ", round_any(max_tot_pred_cases, 1, ceiling)),
-                ave_sd_pred_cases = paste0(round_any(ave_tot_pred_cases, 1, ceiling), 
-                                           " (+/-", round_any(sd_tot_pred_cases, 1, ceiling), ")"))
+  # rounding with ceiling because you cannot have a fractional case (in reality)
+  #   [DEV] [DMN] This is how I was taught during my MSPH, so I believe it is standard
+  dplyr::mutate(
+    range_pred_cases = paste0(round_any(min_tot_pred_cases, 1, ceiling), 
+                              " - ", round_any(max_tot_pred_cases, 1, ceiling)),
+    ave_sd_pred_cases = paste0(round_any(ave_tot_pred_cases, 1, ceiling), 
+                               " (+/-", round_any(sd_tot_pred_cases, 1, ceiling), ")"),
+    #exact fit years all models are same, range and sd is 0. Changing display
+    range_pred_cases = dplyr::if_else(year_epi %in% yrs_mir_imputed, 
+                               round_any(ave_tot_pred_cases, 1, ceiling) %>% 
+                                 as.character(),
+                               range_pred_cases),
+    ave_sd_pred_cases = dplyr::if_else(year_epi %in% yrs_mir_imputed,
+                                paste0(round_any(ave_tot_pred_cases, 1, ceiling), 
+                                       " (NA)"),
+                                ave_sd_pred_cases %>% 
+                                  as.character()))
+    
 
 #create table to display
-knitr::kable(pos_case_preds_ave %>% 
+knitr::kable(pos_case_preds_ave %>%
+               dplyr::arrange(year_epi) %>% 
                dplyr::select(year_epi, ave_tot_pred, ave_sd_pred_cases, range_pred_cases),
              col.names = c("Year", "Predicted positive district-weeks", "Average estimated cases (standard dev)", "Range of estimated cases"),
              digits = 0, align = "c")
 
+#<<>> DEV Make sure to add explanation of exact fit years in text!
+# <<>> check that exact fit years is in fact what's going on here.....
+# may be created this model with everything but latest year
+# ... just show latest year here, and everything with explanation in appendix?
+# <<>> DEV
 
 ```
 
