@@ -3058,6 +3058,11 @@ plot(p_env_var2)
 ### OPTION 2
 #DEV attempt at segments for above/below median
 
+env_comp_colors <- c("Higher" = "red",
+                     "Crosses" = "mediumpurple4",
+                     "Lower" = "blue3",
+                     "Historical median" = "gray20")
+
 data_env_colors <- data_env_fc_yr %>% 
   dplyr::left_join(data_env_doy %>% 
                      dplyr::select(doy, ends_with("_med")),
@@ -3109,8 +3114,8 @@ p_env_var1_color <- ggplot() +
   #historical median series
   geom_line(data = data_env_colors,
             aes(x = doy, 
-                y = !!rlang::sym(paste0(params$predictor_var1, "_med"))),
-            color = "grey20") +
+                y = !!rlang::sym(paste0(params$predictor_var1, "_med")),
+                color = "Historical median")) +
   #line segment for year median with different colors
   geom_segment(data = data_env_colors,
                aes(x = var_x, xend = var_xend,
@@ -3127,9 +3132,7 @@ p_env_var1_color <- ggplot() +
                         values = c("forecast_doy" = "dashed"),
                         labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
   scale_color_manual("Year median compared to historical median", 
-                     values = c("Higher" = "red",
-                                "Crosses" = "forestgreen",
-                                "Lower" = "blue3")) +
+                     values = env_comp_colors) +
   xlab("Day of the year") + 
   ylab(params$predictor_var1) +
   ggtitle(paste("Environmental data for", params$predictor_var1, 
@@ -3149,7 +3152,6 @@ p_env_var2_color <- ggplot() +
             aes(x = doy, 
                 y = !!rlang::sym(paste0(params$predictor_var2, "_med")),
                 color = "Historical median")) +
-            #color = "grey20") +
   #line segment for year median with different colors
   geom_segment(data = data_env_colors,
                aes(x = var_x, xend = var_xend,
@@ -3166,10 +3168,7 @@ p_env_var2_color <- ggplot() +
                         values = c("forecast_doy" = "dashed"),
                         labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
   scale_color_manual("Year median compared to historical median", 
-                     values = c("Higher" = "red",
-                                "Crosses" = "forestgreen",
-                                "Lower" = "blue3",
-                                "Historical median" = "gray20")) +
+                     values = env_comp_colors) +
   xlab("Day of the year") + 
   ylab(params$predictor_var2) +
   ggtitle(paste("Environmental data for", params$predictor_var2, 
