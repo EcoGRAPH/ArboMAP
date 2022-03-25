@@ -2652,108 +2652,246 @@ knitr::kable(data_mosq_yr2wk %>%
 
 
 ## 3. Vector pool positive rate timeseries with year comparisons
+# creates doy-based predictions using MIR regression object [V3] [DMN]
 
+mosq_pool_colors <- c("endyear" = "red",
+                      "comp1" = "blue",
+                      "comp2" = "turquoise4",
+                      "historical" = "grey50")
+mosq_pool_labels <- c("endyear" = "Current year",
+                      "comp1" = params$year_compare_vis1,
+                      "comp2" = params$year_compare_vis2,
+                      "historical" = "Other years")
 
+# [DEV] While nonstrat and strat code is very similar, 
+# keeping separate because in [V3] strat models did NOT show this graph
+# and intial runs show the actual rates off from an average of strata,
+# so perhaps stratified models need to be faceted instead ? [DMN]
+# [DEV] <<>>
 
+if (mosquito_model_clean %in% mosq_nonstrat_models) {
+  
+  mosq_doy_preds <- tidyr::expand_grid(
+    year_epi = seq(params$year_mosquito_start,
+                   params$year_mosquito_end,
+                   by = 1),
+    doy = seq(min(data_mosquito$doy, na.rm = TRUE),
+              max(data_mosquito$doy, na.rm = TRUE),
+              by = 1)) %>% 
+    #add dminus variable [V3]
+    dplyr::mutate(dminus = doy - mean(.$doy, na.rm = TRUE))
+  
+  #predictions
+  mosq_doy_preds$pred <- predict(mir_glm,
+                                 newdata = mosq_doy_preds %>% 
+                                   as.data.frame(),
+                                 type = "response",
+                                 allow.new.levels = TRUE)
 
-# if (!(mosqsummarystyle %in% c("stratifiedMIGR",
-#                               "stratifiedMII"))) {
-#   
-#   mosqmopreds <- expand.grid(year=minmosqbelieveyear:maxmosqbelieveyear,
-#                              doy=seq(from=min(wnv$doy, na.rm=TRUE),
-#                                      to  =max(wnv$doy, na.rm=TRUE), by=1))
-#   mosqmopreds$dminus <- mosqmopreds$doy - mean(wnv$doy, na.rm=TRUE)
-#   mosqmopreds$preds <- predict(infectglm, newdata=mosqmopreds, type="response", allow.new.levels=TRUE)
-#   
-#   mosqmopreds <- group_by(mosqmopreds, dminus, year)
-#   mosqmopreds <- dplyr::summarize(mosqmopreds,
-#                                   preds=mean(preds, na.rm=TRUE),
-#                                   doy=mean(doy, na.rm=TRUE),
-#                                   .groups="keep")
-#   thisyear1   <- mosqmopreds[mosqmopreds$year == maxmosqbelieveyear,]
-#   comparison1 <- mosqmopreds[mosqmopreds$year == compyear1,]
-#   comparison2 <- mosqmopreds[mosqmopreds$year == compyear2,]
-#   
-#   thisyeardot <- wnv[wnv$year == maxmosqbelieveyear,]
-#   
-#   if (sum(!is.na(thisyeardot$doy)) > 20) {
-#     
-#     thisyeardot$rounddoy <- cut2(thisyeardot$doy, g=6)
-#     thisyeardot <- group_by(thisyeardot, rounddoy)
-#     thisyeardot <- dplyr::summarize(thisyeardot,
-#                                     meanpos = mean(wnv_result, na.rm=TRUE),
-#                                     meandoy = mean(doy, na.rm=TRUE),
-#                                     .groups="keep")
-#     thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
-#                                                      color="grey", alpha=0.5) +
-#       geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
-#       geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
-#       geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
-#       geom_point(data=thisyeardot, aes(x=meandoy, y=meanpos), color="red") +
-#       xlab("day of the year") + ylab("Vector pool positive rate") +
-#       theme(panel.grid.major = element_blank(),
-#             panel.grid.minor = element_blank(),
-#             panel.background = element_blank(),
-#             axis.line = element_line(colour = "black"))
-#     
-#   } else {
-#     
-#     thisplot <- ggplot(data=mosqmopreds) + geom_line(data=mosqmopreds, aes(x=doy, y=preds, group=year),
-#                                                      color="grey", alpha=0.5) +
-#       geom_line(data=comparison1, aes(x=doy, y=preds), color="blue") +
-#       geom_line(data=comparison2, aes(x=doy, y=preds), color="blue", linetype=2) +
-#       geom_line(data=thisyear1, aes(x=doy, y=preds), color="red") +
-#       xlab("day of the year") + ylab("Vector pool positive rate") +
-#       theme(panel.grid.major = element_blank(),
-#             panel.grid.minor = element_blank(),
-#             panel.background = element_blank(),
-#             axis.line = element_line(colour = "black"))
-#     
-#   }
-#   plot(thisplot)
-#   
-# }
-# 
+  #prep for graphing
+  mosq_doy_preds_ave <- mosq_doy_preds %>% 
+    dplyr::group_by(year_epi, dminus, doy) %>% 
+    dplyr::summarise(pred_ave = mean(pred, na.rm=TRUE),
+                     .groups = "drop") %>% 
+    #flag param max year, param two comparison years for colored lines
+    dplyr::mutate(mosq_col_grp = case_when(
+      year_epi == params$year_mosquito_end ~ "endyear",
+      year_epi == params$year_compare_vis1 ~ "comp1",
+      year_epi == params$year_compare_vis2 ~ "comp2",
+      #all other years
+      TRUE ~ "hx_filter"))
+  
+  #if there are enough values in endyear ([V3] > 20), 
+  data_mosq_endyr <- data_mosquito %>% 
+      dplyr::filter(year_epi == params$year_mosquito_end)
+  # then we will also add dots along the line
+  if (nrow(data_mosq_endyr) > 20){
+    
+    #note, using data_mosquito, showing actual positive sample rate
+    end_year_dot <- data_mosq_endyr %>% 
+      #make 6 [V3] groups
+      dplyr::mutate(doy_grp = ggplot2::cut_interval(doy, n = 6)) %>% 
+      #summarize by these dot groups 
+      # grouping observations nearby in time together [DMN]
+      dplyr::group_by(doy_grp) %>% 
+      dplyr::summarise(pos_mean = mean(wnv_result, na.rm = TRUE),
+                       doy_mean = mean(doy, na.rm = TRUE),
+                       .groups = "drop")
+    } else {
+      #empty tibble, for if statement in ggplot code
+      end_year_dot <- tibble()
+      } #end data prep if adding dots
+  
+  #plot, with possible dots
+  p_mosq_pool_pos <- ggplot2::ggplot() +
+    #historical (will be all gray)
+    geom_line(data = mosq_doy_preds_ave %>% 
+                dplyr::filter(mosq_col_grp == "hx_filter"),
+              aes(x = doy,
+                  y = pred_ave,
+                  group = factor(year_epi),
+                  color = "historical")) +
+    #colored years
+    geom_line(data = mosq_doy_preds_ave %>%
+                dplyr::filter(!mosq_col_grp == "hx_filter"),
+              aes(x = doy,
+                  y = pred_ave,
+                  color = mosq_col_grp)) +
+    #potential dots
+    {if (nrow(end_year_dot) > 0){}
+      geom_point(data = end_year_dot,
+                aes(x = doy_mean,
+                    y = pos_mean))} +
+    # colors
+    scale_color_manual("",
+                       values = mosq_pool_colors,
+                       labels = mosq_pool_labels) +
+    theme_arbo_chart
+
+} else if (mosquito_model_clean %in% mosq_strat_models){
+  
+  #DEV <<>> Looks off when averaged by strata
+  # perhaps needs to facet by strata instead??
+  
+  mosq_doy_preds <- tidyr::expand_grid(
+    stratum_year = rownames(nlme::random.effects(mir_glm)$stratum_year),
+    doy = seq(min(data_mosquito$doy, na.rm = TRUE),
+              max(data_mosquito$doy, na.rm = TRUE),
+              by = 1)) %>% 
+    #add dminus variable [V3]
+    dplyr::mutate(dminus = doy - mean(.$doy, na.rm = TRUE))
+  
+  #predictions
+  mosq_doy_preds$pred <- predict(mir_glm,
+                                 newdata = mosq_doy_preds %>% 
+                                   as.data.frame(),
+                                 type = "response",
+                                 allow.new.levels = TRUE)
+  
+  #prep for graphing
+  mosq_doy_preds_ave <- mosq_doy_preds %>% 
+    #recover year, and summarize by year & dminus (across strata)
+    dplyr::mutate(year_epi = stringr::str_split_fixed(stratum_year, 
+                                                      "_", 
+                                                      n = 2)[,2]) %>% 
+    dplyr::group_by(year_epi, dminus, doy) %>% 
+    dplyr::summarise(pred_ave = mean(pred, na.rm=TRUE),
+                     .groups = "drop") %>% 
+    #flag param max year, param two comparison years for colored lines
+    dplyr::mutate(mosq_col_grp = case_when(
+      year_epi == params$year_mosquito_end ~ "endyear",
+      year_epi == params$year_compare_vis1 ~ "comp1",
+      year_epi == params$year_compare_vis2 ~ "comp2",
+      #all other years
+      TRUE ~ "hx_filter"))
+  
+  #if there are enough values in endyear ([V3] > 20), 
+  data_mosq_endyr <- data_mosquito %>% 
+      dplyr::filter(year_epi == params$year_mosquito_end)
+  # then we will also add dots along the line
+  if (nrow(data_mosq_endyr) > 20){
+    
+    #note, using data_mosquito, showing actual positive sample rate
+    end_year_dot <- data_mosq_endyr %>% 
+      #make 6 [V3] groups
+      dplyr::mutate(doy_grp = ggplot2::cut_interval(doy, n = 6)) %>% 
+      #summarize by these dot groups 
+      # grouping observations nearby in time together [DMN]
+      dplyr::group_by(doy_grp) %>% 
+      dplyr::summarise(pos_mean = mean(wnv_result, na.rm = TRUE),
+                       doy_mean = mean(doy, na.rm = TRUE),
+                       .groups = "drop")
+    } else {
+      #empty tibble, for if statement in ggplot code
+      end_year_dot <- tibble()
+      } #end data prep if adding dots
+  
+  #plot, with possible dots
+  p_mosq_pool_pos <- ggplot2::ggplot() +
+    #historical (will be all gray)
+    geom_line(data = mosq_doy_preds_ave %>% 
+                dplyr::filter(mosq_col_grp == "hx_filter"),
+              aes(x = doy,
+                  y = pred_ave,
+                  group = factor(year_epi),
+                  color = "historical")) +
+    #colored years
+    geom_line(data = mosq_doy_preds_ave %>%
+                dplyr::filter(!mosq_col_grp == "hx_filter"),
+              aes(x = doy,
+                  y = pred_ave,
+                  color = mosq_col_grp)) +
+    #potential dots
+    {if (nrow(end_year_dot) > 0){}
+      geom_point(data = end_year_dot,
+                aes(x = doy_mean,
+                    y = pos_mean))} +
+    # colors
+    scale_color_manual("",
+                       values = mosq_pool_colors,
+                       labels = mosq_pool_labels) +
+    ggtitle("Vector pool positive rate predictions") +
+    ylab("Pool positive rate") +
+    xlab("Day of year") +
+    theme_arbo_chart
+  
+} # end else strata models 
+
+plot(p_mosq_pool_pos)
+
 
 
 ## 4. Relative risk due to vector infection rate
 
-# if (mosqsummarystyle %in% c("MIGR", "MII", "AUC", "simpleratio")) {
-#   
-#   # center these statistics
-#   randeffs$MIRsummarystat <- randeffs$MIRsummarystat - mean(randeffs$MIRsummarystat, na.rm=TRUE)
-#   randeffs$MIRsummarystat[is.na(randeffs$MIRsummarystat)] <- 0
-#   
-#   # plot
-#   thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=MIRsummarystat)) +
-#     geom_abline(slope=0, intercept=0, linetype=2) +
-#     scale_x_continuous(breaks=minmosqbelieveyear:maxmosqbelieveyear) +
-#     theme(axis.text.x=element_text(angle=45, hjust=1),
-#           panel.grid.minor=element_blank(),
-#           panel.grid.major.y=element_blank())+
-#     xlab("") + ylab("Relative risk due to\nvector infection rate")
-#   plot(thisplot)
-#   write.csv(randeffs, file="randeffs.csv")
-#   
-# }
-# if (mosqsummarystyle %in% c("stratifiedMIGR", "stratifiedMII")) {
-#   
-#   # center these statistics
-#   randeffs$MIRsummarystat <- randeffs$MIRsummarystat - mean(randeffs$MIRsummarystat, na.rm=TRUE)
-#   
-#   # plot
-#   thisplot <- ggplot(randeffs) + geom_line(aes(x=year, y=MIRsummarystat, group=stratum, color=stratum)) +
-#     geom_abline(slope=0, intercept=0, linetype=2) +
-#     scale_x_continuous(breaks=minmosqbelieveyear:maxmosqbelieveyear) +
-#     theme(axis.text.x=element_text(angle=45, hjust=1),
-#           panel.grid.minor=element_blank(),
-#           panel.grid.major.y=element_blank())+
-#     xlab("") + ylab("Relative risk due to\nvector infection rate")
-#   plot(thisplot)
-#   write.csv(randeffs, file="randeffs.csv")
-#   
-# }
+if (mosquito_model_clean %in% mosq_nonstrat_models) {
 
+  p_mosq_rel_risk <- ggplot2::ggplot() +
+    # line at 0 (average risk of centered MIR stat)
+    geom_abline(slope = 0, intercept = 0, linetype = 2) +
+    #MIR stats
+    geom_line(data = mosq_mir,
+              aes(x = year_epi,
+                  y = mir_stat_ctr)) +
+    # plot themes and display
+    scale_x_continuous(breaks = seq(from = params$year_mosquito_start,
+                                    to = params$year_mosquito_end,
+                                    by = 1)) +
+    ggtitle("Relative risk due to mosquito infection rate") +
+    xlab("") +
+    ylab("Relative risk") +
+    theme_arbo_chart +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    
+  
+} else if (mosquito_model_clean %in% mosq_strat_models){
+
+    p_mosq_rel_risk <- ggplot2::ggplot() +
+    # line at 0 (average risk of centered MIR stat)
+    geom_abline(slope = 0, intercept = 0, linetype = 2) +
+    #MIR stats
+    geom_line(data = mosq_mir,
+              aes(x = year_epi,
+                  y = mir_stat_ctr,
+                  #strata
+                  color = factor(strata)),
+              size = 1) +
+    # plot themes and display
+    scale_color_viridis("Stratum",
+                        option = "turbo",
+                        discrete = TRUE) +
+    scale_x_continuous(breaks = seq(from = params$year_mosquito_start,
+                                    to = params$year_mosquito_end,
+                                    by = 1)) +
+    ggtitle("Relative risk due to mosquito infection rate") +
+    xlab("") +
+    ylab("Relative risk") +
+    theme_arbo_chart +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+  
+} #end else strata models
+
+plot(p_mosq_rel_risk)
 
 ```
 
