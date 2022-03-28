@@ -10,9 +10,262 @@ output: pdf_document
 
 ### Current-week WNV relative risk maps
 
+```{r appx_rel_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%", results='asis'}
+
+# V4 algorithm
+# For each model:
+# 1. For each district-year, get the pred value at the same EPI WEEK as the forecast week
+# 2. RANK these pred values and divide by the number of years of values each district has.
+#     This creates a ~percentile of RANKED risk (basically)
+# 3. Percentile values kept as continuous to match style of absolute risk maps
+#     [V3]: <= 12.5% lower than ave, => 87.5% higher than ave
+#     Will need to indicate something similar in legend
+# 4. Map each model
+# Note: This is therefore the relative risk of PREDICTED values. 
+#     May want to consider if there is some way to compare forecast-week predicted value
+#       against OBSERVED historical values (any_cases), but not certain how that 
+#       mathematically would work out (as any_cases is {0|1}). [DMN]
+
+#rank the specific week's pred against the other years
+appx_rel_risk <- preds %>% 
+  #get all preds at same epiweek (in any year)
+  dplyr::filter(week_epi == epiweek_request) %>% 
+  # rank within each district & model
+  dplyr::group_by(arbo_ID,
+                  model) %>% 
+  dplyr::mutate(rank_pred = rank(pred, ties.method = 'random'),
+                #percentile of ranked pred by number of years
+                # note: rank such that lowest pred = 1
+                rank_perc = rank_pred / n() * 100) %>% 
+  #and get this current-year week
+  dplyr::filter(year_epi == epiyear_request) %>% 
+  #ungroup to finish
+  dplyr::ungroup()
+
+#same breaks as [V3]
+lower_risk <- 12.5
+higher_risk <- 87.5
+
+#loop for each model
+for (i in seq_along(model_names)){
+  
+  #this model
+  this_model <- model_names[i]
+  this_model_desc <- model_desc_names[[this_model]]
+  this_rel_risk <- appx_rel_risk %>% 
+    dplyr::filter(model == this_model)
+  
+  #title section
+  this_model_title <- paste0(this_model_desc, ": \"", this_model, "\"")
+  #note needs results='asis' in code block header
+  cat("#### ", this_model_title)
+  
+  #this model's data joined with spatial
+  this_sf_rel_risk <- data_sf_orig %>% 
+    dplyr::left_join(this_rel_risk,
+                     by = "arbo_ID")
+  
+  #this model's plot
+  this_p_rel_risk <- ggplot2::ggplot() +
+    #by rank percentile
+    ggplot2::geom_sf(data = this_sf_rel_risk,
+                     aes(fill = rank_perc)) +
+    viridis::scale_fill_viridis("", 
+                                #limits always 0 - 100
+                                limits = c(0, 100),
+                                #using [V3] breaks
+                                breaks = c(0, lower_risk, 50, higher_risk, 100),
+                                labels = c("0",
+                                           paste(lower_risk, ": Lower than average risk"),
+                                           "50: Average risk",
+                                           paste(higher_risk, ": Higher than average risk"),
+                                           "100")) +
+    ggtitle("Risk in forecast week relative to the same epiweek in previous years",
+            subtitle = this_model_title) +
+    theme_arbo_map
+  
+  plot(this_p_rel_risk)
+  
+  #this model's table 
+  #Table of counties with higher than average risk
+  this_kable <- knitr::kable(
+    rel_risk %>% 
+      dplyr::filter(pred_ave >= higher_risk) %>% 
+      #join with crosswalk to get pretty names
+      dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
+      dplyr::select(NAME, pred_ave),
+    col.names = c("County", "Risk"),
+    digits = 2,
+    caption = "Counties with higher than average risk")
+  
+  #note to get kable in a for loop, you must 
+  # print kable with cat extra line WITH results='asis' in header
+  #https://github.com/yihui/knitr/issues/886
+  print(this_kable)
+  cat("\n")
+}
+
+```
+
 ### Current-week WNV absolute risk maps
 
+```{r appx_abs_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%", results="asis"}
+
+# Creates a map of absolute risk of the requested forecast week
+# for each model
+
+appx_preds_fc_wk <- preds %>% 
+  dplyr::filter(year_epi == epiyear_request & week_epi == epiweek_request)
+
+
+#loop for each model
+for (i in seq_along(model_names)){
+  
+  #this model
+  this_model <- model_names[i]
+  this_model_desc <- model_desc_names[[this_model]]
+  this_abs_risk <- appx_preds_fc_wk %>% 
+    dplyr::filter(model == this_model)
+  
+  #title section
+  this_model_title <- paste0(this_model_desc, ": \"", this_model, "\"")
+  #note needs results='asis' in code block header
+  cat("#### ", this_model_title)
+  
+  
+  #join with spatial
+  this_sf_abs_risk <- data_sf_orig %>% 
+    dplyr::left_join(this_abs_risk, by = "arbo_ID")
+  
+  this_p_abs_risk <- ggplot2::ggplot() +
+    ggplot2::geom_sf(data = this_sf_abs_risk,
+                     aes(fill = pred)) +
+    viridis::scale_fill_viridis("", 
+                                #limits always 0 - 1
+                                limits = c(0, 1),
+                                breaks = c(0, 1),
+                                labels = c("0: Less likely\nto report any cases", 
+                                           "1: More likely\nto report at least one case")) +
+    ggtitle("Absolute risk in forecast week",
+            subtitle = this_model_title) +
+    theme_arbo_map
+  
+  plot(this_p_abs_risk)
+}
+
+```
+
+
 ### Current-year forecasts
+
+```{r current_year_forecast, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
+
+#Creates an epicurve of the current forecast year PREDICTIONS
+# EACH model, no ribbon (as compared to average version in main report)
+# Adds the HISTORICAL human epicurve 
+
+# [DEV] Note that human summary data is on a different scale
+#   than forecast, and ggplot2 does NOT allow for 2 different x-axes
+# Rescaled by using the average historical proportion positive
+#   as opposed to the [V3] count of districts positive
+
+
+## Statewide predictions
+appx_preds_curyr <- preds %>% 
+  #not grouping by arbo_ID here
+  dplyr::group_by(model, 
+                  #keeping all date-related fields, 
+                  # need to at least group on date_epi (or year+week)
+                  date_epi, week_epi, year_epi, doy) %>% 
+  dplyr::summarise(pred_ave = mean(pred, na.rm = TRUE),
+                   mean_any_cases = mean(any_cases, na.rm = TRUE),
+                   tot_case_count = sum(case_count, na.rm = TRUE), 
+                   .groups = 'drop') %>% 
+  #split into two series : pre & post fc_week - for graphing with two different styles
+  #intentionally having fc week be both pre and post, so lines appear connected
+  dplyr::mutate(pred_pre = dplyr::if_else(year_epi < epiyear_request, #previous years
+                                          pred_ave,
+                                          NA_real_),
+                #earlier in forecast yr, update 
+                pred_pre = dplyr::if_else(week_epi <= epiweek_request & 
+                                            year_epi == epiyear_request, 
+                                          pred_ave,
+                                          pred_pre),
+                pred_post = dplyr::if_else(week_epi >= epiweek_request & 
+                                             year_epi == epiyear_request,
+                                           pred_ave,
+                                           NA_real_)) %>% 
+  #only forecast year
+  dplyr::filter(year_epi == epiyear_request) %>% 
+  #censored to modelled range (with buffer)
+  dplyr::filter(week_epi >= (human_wk_min - 1) &
+                  week_epi <= (human_wk_max + 1))
+
+#human data already set up in main report
+# keeping separate to graph, since separate from model type
+#data_human_st_prop 
+
+#pivot predictions long for ggplot
+appx_preds_curyr_long <- appx_preds_curyr %>% 
+  dplyr::select(week_epi, model, pred_pre, pred_post) %>% 
+  tidyr::pivot_longer(cols = c(pred_pre,
+                               pred_post),
+                      names_to = "series",
+                      values_to = "stat_value") %>% 
+  #change order in legend
+  dplyr::mutate(series = factor(series, levels = c("pred_pre", "pred_post")))
+
+#Current year forecast plot
+appx_p_cur_yr <- ggplot2::ggplot() +
+  #human line
+  geom_line(data = data_human_st_prop %>% 
+              #censored to modelled range (with buffer)
+              dplyr::filter(week_epi >= (human_wk_min - 1) &
+                              week_epi <= (human_wk_max + 1)),
+            aes(x = week_epi,
+                y = pp_mean,
+                #alpha to trick into creating a legend
+                #only works b/c using default, a black solid line
+                alpha = "human"),
+            color = "black",
+            linetype = "solid") +
+  #per model predictions
+  geom_line(data = appx_preds_curyr_long,
+            aes(x = week_epi,
+                y = stat_value,
+                linetype = series,
+                color = model)) +
+  #current week marker
+  geom_vline(xintercept = epiweek_request, linetype = "dashed", color = "grey25") +
+  #plot labels and adjustments
+  #for model colors
+  scale_color_viridis("Model", option = "turbo", discrete = TRUE) +
+  #for pre/post forecast week
+  scale_linetype_manual("Time linetype indicator",
+                        values = c("pred_pre" = "solid",
+                                   "pred_post" = 22), #22 is tight dashed
+                        labels = c("pred_pre" = "Past model forecast",
+                                   "pred_post" = "Future model forecast")) +
+  #for tricking into human legend
+  scale_alpha_manual("", 
+                     values = c("human" = 1),
+                     labels = c("human" = "Historical\naverage proportion")) +
+  ggtitle(paste("Statewide model predictions in", epiyear_request, 
+                "at forecast epiweek", epiweek_request)) +
+  #change order of legends
+  guides(
+    color = guide_legend(order = 1),
+    linetype = guide_legend(order = 2),
+    alpha = guide_legend(order = 3)) +
+  #[V3] How y-axis labeled in v3, keeping same [DMN]
+  ylab("Proportion of districts positive") + 
+  xlab("Epiweek") +
+  theme_arbo_chart 
+
+plot(appx_p_cur_yr)
+
+```
+
 
 ### Case estimations
 
