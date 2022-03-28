@@ -158,7 +158,7 @@ for (i in seq_along(model_names)){
 
 ### Current-year forecasts
 
-```{r current_year_forecast, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
+```{r appx_curyr_forecast, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
 
 #Creates an epicurve of the current forecast year PREDICTIONS
 # EACH model, no ribbon (as compared to average version in main report)
@@ -171,7 +171,7 @@ for (i in seq_along(model_names)){
 
 
 ## Statewide predictions
-appx_preds_curyr <- preds %>% 
+appx_preds_st <- preds %>% 
   #not grouping by arbo_ID here
   dplyr::group_by(model, 
                   #keeping all date-related fields, 
@@ -195,11 +195,13 @@ appx_preds_curyr <- preds %>%
                                              year_epi == epiyear_request,
                                            pred_ave,
                                            NA_real_)) %>% 
-  #only forecast year
-  dplyr::filter(year_epi == epiyear_request) %>% 
   #censored to modelled range (with buffer)
   dplyr::filter(week_epi >= (human_wk_min - 1) &
                   week_epi <= (human_wk_max + 1))
+
+appx_preds_curyr <- appx_preds_st %>% 
+  #only forecast year
+  dplyr::filter(year_epi == epiyear_request)
 
 #human data already set up in main report
 # keeping separate to graph, since separate from model type
