@@ -3274,10 +3274,8 @@ cat("\\blandscape")
 
 ## Reference map
 
-```{r reference_map, echo=FALSE, include=TRUE, fig.align='center', out.width='100%'}
+```{r reference_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%", fig.width=if (sf_wider) 10 else 7.5}
 #Creates a reference map of county names
-
-#fig.width=if (sf_wider) 10 else 7.5: [DEV] not working? landscape picture less than 10
 
 #first, get good locations to put labels
 #calculate better centroids | point on surface 
