@@ -51,7 +51,7 @@ params:
   case_trim_alpha: 0.02
   # developer settings
   #dev_settings: !r list() 
-  dev_settings: !r list(dev_write_output = TRUE, model_evaluation = TRUE, out_folder = file.path("dev", "20220323"))
+  dev_settings: !r list(dev_write_output = TRUE, model_evaluation = TRUE, out_folder = file.path("dev", "20220328"))
 
 title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
 author: "Summary of Model Outputs (v3.1) for `r params$state_name`, `r params$forecast_date`  \nDawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly  \n(mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
@@ -60,7 +60,9 @@ header-includes:
 - \usepackage{pdflscape}
 - \newcommand{\blandscape}{\begin{landscape}}
 - \newcommand{\elandscape}{\end{landscape}}
-output: pdf_document
+output: 
+  pdf_document:
+    toc: TRUE
 ---
 
 ```{r knitr_setup, include=FALSE}
