@@ -3371,11 +3371,27 @@ if (length(params_dev >= 1)){
 ```
 
 
-```{r appendix_switch, echo = FALSE}
-#child=if (params$create_appendix) 'ArboMAP_forecast_appendix.Rmd'
-# Conditionally add the appendix child file (to be created) depending the T/F value of create_appendix 
-#https://bookdown.org/yihui/rmarkdown-cookbook/child-document.html
+```{r appendix_switch, echo=FALSE, results='asis'}
+# Conditionally creates an appendix from a child Rmd file
+# Contains more graphs, per models results as opposed to average
 
-# <<>> DEV look at epidemia report to see what, if anything, needs set up here. 
+# [DEV] Two options to optionally include child
+#https://bookdown.org/yihui/rmarkdown-cookbook/child-document.html
+#1. {r appendix_switch, child=if (params$create_appendix) 'ArboMAP_forecast_appendix.Rmd'}
+#2. {r appendix_switch, echo=FALSE, results='asis'} 
+#     with if statement for knit_child() and cat()
+# [DEV] [DMN] Using second option to use system-independent subfolder path call
+#       As you can't run the child document directly, I want it buried from the user
+
+if (params$create_appendix){
+  #child file location
+  appx_file <- file.path("rmd_sections", "ArboMAP_appendix.Rmd")
+  #knit document, saving output to object
+  appx <- knitr::knit_child(appx_file, quiet = TRUE)
+  #cat the object to make it render in main document
+  cat(appx, sep = "\n")
+}
+
+
 
 ```
