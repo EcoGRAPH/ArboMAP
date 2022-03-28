@@ -1887,7 +1887,7 @@ model_desc_names <- c(
 
 ## Current-week WNV relative risk map
 
-```{r relative_risk_map, echo=FALSE, include=TRUE, fig.align='center', fig.width=7}
+```{r relative_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
 
 # Want to compare the current risk to the historical/previous years
 
@@ -1999,7 +1999,7 @@ knitr::kable(rel_risk %>%
 
 ## Current-week WNV absolute risk map
 
-```{r absolute_risk_map, echo=FALSE, include=TRUE, fig.align='center', fig.width=7}
+```{r absolute_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
 
 # Creates a map of absolute risk of the requested forecast week
 # Average of all models here (each model in appendix)
@@ -2031,7 +2031,7 @@ plot(p_abs_risk)
 
 ## Current-year forecast
 
-```{r current_year_forecast, echo=FALSE, include=TRUE, fig.align='center', fig.width=7}
+```{r current_year_forecast, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
 
 #Creates an epicurve of the current forecast year PREDICTIONS
 # Average of models, with ribbon for min/max models
@@ -2043,10 +2043,6 @@ plot(p_abs_risk)
 #   than forecast, and ggplot2 does NOT allow for 2 different x-axes
 # Rescaled by using the average historical proportion positive
 #   as opposed to the [V3] count of districts positive
-
-# <<>> DEV!!
-# 2018 is quite different with new version?? But other years look relatively the same...
-
 
 ## Statewide average predictions
 # averaging to state first
@@ -2242,7 +2238,7 @@ plot(p_cur_yr)
 
 ## Case estimation
 
-```{r positives_to_cases, echo=FALSE, include=TRUE, fig.align='center', fig.width=7}
+```{r positives_to_cases, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
 
 #Estimates number of cases from positive district-weeks
 # Splits out previous yearly summaries to model
@@ -2493,7 +2489,7 @@ mosq_pos_perc_maxyr: `r mosq_pos_perc_maxyr`
 
 ## Mosquito pools
 
-```{r mosquito_pools, fig.width=7, echo=FALSE, include=TRUE}
+```{r mosquito_pools, out.width="100%", echo=FALSE, include=TRUE}
 
 #Creates summaries of the input mosquito data: 4 parts
 # 1. Map of the positive pools in last 2 weeks, differentiating between non-reporting and 0 positive pools. Note: 2 weeks asked for in multi-state meeting.
@@ -2882,7 +2878,7 @@ plot(p_mosq_rel_risk)
 
 ## Weather
 
-```{r weather_charts, echo=FALSE, include=TRUE, fig.align='center', fig.width=7, fig.height=c(3,4,3,5)}
+```{r weather_charts, echo=FALSE, include=TRUE, fig.align='center', out.width="100%", fig.height=c(3,4,3,5)}
 
 #Create environmental data plots for the current year 
 #   with historical doy information in background
@@ -3178,7 +3174,7 @@ plot(p_env_var2_color)
 
 ## Human historical cases
 
-```{r human_map, echo=FALSE, include=TRUE, fig.align='center', fig.width=7}
+```{r human_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
 
 #Creates a map of human cases: 
 # 1) over all years
@@ -3342,6 +3338,14 @@ cat("\\elandscape")
 
 #Split out dev_settings to handle separately
 params_main <- params %>% purrr::list_modify("dev_settings" = NULL)
+
+#table of main report parameters
+param_table <- tibble::tibble(Parameter = names(params_main), Value = unlist(params_main)) 
+knitr::kable(param_table, 
+             caption = "Parameters used",
+             row.names = FALSE)
+
+
 #dev settings, removing data objects & replacing with notifier
 params_dev <- params$dev_settings
 if (!is.null(params_dev$data_human)){params_dev$data_human <-"Override data given"} 
@@ -3352,12 +3356,6 @@ if (!is.null(params_dev$data_sf_orig)){params_dev$data_sf_orig <-"Override data 
 if (!is.null(params_dev$model_formulas)){params_dev$model_formulas <-"Override data given"}
 if (!is.null(params_dev$models_cached)){params_dev$models_cached <-"Override data given"}
 
-#table of main report parameters
-param_table <- tibble::tibble(Parameter = names(params_main), Value = unlist(params_main)) 
-knitr::kable(param_table, 
-             caption = "Parameters used",
-             row.names = FALSE)
-
 #additional table IF developer parameters were used
 if (length(params_dev >= 1)){
   param_dev_table <- tibble::tibble(Parameter = names(params_dev), Value = unlist(params_dev))
@@ -3365,8 +3363,6 @@ if (length(params_dev >= 1)){
                caption = "Developer overrides and parameters",
                row.names = FALSE)
 }
-
-
 
 ```
 
@@ -3377,7 +3373,8 @@ if (length(params_dev >= 1)){
 
 # [DEV] Two options to optionally include child
 #https://bookdown.org/yihui/rmarkdown-cookbook/child-document.html
-#1. {r appendix_switch, child=if (params$create_appendix) 'ArboMAP_forecast_appendix.Rmd'}
+#1. {r appendix_switch, child=if (create_appendix) 'ArboMAP_forecast_appendix.Rmd'}
+#     Note: would have to set create_appendix as local var prior to this code block
 #2. {r appendix_switch, echo=FALSE, results='asis'} 
 #     with if statement for knit_child() and cat()
 # [DEV] [DMN] Using second option to use system-independent subfolder path call
