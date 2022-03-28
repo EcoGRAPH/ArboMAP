@@ -1,0 +1,35 @@
+---
+output: pdf_document
+---
+
+# Appendix
+
+## Forecast results
+
+### Model fit statistics
+
+### Current-week WNV relative risk maps
+
+### Current-week WNV absolute risk maps
+
+### Current-year forecasts
+
+### Case estimations
+
+\blandscape
+### Multi-year forecasts
+
+\elandscape
+
+### <<Estimated dependence functions>>
+
+## Data summaries
+
+### Anomalized environmental variables
+
+
+
+
+
+
+
