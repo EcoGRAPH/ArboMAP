@@ -1191,6 +1191,10 @@ data_env_hx <- data_env %>%
   # https://www.tidyverse.org/blog/2020/02/glue-strings-and-tidy-eval/
   #       suddenly stopped working 2022-03-14. 
   #       Using older !!rlang:sym() for now, at least 
+  # Basically, in tidyverse, we have to tell it 
+  #  to evaluate the variable that is the name of the variable
+  #  by using !!sym() (or {{}} if it worked), 
+  #  and if that's on the LHS, use := instead of =
   dplyr::summarize(
     !!rlang::sym(paste0(params$predictor_var1,
                         "_mean")) := mean(!!rlang::sym(params$predictor_var1),
@@ -1285,6 +1289,10 @@ data_env_anom_hx <- data_env %>%
   #based on the dynamic anom fields: '{var}_anom'  
   # package glue's {{}} ('curly curly') would have been preferable to !!sym
   # e.g. {{params$predictor_var1}}, but stopped working unexpectedly [DMN]
+  # Basically, in tidyverse, we have to tell it 
+  #  to evaluate the variable that is the name of the variable
+  #  by using !!sym() (or {{}} if it worked), 
+  #  and if that's on the LHS, use := instead of =
   summarize(
     !!rlang::sym(paste0(var1_anom_name, 
                         "_mean")) := mean(!!rlang::sym(var1_anom_name), 
@@ -2090,6 +2098,7 @@ preds_st_mod_ave_fc_yr_censor <- preds_st_mod_ave_fc_yr %>%
   dplyr::filter(week_epi >= (human_wk_min - 1) &
                   week_epi <= (human_wk_max + 1))
 
+#human data: average of all data by week of year
 data_human_st_prop <- data_combined %>%
   #proportion of districts positive in each year by week
   dplyr::group_by(year_epi, week_epi) %>%
