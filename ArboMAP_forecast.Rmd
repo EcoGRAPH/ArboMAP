@@ -1701,6 +1701,7 @@ model_evals <- data.frame()
 #       this is being done in the loop below because unless the
 #       models are being cached, they are not saved so generating 
 #       these plots after the loop would be impossible
+# These are used in the appendix section for estimated dependence functions
 model_plots <- list()
 
 # set up frame to capture predictions
@@ -1768,8 +1769,8 @@ for (this_model in model_names){
   }
   
   # add model plots to the list
-  # <<>> DEV May need to make better plots? find out where used in report and how it is formatted
-  model_plots[[this_model]] <- plot(this_reg, select=1)
+  # from ?plot.gam() "plots the component smooth functions that make it up, on the scale of the linear predictor"
+  model_plots[[this_model]] <- plot(this_reg, select=1) 
   
   ##
   # predictions of this model
