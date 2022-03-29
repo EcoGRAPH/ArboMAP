@@ -445,7 +445,112 @@ plot(appx_p_multiyr)
 
 \elandscape
 
-### <<Estimated dependence functions>>
+### Partial effects graphs
+
+```{r appx_dep_fxs, include=TRUE, echo=FALSE, fig.align='center', out.width="100%", results='asis'}
+
+# [V3] note copied verbatim:
+# "Because the user can write model formulas from scratch, we are not able to assume anything about the regression model. Therefore, plotting the model is difficult when you don't know what components the model has. In what follows, every 1-/2-D plot from the chosen models are shown. These will have names assigned by the gam function, which should be comprehensible if the user built the model."
+
+#Estimated dependence functions
+# aka component smooth functions
+# I believe I can all these 'partial effects' [DMN]
+# [DMN] useful refs: 
+# https://noamross.github.io/gams-in-r-course/chapter2 
+# https://stackoverflow.com/questions/67077306/plotting-output-of-gam-model
+
+#creates plots for each model
+# uses the model_plots creating during forecast regression:
+# from ?plot.gam() "plots the component smooth functions that make [a fitted gam object] up, on the scale of the linear predictor"
+# [V3] here pulls the data table out of the plot to replot nicer
+
+#loop for each model
+for (i in seq_along(model_names)){
+  
+  #this model
+  this_model <- model_names[i]
+  this_model_desc <- model_desc_names[[this_model]]
+  #model_plots created in loop in forecast regression
+  this_plot <- model_plots[[this_model]]
+
+  #title section
+  this_model_title <- paste0(this_model_desc, ": \"", this_model, "\"")
+  #note needs results='asis' in code block header
+  cat("#### ", this_model_title)
+
+  #each plot object seems to contain multiple plot objects
+  # for each smooth term
+  for (j in seq_along(this_plot)){
+    
+    this_subplot <- this_plot[[j]]
+    #sub in actual variable names
+    this_ylab <- this_subplot$ylab %>% 
+      stringr::str_replace(pattern = "var1", 
+                           replacement = params$predictor_var1) %>% 
+      stringr::str_replace(pattern = "var2", 
+                           replacement = params$predictor_var2)
+    
+    #plots can either be 1-D or 2-D 
+    # I believe all production ArboMAP plots will be 1-D [DMN]
+    # The test used in [V3] was if $main was NULL, kept for [V4]
+    
+    if (is.null(this_subplot$main)){
+      #1-D
+      
+      #pull data
+      this_subdata <- tibble::tibble(x = this_subplot$x,
+                                     y = this_subplot$fit)
+      
+      #replot
+      p_this_subplot <- ggplot2::ggplot() +
+        #[V3]
+        geom_hline(yintercept = 0, linetype = 2) +
+        #partial effect
+        geom_line(data = this_subdata,
+                  aes(x = x, y = y)) +
+        xlab(this_subplot$xlab) +
+        ylab(this_ylab) +
+        ggtitle(paste0("Component: ", this_ylab),
+                subtitle = this_model_title) +
+        theme_arbo_chart
+      
+    }#end 1-D
+    
+    if (!is.null(this_subplot$main)){
+      #2-D
+      
+      #pull data
+      this_subdata <- tidyr::expand_grid(x = this_subplot$x,
+                                         y = this_subplot$y)
+      this_subdata$fit <- this_subplot$fit
+      
+      #select a subset of y to plot as lines [V3]
+      y_chosen <- quantile(this_subplot$y, probs = c(0.3, 0.5, 0.7), type = 3)
+      this_subdata <- this_subdata %>% 
+        dplyr::filter(y %in% y_chosen) %>% 
+        dplyr::mutate(doy = factor(round_any(y, 1)))
+      
+      #[V3]
+      p_this_subplot <- ggplot2::ggplot() +
+        geom_hline(yintercept = 0, linetype = 2) +
+        geom_line(data = this_subdata,
+                  aes(x = x, y = fit,
+                      group = doy, color = doy, linetype = doy)) +
+        xlab(this_subplot$xlab) +
+        ylab("fit") +
+        ggtitle(paste0("Component: ", this_ylab),
+                subtitle = this_model_title) +
+        theme_arbo_chart
+
+    }#end 2-D
+    
+    plot(p_this_subplot)
+    
+  }#end subplot loop
+  
+}#end model loop
+```
+
 
 ## Data summaries
 
