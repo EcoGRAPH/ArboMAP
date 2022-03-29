@@ -346,6 +346,7 @@ knitr::kable(pred_yrs_fc_yr %>%
              align = c("l", "l", "c", "c"),
              caption = "Estimated number of WNV cases")
 
+#DEV <<>> Include graphs?
 
 ```
 
@@ -353,7 +354,7 @@ knitr::kable(pred_yrs_fc_yr %>%
 \blandscape
 ### Multi-year forecasts
 
-```{r appx_multiyr_forecast, echo=FALSE, include=TRUE, fig.align='center', fig.width=10}
+```{r appx_multiyr_forecast, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
 
 #Creates a multi-year time series chart of the predicted per model vs. 
 #   observed positive district-weeks
