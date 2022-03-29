@@ -6,7 +6,62 @@ output: pdf_document
 
 ## Forecast results
 
-### Model fit statistics
+### Additional model fit statistics
+
+```{r appx_model_fit, echo=FALSE, include=TRUE}
+
+#Creates a table of expanded model fit statistics BY model
+
+#calculate additional model evaluation metrics
+#temporal and spatial MAEs
+#borrowed from validation paper code and adapted [DMN]
+
+eval_mae_temporal <- preds %>% 
+  #ONLY EVAL MODELLED WEEKS
+  filter(modeled == 1) %>% 
+  #no spatial/district
+  group_by(model, year_epi, week_epi) %>% 
+  dplyr::summarize(sum_any_cases = sum(any_cases, na.rm = TRUE),
+                   sum_pred = sum(pred, na.rm = TRUE),
+                   .groups = "drop") %>% 
+  mutate(abs_err = abs(sum_any_cases - sum_pred)) %>% 
+  #mean of all weeks
+  group_by(model) %>% 
+  dplyr::summarize(mae_temporal = mean(abs_err, na.rm = TRUE))
+
+#spatial
+eval_mae_spatial <- preds %>% 
+  #ONLY EVAL MODELLED WEEKS
+  filter(modeled == 1) %>% 
+  #spatial/district (NOT by week)
+  group_by(model, year_epi, arbo_ID) %>% 
+  dplyr::summarize(sum_any_cases = sum(any_cases, na.rm = TRUE),
+                   sum_pred = sum(pred, na.rm = TRUE),
+                   .groups = "drop") %>% 
+  mutate(abs_err = abs(sum_any_cases - sum_pred)) %>% 
+  #mean of all districts
+  group_by(model) %>% 
+  dplyr::summarize(mae_spatial = mean(abs_err, na.rm = TRUE))
+
+#join together
+model_evals_extra <- model_evals %>% 
+  left_join(eval_mae_temporal, by = c("model")) %>% 
+  left_join(eval_mae_spatial, by = c("model")) %>% 
+  dplyr::select(model, everything())
+
+if (model_evaluation | dev_write_output){
+  readr::write_csv(
+    model_evals_extra, 
+    file = file.path("..", out_folder, paste0(out_name_base, "__modeleval.csv")))
+}
+
+knitr::kable(model_evals_extra %>% 
+               dplyr::select(model, auc, aic, mae_temporal, mae_spatial),
+             col.names = c("Model", "AUC", "AIC", "MAE Temporal", "MAE Spatial"),
+             digits = c(0, 3, 0, 3, 3),
+             caption = "Fit statistcs by model")
+```
+
 
 ### Current-week WNV relative risk maps
 

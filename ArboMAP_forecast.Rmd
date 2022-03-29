@@ -1843,7 +1843,8 @@ if (dev_write_output){
 <!-- 1.2 Absolute risk map [condensed] -->
 <!-- 1.3 Current-year fc chart [mean w/ max/min] PLUS human hx epicurve -->
 <!-- 1.4 Positives-to-cases [condensed: mean w/ range] -->
-<!-- 1.5 Multi-year forecasting chart [mean w/ max/min] -->
+<!-- 1.5 Model fit statistics [short list] -->
+<!-- 1.6 Multi-year forecasting chart [mean w/ max/min] -->
 
 <!-- Division 2: Input Data -->
 <!-- 2.1 Mosquito pools [with new] -->
@@ -2355,6 +2356,29 @@ knitr::kable(pos_case_preds_ave %>%
 
 ```
 
+## Model fit statistics
+
+```{r model_fit, echo=FALSE, include=TRUE}
+
+#Creates a table of basic model fit statistics: 
+# Average AUC (from all models)
+# Additional metrics available in appendix, by model
+
+# DEV <<>> would mean AIC actually useful? Not comparing models here...
+
+model_auc <- model_evals %>% 
+  #average of all models
+  dplyr::summarise(auc_ave = mean(auc, na.rm = TRUE),
+                   auc_min = min(auc, na.rm = TRUE),
+                   auc_max = max(auc, na.rm = TRUE)) %>% 
+  dplyr::mutate(model = "Average of all models")
+
+knitr::kable(model_auc %>% 
+               dplyr::select(model, auc_ave, auc_min, auc_max),
+             col.names = c("Model", "Average AUC", "Min AUC", "Max AUC"),
+             digits = 2,
+             caption = "Area Under Curve (AUC) statistics of all model fits")
+```
 
 \blandscape
 ## Multi-year forecast
