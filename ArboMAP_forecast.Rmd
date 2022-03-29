@@ -2001,6 +2001,7 @@ knitr::kable(rel_risk %>%
                dplyr::select(NAME, pred_ave),
              col.names = c("County", "Risk"),
              digits = 2,
+             align = c("l", "c"),
              caption = "Counties with higher than average risk")
 
 
@@ -2362,6 +2363,7 @@ knitr::kable(model_auc %>%
                dplyr::select(model, auc_ave, auc_min, auc_max),
              col.names = c("Model", "Average AUC", "Min AUC", "Max AUC"),
              digits = 2,
+             align = c("l", "c", "c", "c"),
              caption = "Area Under Curve (AUC) statistics of all model fits")
 ```
 
@@ -2647,6 +2649,7 @@ knitr::kable(data_mosq_yr2wk %>%
                            "Pools reported last 2 weeks", "Pools positive last 2 weeks",
                            "Pools reported YTD", "Pools positive YTD"),
              digits = 2,
+             align = c("l", "c", "c", "c", "c"),
              caption = "Total reported and WNV positive mosquito pools: Past two weeks, and year to forecast week (YTD)")
 
 

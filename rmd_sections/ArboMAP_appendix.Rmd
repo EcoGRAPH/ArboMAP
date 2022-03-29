@@ -59,6 +59,7 @@ knitr::kable(model_evals_extra %>%
                dplyr::select(model, auc, aic, mae_temporal, mae_spatial),
              col.names = c("Model", "AUC", "AIC", "MAE Temporal", "MAE Spatial"),
              digits = c(0, 3, 0, 3, 3),
+             align = "c",
              caption = "Fit statistcs by model")
 ```
 
@@ -151,6 +152,7 @@ for (i in seq_along(model_names)){
       dplyr::select(NAME, pred_ave),
     col.names = c("County", "Risk"),
     digits = 2,
+    align = c("l", "c"),
     caption = "Counties with higher than average risk")
   
   #note to get kable in a for loop, you must 
