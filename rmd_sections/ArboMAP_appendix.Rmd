@@ -326,6 +326,28 @@ plot(appx_p_cur_yr)
 
 ### Case estimations
 
+```{r appx_pos_to_cases, echo=FALSE, include=TRUE}
+
+#Estimates number of cases from positive district-weeks
+# Splits out previous yearly summaries to model
+#   and predicts on current year
+
+#Uses pred_yrs_fc_yr created in main report, just before summarizing across models
+
+#create table to display
+knitr::kable(pred_yrs_fc_yr %>%
+               dplyr::select(year_epi, model,
+                             tot_pred, tot_pred_cases),
+             col.names = c("Year", "Model",
+                           "Predicted positive district-weeks", "Estimated cases"),
+             digits = c(1,0), 
+             align = c("l", "l", "c", "c"),
+             caption = "Estimated number of WNV cases")
+
+
+```
+
+
 \blandscape
 ### Multi-year forecasts
 
