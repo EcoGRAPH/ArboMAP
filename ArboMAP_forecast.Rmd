@@ -140,8 +140,28 @@ if (packageVersion("readr") < 2.1){
   install.packages("readr")
 }
 
+# IF the user is trying to create a pdf, 
+# AND there is no LaTeX installation, 
+# THEN install tinytex
+if (knitr::is_latex_output() &
+    Sys.which("pdflatex") == ""){
+  install.packages("tinytex")
+  tinytex::install_tinytex()
+}
+
 #Single use functions are found in their section 
 # for convenience when reviewing/editing code
+
+#for coloring text, that will work with EITHER pdf or html 
+colorize <- function(x, color) {
+  if (knitr::is_latex_output()) {
+    sprintf("\\textcolor{%s}{%s}", color, x)
+  } else if (knitr::is_html_output()) {
+    sprintf("<span style='color: %s;'>%s</span>", color, x)
+  } else x
+}
+#`r colorize("some words in red", "red")`
+#https://bookdown.org/yihui/rmarkdown-cookbook/font-color.html
 
 ```
 
