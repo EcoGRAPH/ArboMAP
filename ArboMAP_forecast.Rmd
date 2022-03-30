@@ -1,68 +1,114 @@
 ---
 params:
-  ## week to run forecast for
-  forecast_date: "2018-08-15"
-  ## state
-  state_name: "South Dakota"
-  state_code: "SD"
-  ## predictors 
-  predictor_var1: "tmeanc"
-  predictor_var2: "vpd"
-  ## mosquito settings: "simpleratio", "AUC", "MIGR", "MII", "stratifiedMIGR", "stratifiedMII"
-  mosquito_model: "stratifiedMIGR" 
-  mosquito_doy_start: 140
-  mosquito_doy_end: 214
+  forecast_date: 
+    label: "Date to run the forecast for, e.g. 2018-08-15"
+    value: "2018-08-15"
+  state_name: 
+    label: "Name of state"
+    value:  "South Dakota"
+  state_code: 
+    label: "Two letter state abbreviation"
+    value: "SD"
+  predictor_var1: 
+    label: "Name of the first environmental predictor variable"
+    value: "tmeanc"
+  predictor_var2: 
+    label: "Name of the second environmental predictor variable"
+    value: "vpd"
+  mosquito_model: 
+    label: "Mosquito model type"
+    value: "stratifiedMIGR"
+    input: select
+    choices: ["simpleratio", "AUC", "MIGR", "MII", "stratifiedMIGR", "stratifiedMII"] 
+  mosquito_doy_start: 
+    label: "Start of mosquito modelling period (day of year)"
+    value: 140
+  mosquito_doy_end: 
+    label: "End of mosquito modeeling period (day of year)"
+    value: 214
   ## input data file locations
-  file_human: !r file.path("data_human", "simulated_human_data.csv")
-  file_mosquito: !r file.path("data_mosquito", "simulated_mosquito_data.csv")
-    #if no strata, set to ""
-  file_strata: !r file.path("data_strata", "example_strata_SD.csv")
-    #if do not have sf object of counties saved as an RDS file, 
-      #temporarily set to "create" once, and it will make the appropriate state file. Must have internet access.
-    #if do not want to cache, 
-      #set to "always_download" and it will download tigris shapefile each time. Must have internet access.
-  file_district_sf: !r file.path("data_spatial", "sd_counties.RDS")
-  file_models: !r file.path("data_models", "models.txt")
-  #<<>> DEV limited models
-  #file_models: !r file.path("dev", "models_tpfx.txt")
-  folder_weather: "data_weather"
-  ## data range settings
-  #which years of human data to use
-  year_human_start: 2004
-  year_human_end: 2017
-  #which years of mosquito data to use
-  year_mosquito_start: 2012
-  year_mosquito_end: 2018
-  #which years of weather data to use
-  year_weather_start: 2000
-  year_weather_end: 2018
-  #which years to include in modeling results
-  year_modeling_start: 2004
-  year_modeling_end: 2018
-  #which years to show as comparison years in graphs
-  year_compare_vis1: 2012
-  year_compare_vis2: 2017
-  ## additional settings
-  # create appendix at end with more details and graphs 
-  create_appendix: TRUE
-  # length (days) of weather data to include in lags
-  lag_length: 121
-  # remove temporal outliers from human cases
-  case_trim_alpha: 0.02
-  # developer settings
-  #dev_settings: !r list() 
-  dev_settings: !r list(dev_write_output = TRUE, model_evaluation = TRUE, out_folder = file.path("dev", "20220328"))
+  file_human: 
+    label: "Human data file"
+    value: !r file.path("data_human", "simulated_human_data.csv")
+    input: file
+  file_mosquito: 
+    label: "Mosquito pool data file"
+    value: !r file.path("data_mosquito", "simulated_mosquito_data.csv")
+    input: file
+  file_strata: 
+    label: "Stratification file, leave as \"\" if no strata"
+    value: !r file.path("data_strata", "example_strata_SD.csv")
+  file_district_sf: 
+    label: "Spatial data, either file location or command. Use \"create\" to download the census spatial data once and create a file in data_spatial folder. Use \"always_download\" to download census spatial data each time."
+    value: !r file.path("data_spatial", "sd_counties.RDS")
+  file_models: 
+    label: "Modelling formulas file"
+    value: !r file.path("dev", "models_tpfx.txt") #!r file.path("data_models", "models.txt")
+    input: file
+  folder_weather: 
+    label: "Name of folder where weather/environmental data are located" 
+    value: "data_weather"
+  year_human_start: 
+    label: "Start year of human data to use"
+    value: 2004
+  year_human_end: 
+    label: "End year of human data to use"
+    value: 2017
+  year_mosquito_start: 
+    label: "Start year of mosquito data to use"
+    value: 2012
+  year_mosquito_end: 
+    label: "End year of mosquito data to use"
+    value: 2018
+  year_weather_start: 
+    label: "Start year of weather/environmental data to use"
+    value: 2000
+  year_weather_end: 
+    label: "End year of weather/environmentla data to use"
+    value: 2018
+  year_modeling_start: 
+    label: "Year to start modelling"
+    value: 2004
+  year_modeling_end: 
+    label: "Year to end modelling"
+    value: 2018
+  year_compare_vis1: 
+    label: "Year to highlight as a comparison year in certain graphs"
+    value: 2012
+  year_compare_vis2: 
+    label: "Second year to highlight as a comparison year in certain graphs"
+    value: 2017
+  create_appendix: 
+    label: "Create a detailed appendix?"
+    value: TRUE
+  lag_length: 
+    label: "Number of days of weather data to include in lags"
+    value: 121
+  case_trim_alpha: 
+    label: "Remove temporal outliers from human cases"
+    value: 0.02
+  dev_settings: 
+    label: "Developer settings, leave as \"!r list()\""
+    value: !r list(dev_write_output = TRUE, model_evaluation = TRUE, out_folder = file.path("dev", format(Sys.Date(), "%Y%m%d")))
 
-title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
-author: "Summary of Model Outputs (v3.1) for `r params$state_name`, `r params$forecast_date`  \nDawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly  \n(mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
-date: "Updated `r format(Sys.time(), '%B %d, %Y')`"
+title: "West Nile Virus Forecast Report for `r params$forecast_date` in `r params$state_name`"
+subtitle: "Arbovirus Modeling and Prediction (ArboMAP)"
+author: "Dawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly\n(mcwimberly@ou.edu)\nGeography and Environmental Sustainability, University of Oklahoma"
+date: "Report run on `r format(Sys.time(), '%B %d, %Y')`"
 header-includes:
 - \usepackage{pdflscape}
 - \newcommand{\blandscape}{\begin{landscape}}
 - \newcommand{\elandscape}{\end{landscape}}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
 output: 
   pdf_document:
     toc: TRUE
+    number_sections: TRUE
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    number_sections: TRUE
 ---
 
 ```{r knitr_setup, include=FALSE}
