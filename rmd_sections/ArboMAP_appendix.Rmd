@@ -6,6 +6,23 @@ output: pdf_document
 
 ## Forecast results
 
+### Models and formulas
+```{r appx_model_desc, echo=FALSE, include=TRUE, results='asis'}
+
+#get named list info on models and combine into a single tibble
+appx_full_mods <- model_formulas %>% 
+  tibble::enframe(name = "model", value = "formula") %>% 
+  dplyr::left_join(model_desc_names %>% 
+                     tibble::enframe(name = "model", value = "desc"),
+                   by = "model") %>% 
+  dplyr::select(model, desc, formula)
+
+#model display short name, descriptive name, & math formula
+knitr::kable(appx_full_mods,
+               col.names = c("Model", "Description", "Formula"))
+
+```
+
 ### Additional model fit statistics
 
 ```{r appx_model_fit, echo=FALSE, include=TRUE}
