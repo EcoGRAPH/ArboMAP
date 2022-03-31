@@ -67,7 +67,7 @@ params:
     label: "End year of weather/environmentla data to use"
     value: 2018
   year_modeling_start: 
-    label: "Year to start modelling"
+    label: "Year to start modelling (likely same year as start of human data)"
     value: 2004
   year_modeling_end: 
     label: "Year to end modelling"
@@ -80,7 +80,7 @@ params:
     value: 2017
   create_appendix: 
     label: "Create a detailed appendix?"
-    value: TRUE
+    value: FALSE
   lag_length: 
     label: "Number of days of weather data to include in lags"
     value: 121
@@ -91,10 +91,10 @@ params:
     label: "Developer settings, leave as \"!r list()\""
     value: !r list(dev_write_output = TRUE, model_evaluation = TRUE, out_folder = file.path("dev", format(Sys.Date(), "%Y%m%d")))
 
-title: "West Nile Virus Forecast Report for `r params$forecast_date` in `r params$state_name`"
-subtitle: "Arbovirus Modeling and Prediction (ArboMAP)"
-author: "Dawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly\n(mcwimberly@ou.edu)\nGeography and Environmental Sustainability, University of Oklahoma"
-date: "Report run on `r format(Sys.time(), '%B %d, %Y')`"
+title: "West Nile Virus Forecast Report for `r params$forecast_date`"
+subtitle: "`r params$state_name`    \nArbovirus Modeling and Prediction (ArboMAP)"
+author: "Dawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly    \n(mcwimberly@ou.edu)   \nGeography and Environmental Sustainability, University of Oklahoma"
+date: "Report compiled on `r format(Sys.time(), '%B %d, %Y')`"
 header-includes:
 - \usepackage{pdflscape}
 - \newcommand{\blandscape}{\begin{landscape}}
@@ -148,14 +148,22 @@ if (knitr::is_latex_output() &
   install.packages("tinytex")
   tinytex::install_tinytex()
 }
+# [DEV] This may not play well if they are using xelatex or lualatex instead
+# however, I believe they need to set that in YAML headers too, so really shouldn't be a problem here
 
 #Single use functions are found in their section 
 # for convenience when reviewing/editing code
 
 #for coloring text, that will work with EITHER pdf or html 
+#however, make sure color NAME is accepted in either 
 colorize <- function(x, color) {
   if (knitr::is_latex_output()) {
-    sprintf("\\textcolor{%s}{%s}", color, x)
+    pdf_color <- case_when(
+      color == "darkred" ~ "red",
+      color == "darkblue" ~ "blue",
+      TRUE ~ color
+    )
+    sprintf("\\textcolor{%s}{%s}", pdf_color, x)
   } else if (knitr::is_html_output()) {
     sprintf("<span style='color: %s;'>%s</span>", color, x)
   } else x
@@ -803,7 +811,7 @@ date_epiweek_request <- make_date_yw(year = epiyear_request,
 #day of year of the ending date of the requested epiweek
 doy_dt_epiwk_req <- lubridate::yday(date_epiweek_request)
 
-#Modeling dates
+#Various other dates
 #ending date of the FIRST epiweek in the MIN modelling year
 date_min_model <- make_date_yw(year = params$year_modeling_start,
                                week = 1,
@@ -814,6 +822,7 @@ date_max_model <- make_date_yw(year = params$year_modeling_end,
                                weekday = 7)
 
 ```
+
 
 ```{r data_human_processing_dx, echo=FALSE, include=FALSE} 
 ## Human
@@ -835,6 +844,12 @@ dx_human_nrow_2clean <- nrow(data_human)
 #gather list of districts in human data
 dx_human_districts <- data_human %>% 
   dplyr::pull(arbo_ID) %>% unique() %>% sort()
+
+#min/max years of data actually PRESENT in the cleaned input data 
+# (within the user-supplied range of years to use in modelling)
+# If set up correctly, these should align, but it is not necessarily true
+human_exists_yr_min <- min(data_human$year_epi, na.rm = TRUE)
+human_exists_yr_max <- max(data_human$year_epi, na.rm = TRUE)
 
 
 #[V3] [DEV] imputemissingdistricts was hard coded as FALSE in v3 production code
@@ -897,13 +912,22 @@ dx_mosq_nrow_3filtered <- nrow(data_mosquito)
 dx_mosq_districts <- data_mosquito %>% 
   dplyr::pull(arbo_ID) %>% unique() %>% sort()
 
+#min/max years of data actually PRESENT in the input data 
+# (within the user-supplied range of years to use in modelling)
+# If set up correctly, these should align, but it is not necessarily true
+mosq_exists_yr_min <- min(data_mosquito$year_epi, na.rm = TRUE)
+mosq_exists_yr_max <- max(data_mosquito$year_epi, na.rm = TRUE)
+
 #max/latest year diagnostics and statistics for report text and debugging
 # note this is being done after mosquito_year_end filtering
 #  so not latest in data file, but latest in dataset for this forecast
 data_mosq_maxyr <- data_mosquito %>% 
-  dplyr::filter(year_epi == max(.$year_epi, na.rm = TRUE))
+  dplyr::filter(year_epi == mosq_exists_yr_max)
 #number rows of data in max year
 dx_mosq_nrow_maxyr <- nrow(data_mosq_maxyr)
+#number of districts in max year
+dx_mosq_districts_maxyr <- data_mosq_maxyr %>% 
+    dplyr::pull(arbo_ID) %>% unique() %>% length()
 #number of wnv positive pools in max year
 mosq_pos_num_maxyr <- data_mosq_maxyr %>% 
   dplyr::filter(wnv_result == 1) %>% 
@@ -1194,12 +1218,14 @@ if (mosquito_model_clean %in% mosq_strat_models) {
 
 
 # Center the MIR statistic 
-# [V3] Originally done in the plotting code. Carried through to modeling, so done here. 
+# [V3] Originally done in the plotting code. 
+#  Had been carried through to modeling in some mosquito models, but not all. 
+#  Decision with MCW to standardize to all mosq models, so done here. [DMN]
 mosq_mir <- mosq_mir %>% 
   dplyr::mutate(mir_stat_ctr = mir_stat_raw - mean(.$mir_stat_raw, na.rm = TRUE))
 
 
-# # DEV testing output
+# DEV output
 if (dev_write_output){
   readr::write_csv(mosq_mir, file = file.path(out_folder, paste0(out_name_base, "_mir_stats.csv")))
 }
@@ -1241,6 +1267,14 @@ rm(data_env_raw)
 # However, missing days are filled in during data combining 
 # Explicit missing in handled in the anomalized section, 
 #   these NAs are filled the weather model predicted values
+
+
+#min/max years of data actually PRESENT in the input data 
+# (within the user-supplied range of years to use in modelling)
+# If set up correctly, these should align, but it is not necessarily true
+env_exists_yr_min <- min(data_env$year_epi, na.rm = TRUE)
+env_exists_yr_max <- max(data_env$year_epi, na.rm = TRUE)
+
 
 ###
 # Historical env dataset - by district
@@ -1539,7 +1573,7 @@ for (this_yr in yrs_mir_imputed){
     #using glue {{}} with := assignment operator
     #https://stackoverflow.com/questions/26003574/use-dynamic-name-for-new-column-variable-in-dplyr
     #1 * logical returns 1 (true), 0 (false) [V3] 
-    #   Uncertain if this is necessary over T/F, kept as in V3 [DMN]
+    #   Uncertain if this is necessary over T/F, kept as in [V3] [DMN]
     dplyr::mutate({{this_col_name}} := 1 * (year_epi == this_yr))
   
 }
@@ -1904,6 +1938,7 @@ if (dev_write_output){
 ```
 
 <!-- End of internals: data load, processing, forecast modeling, etc. -->
+
 <!-- Everything below is report: text and figures. -->
 <!-- Division 1: Forecast Results -->
 <!-- 1.1 Relative risk map [modified] -->
@@ -1921,9 +1956,26 @@ if (dev_write_output){
 <!-- 2.5 Spatial data -->
 <!-- 2.6 Run parameters -->
 <!-- 2.7 Reference map -->
+<!-- Optional Appendix -->
+
+\newpage
+\fancyhead[R]{ArboMAP West Nile Virus Forecast for `r epiyear_request` Week `r epiweek_request`}
+\fancyhead[L]{`r params$state_name`}
+\fancyhead[C]{}
+\fancyfoot[R]{\thepage}
+\fancyfoot[L]{Report compiled on `r format(Sys.time(), '%B %d, %Y')`}
+\fancyfoot[C]{}
+
 
 # Introduction
 
+The Arbovirus Monitoring and Prediction (ArboMAP) system produces a weekly, county-level forecast of human West Nile virus (WNV) cases using environmental data combined with entomological data.
+
+Rationale: WNV remains a persistent public health threat in many parts of the United States. Having advance warning on where and when WNV outbreaks might occur would allow for better targeting of public health responses. The transmission of mosquito-borne diseases, such as WNV, is influenced by environmental conditions that affect many aspects of the disease transmission system.  
+
+Modelling: ArboMAP uses an ensemble of different mathematical models that each are predicting if a county will report at least one case in a given week ('positive district-week'). Results presented are an average of the models with ranges as appropriate. As part of the process, mosquito infection rate is also modeled based on the mosquito pool data, and is included in the default modelling. ArboMAP uses general additive models (GAMs) with smooths for seasonality, and also lagged weather data, which allows it to model the time-delayed effects of weather conditions. `r if(params$create_appendix){"The appendix will expand all the results to show each individual model."}`
+
+The report will first present county-level relative and absolute predicted risk, time-series graphs for current and all year forecasts, estimated human case counts for the current year, and other statistics. The second division contains summaries and views into the input data. `r if(params$create_appendix){"The optional third section, an appendix, will include more detailed information about each of the models as well as advanced forecast model results."}`
 
 # Forecast Results
 
@@ -1943,6 +1995,11 @@ theme_arbo_chart <- theme_bw() +
     # grid
     panel.grid.major=element_blank(), 
     panel.grid.minor=element_blank(),
+    #font sizes
+    plot.title = element_text(size = 12),
+    plot.subtitle = element_text(size = 11),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 10)
   )
 
 #Named list of short model descriptions / better names
@@ -1956,14 +2013,12 @@ model_desc_names <- c(
   "tp-fx-anom" = "Anomalized weather with fixed thin plate splines",
   "tp-sv-nonanom" = "Non-anomalized weather with seasonally-varying thin plate splines",
   "tp-sv-anom" = "Anomalized weather with seasonally-varying thin plate splines")
-#get additional <<>> DEV
 
 ```
 
+## Forecast week WNV relative risk map
 
-## Current-week WNV relative risk map
-
-```{r relative_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
+```{r relative_risk_map_calc, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
 
 # Want to compare the current risk to the historical/previous years
 
@@ -2036,10 +2091,23 @@ rel_risk <- preds_mod_ave %>%
 sf_rel_risk <- data_sf_orig %>% 
   dplyr::left_join(rel_risk, by = "arbo_ID")
 
-#plot
 #same breaks as [V3]
 lower_risk <- 12.5
 higher_risk <- 87.5
+
+#Count of districts with higher than average risk
+rel_risk_distr_count <- rel_risk %>% 
+  dplyr::filter(pred_ave >= higher_risk) %>% 
+  nrow()
+
+
+```
+
+In the forecast week (Week `r epiweek_request`), there are `r rel_risk_distr_count` counties with higher than average rest as compared to the same epidemiological week in previous years (`r max(human_exists_yr_min, params$year_modeling_start)` through `r params$year_modeling_end`). This **relative risk** map may be used in conjunction with the **absolute risk** map in the following section. The absolute risk map shows the risk of a county reporting at least one WNV positive human case during this week, and the relative risk map shows if this risk is elevated (or not) as compared to previous years. 
+
+```{r relative_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
+
+#plot
 p_rel_risk <- ggplot2::ggplot() +
   #by rank percentile
   ggplot2::geom_sf(data = sf_rel_risk,
@@ -2059,7 +2127,6 @@ p_rel_risk <- ggplot2::ggplot() +
 
 plot(p_rel_risk)
 
-
 #Table of counties with higher than average risk
 knitr::kable(rel_risk %>% 
                dplyr::filter(pred_ave >= higher_risk) %>% 
@@ -2071,10 +2138,11 @@ knitr::kable(rel_risk %>%
              align = c("l", "c"),
              caption = "Counties with higher than average risk")
 
-
 ```
 
-## Current-week WNV absolute risk map
+## Forecast week WNV absolute risk map
+
+The following map displays the **absolute risk** of predicted positive districts during epidemiological week `r epiweek_request`. This map can be used in conjuction with the **relative risk** map in the previous section. The absolute risk map shows the risk of a county reporting at least one WNV positive human case during this week, and the relative risk map shows if this risk is elevated (or not) as compared to previous years. 
 
 ```{r absolute_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
 
@@ -2106,9 +2174,12 @@ plot(p_abs_risk)
 
 ```
 
-## Current-year forecast
+## Forecast year
 
-```{r current_year_forecast, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
+The following graph is the predicted epicurve of the forecast year: the average of all models is shown as a `r colorize("dark red", "darkred")` line, with the range of all models in the shaded ribbon. Predictions for the future (beyond the requested forecast date) are shown as a dotted line. The historical **observed** proportion of counties positive, averaged over all known years, is also shown, here as a `r colorize("dark blue", "darkblue")` line. This allows a comparison between the timing and height of the predicted peak of cases as compared to averaged historical years. In the averaged year, `r cases_perc_obs_hx`% of the yearly cases would have been observed by this forecast week.
+
+
+```{r current_year_forecast, echo=FALSE, include=TRUE, fig.align='center', out.width="75%", fig.height=3, fig.width=5}
 
 #Creates an epicurve of the current forecast year PREDICTIONS
 # Average of models, with ribbon for min/max models
@@ -2241,7 +2312,7 @@ p_cur_yr <- ggplot2::ggplot(data = data_cur_yr) +
   scale_alpha_manual("", 
                      values = c("model_range" = 0.15),
                      labels = "Range of all models") +
-  ggtitle(paste("Statewide model predictions in", epiyear_request, "at forecast epiweek", epiweek_request)) + 
+  ggtitle(paste("Statewide model predictions made on", epiyear_request, "week", epiweek_request)) + 
   #[V3] How y-axis labeled in v3, keeping same [DMN]
   ylab("Proportion of districts positive") + 
   xlab("Epiweek") +
@@ -2315,6 +2386,8 @@ plot(p_cur_yr)
 ```
 
 ## Case estimation
+
+ArboMAP models are based on 'positive district-weeks', the probability that a district would have at least one human WNV case in a given week. These values can be used to predict a total number of **cases**, shown in the table below. 
 
 ```{r positives_to_cases, echo=FALSE, include=TRUE}
 
@@ -2411,6 +2484,8 @@ knitr::kable(pos_case_preds_ave %>%
 
 ## Model fit statistics
 
+The following table gives a summary of how well the model is fitting the historical years. The Area Under the ROC curve (AUC) is a statistic that ranges from 0 (model is right 0% of the time) to 1 (model is right 100% of the time). Scores above 0.5 are better than a random model, with >0.7 generally considered acceptable and >0.8 as good.
+
 ```{r model_fit, echo=FALSE, include=TRUE}
 
 #Creates a table of basic model fit statistics: 
@@ -2437,6 +2512,7 @@ knitr::kable(model_auc %>%
 \blandscape
 ## Multi-year forecast
 
+The following chart shows the model results for the entire modeled period from `r max(human_exists_yr_min, params$year_modeling_start)` through `r params$year_modeling_end`. Years before the forecast year were used for fitting the model. Similar to the previous forecast year chart, the average of all models is shown as a `r colorize("dark red", "darkred")` line, with the range of all models as the shaded ribbon. Predictions for the future (beyond the requested forecast date) are shown as a dotted line. The historical **observed** values are shown in black. 
 
 ```{r multi_year_forecast, echo=FALSE, include=TRUE, fig.align='center', fig.width=10}
 
@@ -2537,48 +2613,106 @@ plot(p_multiyr)
 
 # Data summaries
 
-DEV: Printing a bunch of things - 
+The report was requested for `r params$forecast_date`, which is CDC/MMWR epiweek `r epiweek_request` in epiyear `r epiyear_request`. 
 
-dx_mosq_nrow_0load: `r dx_mosq_nrow_0load`
+## Human cases
 
-dx_human_nrow_0load: `r dx_human_nrow_0load`
+After data processing, the human case data contained a total of `r dx_human_nrow_2clean` rows containing data from years `r human_exists_yr_min` through `r human_exists_yr_max`. Over all years, the state saw a cumulative total of `r state_cases_total` human cases representing `r state_any_cases_total` positive district-weeks from a total of `r dx_human_districts` counties.
 
-dx_env_nrow_0load, note PRE de-duplication: `r dx_env_nrow_0load`
+```{r human_map, echo=FALSE, include=TRUE, fig.align='center', out.width="75%"}
 
-dx_human_nrow_1range: `r dx_human_nrow_1range`
+#Creates a map of human cases: 
+# 1) over all years
+# Statistic will be total case counts, ramped
 
-dx_human_nrow_2clean: `r dx_human_nrow_2clean`
+# potential privacy concerns??? <<>>
 
-dx_human_districts: `r dx_human_districts`
+# map of all human cases
+h_district <- data_human %>% 
+  #filter by human start and end years
+  dplyr::filter(year_epi >= params$year_human_start &
+                  year_epi <= params$year_human_end) %>% 
+  #summarize to district over all years
+  dplyr::group_by(arbo_ID) %>% 
+  dplyr::summarise(case_count = n(),
+                   .groups = "drop") %>% 
+  #add in zero counties (notice RIGHT join)
+  dplyr::right_join(data_sf_orig %>% 
+                      sf::st_drop_geometry(),
+                    by = "arbo_ID") %>% 
+  #and add zeros for case counts (would be NA from right join)
+  dplyr::mutate(case_count = dplyr::if_else(is.na(case_count), 0L, case_count))
 
-state_cases_total: `r state_cases_total`
+#create spatial with data
+sf_human <- data_sf_orig %>% 
+  dplyr::left_join(h_district, by = "arbo_ID")
 
-state_any_cases_total: `r state_any_cases_total`
+p_map_human <- ggplot() +
+  geom_sf(data = sf_human,
+          aes(fill = case_count)) +
+  viridis::scale_fill_viridis(name = paste0("Total case counts\n", params$year_human_start, " - ", params$year_human_end),
+                              option = "rocket",
+                              na.value = "gray60", #none, but just in case
+                              direction = -1) +
+  ggtitle("Historical cumulative human cases") +
+  theme_arbo_map
 
-cases_before_fc_wk: `r cases_before_fc_wk`
+plot(p_map_human)
 
-cases_perc_obs_hx: `r cases_perc_obs_hx`
+# #[DEV] Considered previous year map, but small case counts could be a privacy concern
+# #   so omitted [DMN]
+# # 2. map of all human cases in previous year
+# #previous year defined as forecast year - 1 IF 
+# #     that year is before/equal to year_human_end & data exists,
+# #     otherwise it is year_human_end if data exists, 
+# #     else last year of known data
+# 
+# prev_human_yr <- dplyr::if_else(epiyear_request - 1 <= params$year_human_end &
+#                      epiyear_request - 1 <= max(data_human$year_epi, na.rm = TRUE),
+#                    #params$year_human_end if data exist
+#                    dplyr::if_else(params$year_human_end <= max(data_human$year_epi, na.rm = TRUE),
+#                            params$year_human_end,
+#                            #else last year known data, same data type
+#                            max(data_human$year_epi, na.rm = TRUE) %>% as.integer()),
+#                    #else last year known data
+#                    max(data_human$year_epi, na.rm = TRUE) %>% as.integer())
+# 
+# h_distr_yr <- data_human %>% 
+#   #filter to year
+#   dplyr::filter(year_epi == prev_human_yr) %>% 
+#   #summarize to district
+#   dplyr::group_by(arbo_ID) %>% 
+#   dplyr::summarise(case_count = n(),
+#                    .groups = "drop") %>% 
+#   #add in zero counties (notice RIGHT join)
+#   dplyr::right_join(data_sf_orig %>% 
+#                       sf::st_drop_geometry(),
+#                     by = "arbo_ID") %>% 
+#   #and add zeros for case counts (would be NA from right join)
+#   dplyr::mutate(case_count = dplyr::if_else(is.na(case_count), 0L, case_count))
+# 
+# #create spatial with data
+# sf_human_yr <- data_sf_orig %>% 
+#   dplyr::left_join(h_distr_yr, by = "arbo_ID")
+# 
+# p_map_human_yr <- ggplot() +
+#   geom_sf(data = sf_human_yr,
+#           aes(fill = case_count)) +
+#   viridis::scale_fill_viridis(name = paste0("Total case counts in year ", prev_human_yr),
+#                               option = "rocket",
+#                               na.value = "gray60", #none, but just in case
+#                               direction = -1) +
+#   theme_arbo_map
+# 
+# plot(p_map_human_yr)
 
-dx_mosq_nrow_1range: `r dx_mosq_nrow_1range` 
-
-dx_mosq_nrow_2clean: `r dx_mosq_nrow_2clean`
-
-dx_mosq_nrow_3filtered: `r dx_mosq_nrow_3filtered`
-
-dx_mosq_districts: `r dx_mosq_districts`
-
-dx_mosq_nrow_maxyr: `r dx_mosq_nrow_maxyr`
-
-mosq_pos_num_maxyr: `r mosq_pos_num_maxyr`
-
-mosq_pos_perc_maxyr: `r mosq_pos_perc_maxyr`
-
+```
 
 ## Mosquito pools
 
-```{r mosquito_pools, out.width="100%", echo=FALSE, include=TRUE}
+```{r mosquito_pools_2wks_calc, out.width="100%", echo=FALSE, include=TRUE}
 
-#Creates summaries of the input mosquito data: 4 parts
+#Creates summaries of the input mosquito data: first 2 of 4 parts
 # 1. Map of the positive pools in last 2 weeks, differentiating between non-reporting and 0 positive pools. Note: 2 weeks asked for in multi-state meeting.
 # 2. Table of count of pos & neg pools: last 2 weeks & year to date (year to and including forecast week)
 # 3. Vector pool positive rate timeseries with year comparisons
@@ -2643,7 +2777,27 @@ mosq_2wks_dat_dts_str <- paste0(format(mosq_2wks_dat_dts[1], "%m/%d/%y"),
                                 format(mosq_2wks_dat_dts[2], "%m/%d/%y"))
 
 
-# DEV <<>> Remember to add explanation in report text, so that it's clear WHY these dates 
+```
+
+After data processing, the mosquito pool data contained a total of `r dx_mosq_nrow_2clean` rows, with `r dx_mosq_nrow_3filtered` being in the mosquito modeling period, containing data from years `r mosq_exists_yr_min` through `r mosq_exists_yr_max` with reporting from a total of `r dx_mosq_districts` counties. 
+
+In the forecast year to date, there were `r dx_mosq_nrow_maxyr` pools reported from `r dx_mosq_districts_maxyr` counties. Of these pools `r mosq_pos_num_maxyr` (`r mosq_pos_perc_maxyr`%) were reported WNV positive. 
+
+Pool statistics for the past two weeks are also included. If pool data exists for the forecast epiweek, then the two weeks will be the forecast week and the week prior. If data does not exist yet for the requested forecast epiweek, then the weeks shown will be the two epiweeks prior to the forecast week. In this report, the two weeks are `r mosq_2wks_dts_str` (epiweeks `r lubridate::epiweek(mosq_2wks_dts[1])` & `r lubridate::epiweek(mosq_2wks_dts[2])`) with mosquito data existing between `r mosq_2wks_dat_dts_str`.
+
+```{r mosquito_pools_2wks, out.width="100%", echo=FALSE, include=TRUE}
+
+#Creates summaries of the input mosquito data: first 2 of 4 parts
+# 1. Map of the positive pools in last 2 weeks, differentiating between non-reporting and 0 positive pools. Note: 2 weeks asked for in multi-state meeting.
+# 2. Table of count of pos & neg pools: last 2 weeks & year to date (year to and including forecast week)
+# 3. Vector pool positive rate timeseries with year comparisons
+# 4. Relative risk due to vector infection rate
+
+## Data for past 2 weeks
+# "past two weeks" was the request. 
+# If data exists in the current forecast epiweek, then 'past two' will be last epiweek and this epiweek. 
+# If data does NOT exist in the current forecast epiweek, then 'past two' will the two epiweeks PRIOR to this week (no data checks, at the moment)
+
 
 ## 1. Map of mosquito pools last 2 weeks
 
@@ -2684,9 +2838,6 @@ p_map_mosq2wk <- ggplot() +
 
 plot(p_map_mosq2wk)
 
-#<<>> DEV
-#put in text paste0("Range of dates present in data within two week range: ", mosq_2wks_dat_dts_str)
-
 ## 2. Table of positive pools
 # attempting YEAR & 2 weeks
 # join yr and wk
@@ -2719,9 +2870,22 @@ knitr::kable(data_mosq_yr2wk %>%
              align = c("l", "c", "c", "c", "c"),
              caption = "Total reported and WNV positive mosquito pools: Past two weeks, and year to forecast week (YTD)")
 
+```
+
+The next graph shows the percentage of predicted positive pools by year comparing the forecast year (in `r colorize("red", "red")`) to the requested comparison years (shades of blue) and all other years (gray). If there is sufficient data in the forecast year, the observed pools rates are shown as black dots, binned into six different time points. 
+
+```{r mosquito_pools_posrate, out.width="100%", echo=FALSE, include=TRUE, fig.height=3}
+
+#Creates summaries of the input mosquito data: part 3 of 4 parts
+# 1. Map of the positive pools in last 2 weeks, differentiating between non-reporting and 0 positive pools. Note: 2 weeks asked for in multi-state meeting.
+# 2. Table of count of pos & neg pools: last 2 weeks & year to date (year to and including forecast week)
+# 3. Vector pool positive rate timeseries with year comparisons
+# 4. Relative risk due to vector infection rate
 
 ## 3. Vector pool positive rate timeseries with year comparisons
 # creates doy-based predictions using MIR regression object [V3] [DMN]
+
+mosq_bins <- 6
 
 mosq_pool_colors <- c("endyear" = "red",
                       "comp1" = "blue",
@@ -2779,7 +2943,7 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
     #note, using data_mosquito, showing actual positive sample rate
     end_year_dot <- data_mosq_endyr %>% 
       #make 6 [V3] groups
-      dplyr::mutate(doy_grp = ggplot2::cut_interval(doy, n = 6)) %>% 
+      dplyr::mutate(doy_grp = ggplot2::cut_interval(doy, n = mosq_bins)) %>% 
       #summarize by these dot groups 
       # grouping observations nearby in time together [DMN]
       dplyr::group_by(doy_grp) %>% 
@@ -2810,17 +2974,25 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
     {if (nrow(end_year_dot) > 0){}
       geom_point(data = end_year_dot,
                  aes(x = doy_mean,
-                     y = pos_mean))} +
+                     y = pos_mean,
+                     #shape to kick an automatic legend, need to keep color as default black
+                     shape = "observed"))} +
     # colors
     scale_color_manual("",
                        values = mosq_pool_colors,
                        labels = mosq_pool_labels) +
-    theme_arbo_chart
+    scale_shape_manual("",
+                       values = c("observed" = 16), #med round circle
+                       labels = c("observed" = "Binned observations\nfor forecast year")) +
+    #changing order of legend
+    guides(
+      color = guide_legend(order = 1),
+      shape = guide_legend(order = 2)) +
+    theme_arbo_chart 
   
 } else if (mosquito_model_clean %in% mosq_strat_models){
   
-  #DEV <<>> Looks off when averaged by strata
-  # perhaps needs to facet by strata instead??
+  #DEV perhaps needs to facet by strata instead??
   
   mosq_doy_preds <- tidyr::expand_grid(
     stratum_year = rownames(nlme::random.effects(mir_glm)$stratum_year),
@@ -2894,21 +3066,40 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
     {if (nrow(end_year_dot) > 0){}
       geom_point(data = end_year_dot,
                  aes(x = doy_mean,
-                     y = pos_mean))} +
+                     y = pos_mean,
+                     #shape to kick an automatic legend, need to keep color as default black
+                     shape = "observed"))} +
     # colors
     scale_color_manual("",
                        values = mosq_pool_colors,
                        labels = mosq_pool_labels) +
+    scale_shape_manual("",
+                       values = c("observed" = 16), #med round circle
+                       labels = c("observed" = "Binned observations\nin forecast year")) +
     ggtitle("Vector pool positive rate predictions") +
     ylab("Pool positive rate") +
     xlab("Day of year") +
-    theme_arbo_chart
+    #changing order of legend
+    guides(
+      color = guide_legend(order = 1),
+      shape = guide_legend(order = 2)) +
+    theme_arbo_chart 
   
 } # end else strata models 
 
 plot(p_mosq_pool_pos)
 
+```
 
+The last mosquito graph shows the relative risk due to the mosquito infection rate as a time-series of all known years. `r if (mosquito_model_clean %in% mosq_strat_models){"Mosquito strata are shown in different colors."}`
+
+```{r mosquito_pools_relrisk, out.width="100%", echo=FALSE, include=TRUE, fig.height=3}
+
+#Creates summaries of the input mosquito data: part 4 of 4 parts
+# 1. Map of the positive pools in last 2 weeks, differentiating between non-reporting and 0 positive pools. Note: 2 weeks asked for in multi-state meeting.
+# 2. Table of count of pos & neg pools: last 2 weeks & year to date (year to and including forecast week)
+# 3. Vector pool positive rate timeseries with year comparisons
+# 4. Relative risk due to vector infection rate
 
 ## 4. Relative risk due to vector infection rate
 
@@ -2966,7 +3157,11 @@ plot(p_mosq_rel_risk)
 
 ## Weather
 
-```{r weather_charts, echo=FALSE, include=TRUE, fig.align='center', out.width="100%", fig.height=c(3,4,3,5)}
+After processing, weather data existed from `r min(data_env$date_obs, na.rm = TRUE)` through `r max(data_env$date_obs, na.rm = TRUE)` for `r data_env$arbo_ID %>% unique() %>% length()` counties. 
+
+The report parameters set the two environmental predictor variables as `r params$predictor_var1` and `r params$predictor_var2`. The following two graphs show the median state-wide observed weather variables for the forecast year, compared to the historical median. Observed values **greater** than the historical are drawn in `r colorize("red", "red")` and observed values **less** than the historical are drawn in `r colorize("blue", "blue")`. Values that cross the historical are in purple. The gray shaded region is a ribbon showing the historical range (min to max). 
+
+```{r weather_charts, echo=FALSE, include=TRUE, fig.align='center', out.width="100%", fig.height=c(2,6), fig.width=c(7,7)}
 
 #Create environmental data plots for the current year 
 #   with historical doy information in background
@@ -3018,115 +3213,8 @@ if (dev_write_output){
   readr::write_csv(data_env_fc_yr, file = file.path(out_folder, paste0(out_name_base, "_data_env_fc_yr.csv")))
 }
 
-### OPTION 1
-#some manipulation to get all line series in one long dataset for ggplot2
-data_env_plotlines <- data_env_fc_yr %>% 
-  dplyr::left_join(data_env_doy %>% 
-                     dplyr::select(doy, ends_with("_med")),
-                   by = "doy") %>% 
-  #make long
-  tidyr::pivot_longer(cols = c(contains("_med")),
-                      names_to = "env_var",
-                      values_to = "value")
 
-#colors, sizes, and labels of dynamic names
-env1_colors <- c("black", "red2")
-names(env1_colors) <- c(paste0(params$predictor_var1, "_med"), paste0(params$predictor_var1, "_med_yr"))
-env2_colors <- c("black", "red2")
-names(env2_colors) <- c(paste0(params$predictor_var2, "_med"), paste0(params$predictor_var2, "_med_yr"))
-
-env1_sizes <- c(0.8, 1.1)
-names(env1_sizes) <- c(paste0(params$predictor_var1, "_med"), paste0(params$predictor_var1, "_med_yr"))
-env2_sizes <- c(0.8, 1.1)
-names(env2_sizes) <- c(paste0(params$predictor_var2, "_med"), paste0(params$predictor_var2, "_med_yr"))
-
-env1_labels <- c("Historical median", "Year median")
-names(env1_labels) <- c(paste0(params$predictor_var1, "_med"), paste0(params$predictor_var1, "_med_yr"))
-env2_labels <- c("Historical median", "Year median")
-names(env2_labels) <- c(paste0(params$predictor_var2, "_med"), paste0(params$predictor_var2, "_med_yr"))
-
-#plot  
-p_env_var1 <- ggplot() + 
-  # min/max ribbon using wide data
-  geom_ribbon(data = data_env_doy, 
-              aes(x = doy, 
-                  ymin = !!rlang::sym(paste0(params$predictor_var1, "_min")), 
-                  ymax = !!rlang::sym(paste0(params$predictor_var1, "_max")),
-                  fill = "minmax")) +
-  #series
-  geom_line(data = data_env_plotlines %>% 
-              #filter to this variable
-              dplyr::filter(grepl(params$predictor_var1, env_var)),
-            aes(x = doy, 
-                y = value,
-                color = env_var, 
-                size = env_var)) +
-  #vertical line at the doy of requested date #linetype inside of aes to trigger legend
-  geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
-  #scales
-  scale_fill_manual("",
-                    values = c("minmax" = "grey80"),
-                    labels = "Range over all years") +
-  scale_color_manual("", 
-                     values = env1_colors,
-                     labels = env1_labels) +
-  scale_size_manual("",
-                    values = env1_sizes,
-                    labels = env1_labels) +
-  scale_linetype_manual("",
-                        values = c("forecast_doy" = "dashed"),
-                        labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
-  xlab("Day of the year") + 
-  ylab(params$predictor_var1) +
-  ggtitle(paste("Environmental data for", params$predictor_var1, 
-                "in", max(data_env$year_epi, na.rm=TRUE))) +
-  theme_arbo_chart +
-  theme(legend.position = "none") #shown in second graph
-
-
-p_env_var2 <- ggplot() + 
-  # min/max ribbon using wide data
-  geom_ribbon(data = data_env_doy, 
-              aes(x = doy, 
-                  ymin = !!rlang::sym(paste0(params$predictor_var2, "_min")), 
-                  ymax = !!rlang::sym(paste0(params$predictor_var2, "_max")),
-                  fill = "minmax")) +
-  #series
-  geom_line(data = data_env_plotlines %>% 
-              #filter to this variable
-              dplyr::filter(grepl(params$predictor_var2, env_var)),
-            aes(x = doy, 
-                y = value,
-                color = env_var, 
-                size = env_var)) +
-  #vertical line at the doy of requested date #linetype inside of aes to trigger legend
-  geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
-  #scales
-  scale_fill_manual("",
-                    values = c("minmax" = "grey80"),
-                    labels = "Range over all years") +
-  scale_color_manual("", 
-                     values = env2_colors,
-                     labels = env2_labels) +
-  scale_size_manual("",
-                    values = env2_sizes,
-                    labels = env2_labels) +
-  scale_linetype_manual("",
-                        values = c("forecast_doy" = "dashed"),
-                        labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
-  xlab("Day of the year") + 
-  ylab(params$predictor_var2) +
-  ggtitle(paste("Environmental data for", params$predictor_var2, 
-                "in", max(data_env$year_epi, na.rm=TRUE))) +
-  theme_arbo_chart +
-  theme(legend.position = "bottom")
-
-plot(p_env_var1)
-plot(p_env_var2)
-
-### OPTION 2
-#DEV attempt at segments for above/below median
-
+#Colored segments for above/below median
 env_comp_colors <- c("Higher" = "red",
                      "Crosses" = "mediumpurple4",
                      "Lower" = "blue3",
@@ -3200,7 +3288,7 @@ p_env_var1_color <- ggplot() +
   scale_linetype_manual("",
                         values = c("forecast_doy" = "dashed"),
                         labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
-  scale_color_manual("Year median compared to historical median", 
+  scale_color_manual("Year median compared\nto historical median", 
                      values = env_comp_colors) +
   xlab("Day of the year") + 
   ylab(params$predictor_var1) +
@@ -3236,7 +3324,7 @@ p_env_var2_color <- ggplot() +
   scale_linetype_manual("",
                         values = c("forecast_doy" = "dashed"),
                         labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
-  scale_color_manual("Year median compared to historical median", 
+  scale_color_manual("Year median compared\nto historical median", 
                      values = env_comp_colors) +
   xlab("Day of the year") + 
   ylab(params$predictor_var2) +
@@ -3258,97 +3346,114 @@ p_env_var2_color <- ggplot() +
 
 plot(p_env_var1_color)
 plot(p_env_var2_color)
+
+# # [DEV] Original style graphs
+# #some manipulation to get all line series in one long dataset for ggplot2
+# data_env_plotlines <- data_env_fc_yr %>% 
+#   dplyr::left_join(data_env_doy %>% 
+#                      dplyr::select(doy, ends_with("_med")),
+#                    by = "doy") %>% 
+#   #make long
+#   tidyr::pivot_longer(cols = c(contains("_med")),
+#                       names_to = "env_var",
+#                       values_to = "value")
+# 
+# #colors, sizes, and labels of dynamic names
+# env1_colors <- c("black", "red2")
+# names(env1_colors) <- c(paste0(params$predictor_var1, "_med"), paste0(params$predictor_var1, "_med_yr"))
+# env2_colors <- c("black", "red2")
+# names(env2_colors) <- c(paste0(params$predictor_var2, "_med"), paste0(params$predictor_var2, "_med_yr"))
+# 
+# env1_sizes <- c(0.8, 1.1)
+# names(env1_sizes) <- c(paste0(params$predictor_var1, "_med"), paste0(params$predictor_var1, "_med_yr"))
+# env2_sizes <- c(0.8, 1.1)
+# names(env2_sizes) <- c(paste0(params$predictor_var2, "_med"), paste0(params$predictor_var2, "_med_yr"))
+# 
+# env1_labels <- c("Historical median", "Year median")
+# names(env1_labels) <- c(paste0(params$predictor_var1, "_med"), paste0(params$predictor_var1, "_med_yr"))
+# env2_labels <- c("Historical median", "Year median")
+# names(env2_labels) <- c(paste0(params$predictor_var2, "_med"), paste0(params$predictor_var2, "_med_yr"))
+# 
+# #plot  
+# p_env_var1 <- ggplot() + 
+#   # min/max ribbon using wide data
+#   geom_ribbon(data = data_env_doy, 
+#               aes(x = doy, 
+#                   ymin = !!rlang::sym(paste0(params$predictor_var1, "_min")), 
+#                   ymax = !!rlang::sym(paste0(params$predictor_var1, "_max")),
+#                   fill = "minmax")) +
+#   #series
+#   geom_line(data = data_env_plotlines %>% 
+#               #filter to this variable
+#               dplyr::filter(grepl(params$predictor_var1, env_var)),
+#             aes(x = doy, 
+#                 y = value,
+#                 color = env_var, 
+#                 size = env_var)) +
+#   #vertical line at the doy of requested date #linetype inside of aes to trigger legend
+#   geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
+#   #scales
+#   scale_fill_manual("",
+#                     values = c("minmax" = "grey80"),
+#                     labels = "Range over all years") +
+#   scale_color_manual("", 
+#                      values = env1_colors,
+#                      labels = env1_labels) +
+#   scale_size_manual("",
+#                     values = env1_sizes,
+#                     labels = env1_labels) +
+#   scale_linetype_manual("",
+#                         values = c("forecast_doy" = "dashed"),
+#                         labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
+#   xlab("Day of the year") + 
+#   ylab(params$predictor_var1) +
+#   ggtitle(paste("Environmental data for", params$predictor_var1, 
+#                 "in", max(data_env$year_epi, na.rm=TRUE))) +
+#   theme_arbo_chart +
+#   theme(legend.position = "none") #shown in second graph
+# 
+# 
+# p_env_var2 <- ggplot() + 
+#   # min/max ribbon using wide data
+#   geom_ribbon(data = data_env_doy, 
+#               aes(x = doy, 
+#                   ymin = !!rlang::sym(paste0(params$predictor_var2, "_min")), 
+#                   ymax = !!rlang::sym(paste0(params$predictor_var2, "_max")),
+#                   fill = "minmax")) +
+#   #series
+#   geom_line(data = data_env_plotlines %>% 
+#               #filter to this variable
+#               dplyr::filter(grepl(params$predictor_var2, env_var)),
+#             aes(x = doy, 
+#                 y = value,
+#                 color = env_var, 
+#                 size = env_var)) +
+#   #vertical line at the doy of requested date #linetype inside of aes to trigger legend
+#   geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
+#   #scales
+#   scale_fill_manual("",
+#                     values = c("minmax" = "grey80"),
+#                     labels = "Range over all years") +
+#   scale_color_manual("", 
+#                      values = env2_colors,
+#                      labels = env2_labels) +
+#   scale_size_manual("",
+#                     values = env2_sizes,
+#                     labels = env2_labels) +
+#   scale_linetype_manual("",
+#                         values = c("forecast_doy" = "dashed"),
+#                         labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
+#   xlab("Day of the year") + 
+#   ylab(params$predictor_var2) +
+#   ggtitle(paste("Environmental data for", params$predictor_var2, 
+#                 "in", max(data_env$year_epi, na.rm=TRUE))) +
+#   theme_arbo_chart +
+#   theme(legend.position = "bottom")
+# plot(p_env_var1)
+# plot(p_env_var2)
+
 ```
 
-## Human historical cases
-
-```{r human_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
-
-#Creates a map of human cases: 
-# 1) over all years
-# Statistic will be total case counts, ramped
-
-# potential privacy concerns??? <<>>
-
-# map of all human cases
-h_district <- data_human %>% 
-  #filter by human start and end years
-  dplyr::filter(year_epi >= params$year_human_start &
-                  year_epi <= params$year_human_end) %>% 
-  #summarize to district over all years
-  dplyr::group_by(arbo_ID) %>% 
-  dplyr::summarise(case_count = n(),
-                   .groups = "drop") %>% 
-  #add in zero counties (notice RIGHT join)
-  dplyr::right_join(data_sf_orig %>% 
-                      sf::st_drop_geometry(),
-                    by = "arbo_ID") %>% 
-  #and add zeros for case counts (would be NA from right join)
-  dplyr::mutate(case_count = dplyr::if_else(is.na(case_count), 0L, case_count))
-
-#create spatial with data
-sf_human <- data_sf_orig %>% 
-  dplyr::left_join(h_district, by = "arbo_ID")
-
-p_map_human <- ggplot() +
-  geom_sf(data = sf_human,
-          aes(fill = case_count)) +
-  viridis::scale_fill_viridis(name = paste0("Total case counts\n", params$year_human_start, " - ", params$year_human_end),
-                              option = "rocket",
-                              na.value = "gray60", #none, but just in case
-                              direction = -1) +
-  theme_arbo_map
-
-plot(p_map_human)
-
-# #[DEV] Considered previous year map, but small case counts could be a privacy concern
-# #   so omitted [DMN]
-# # 2. map of all human cases in previous year
-# #previous year defined as forecast year - 1 IF 
-# #     that year is before/equal to year_human_end & data exists,
-# #     otherwise it is year_human_end if data exists, 
-# #     else last year of known data
-# 
-# prev_human_yr <- dplyr::if_else(epiyear_request - 1 <= params$year_human_end &
-#                      epiyear_request - 1 <= max(data_human$year_epi, na.rm = TRUE),
-#                    #params$year_human_end if data exist
-#                    dplyr::if_else(params$year_human_end <= max(data_human$year_epi, na.rm = TRUE),
-#                            params$year_human_end,
-#                            #else last year known data, same data type
-#                            max(data_human$year_epi, na.rm = TRUE) %>% as.integer()),
-#                    #else last year known data
-#                    max(data_human$year_epi, na.rm = TRUE) %>% as.integer())
-# 
-# h_distr_yr <- data_human %>% 
-#   #filter to year
-#   dplyr::filter(year_epi == prev_human_yr) %>% 
-#   #summarize to district
-#   dplyr::group_by(arbo_ID) %>% 
-#   dplyr::summarise(case_count = n(),
-#                    .groups = "drop") %>% 
-#   #add in zero counties (notice RIGHT join)
-#   dplyr::right_join(data_sf_orig %>% 
-#                       sf::st_drop_geometry(),
-#                     by = "arbo_ID") %>% 
-#   #and add zeros for case counts (would be NA from right join)
-#   dplyr::mutate(case_count = dplyr::if_else(is.na(case_count), 0L, case_count))
-# 
-# #create spatial with data
-# sf_human_yr <- data_sf_orig %>% 
-#   dplyr::left_join(h_distr_yr, by = "arbo_ID")
-# 
-# p_map_human_yr <- ggplot() +
-#   geom_sf(data = sf_human_yr,
-#           aes(fill = case_count)) +
-#   viridis::scale_fill_viridis(name = paste0("Total case counts in year ", prev_human_yr),
-#                               option = "rocket",
-#                               na.value = "gray60", #none, but just in case
-#                               direction = -1) +
-#   theme_arbo_map
-# 
-# plot(p_map_human_yr)
-
-```
 
 
 ```{r cond_rotate_ref_map_start, echo=FALSE, results='asis', eval=sf_wider}
@@ -3357,6 +3462,10 @@ cat("\\blandscape")
 ```
 
 ## Reference map
+
+For `r params$state_name`, the spatial data (shapefile) contained `r unique(data_sf_orig$arbo_ID) %>% length()` counties. 
+
+Alphabetical list of counties: `r unique(data_sf_orig$NAME) %>% sort() %>% stringr::str_c(collapse=", ")`
 
 ```{r reference_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%", fig.width=if (sf_wider) 10 else 7.5}
 #Creates a reference map of county names
@@ -3418,6 +3527,8 @@ cat("\\elandscape")
 
 ## Parameters
 
+The report was run with the following parameters set. 
+
 ```{r params_pretty, include=TRUE, echo=FALSE}
 
 #Creates table(s) to display parameter settings
@@ -3476,7 +3587,5 @@ if (params$create_appendix){
   #cat the object to make it render in main document
   cat(appx, sep = "\n")
 }
-
-
-
 ```
+

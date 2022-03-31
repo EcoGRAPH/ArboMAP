@@ -4,6 +4,8 @@ output: pdf_document
 
 # Appendix
 
+\newpage
+
 ## Forecast results
 
 ### Models and formulas
