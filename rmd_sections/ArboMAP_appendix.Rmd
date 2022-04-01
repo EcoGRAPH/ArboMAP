@@ -1,91 +1,64 @@
 ---
 output: pdf_document
 ---
+\newpage
 
 # Appendix
 
-\newpage
-
 ## Forecast results
 
-### Models and formulas
-```{r appx_model_desc, echo=FALSE, include=TRUE, results='asis'}
+### Current-week WNV absolute risk maps
 
-#get named list info on models and combine into a single tibble
-appx_full_mods <- model_formulas %>% 
-  tibble::enframe(name = "model", value = "formula") %>% 
-  dplyr::left_join(model_desc_names %>% 
-                     tibble::enframe(name = "model", value = "desc"),
-                   by = "model") %>% 
-  dplyr::select(model, desc, formula)
+```{r appx_abs_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="90%", results="asis"}
 
-#model display short name, descriptive name, & math formula
-knitr::kable(appx_full_mods,
-               col.names = c("Model", "Description", "Formula"))
+# Creates a map of absolute risk of the requested forecast week
+# for each model
 
-```
+appx_preds_fc_wk <- preds %>% 
+  dplyr::filter(year_epi == epiyear_request & week_epi == epiweek_request)
 
-### Additional model fit statistics
 
-```{r appx_model_fit, echo=FALSE, include=TRUE}
-
-#Creates a table of expanded model fit statistics BY model
-
-#calculate additional model evaluation metrics
-#temporal and spatial MAEs
-#borrowed from validation paper code and adapted [DMN]
-
-eval_mae_temporal <- preds %>% 
-  #ONLY EVAL MODELLED WEEKS
-  filter(modeled == 1) %>% 
-  #no spatial/district
-  group_by(model, year_epi, week_epi) %>% 
-  dplyr::summarize(sum_any_cases = sum(any_cases, na.rm = TRUE),
-                   sum_pred = sum(pred, na.rm = TRUE),
-                   .groups = "drop") %>% 
-  mutate(abs_err = abs(sum_any_cases - sum_pred)) %>% 
-  #mean of all weeks
-  group_by(model) %>% 
-  dplyr::summarize(mae_temporal = mean(abs_err, na.rm = TRUE))
-
-#spatial
-eval_mae_spatial <- preds %>% 
-  #ONLY EVAL MODELLED WEEKS
-  filter(modeled == 1) %>% 
-  #spatial/district (NOT by week)
-  group_by(model, year_epi, arbo_ID) %>% 
-  dplyr::summarize(sum_any_cases = sum(any_cases, na.rm = TRUE),
-                   sum_pred = sum(pred, na.rm = TRUE),
-                   .groups = "drop") %>% 
-  mutate(abs_err = abs(sum_any_cases - sum_pred)) %>% 
-  #mean of all districts
-  group_by(model) %>% 
-  dplyr::summarize(mae_spatial = mean(abs_err, na.rm = TRUE))
-
-#join together
-model_evals_extra <- model_evals %>% 
-  left_join(eval_mae_temporal, by = c("model")) %>% 
-  left_join(eval_mae_spatial, by = c("model")) %>% 
-  dplyr::select(model, everything())
-
-if (model_evaluation | dev_write_output){
-  readr::write_csv(
-    model_evals_extra, 
-    file = file.path("..", out_folder, paste0(out_name_base, "__modeleval.csv")))
+#loop for each model
+for (i in seq_along(model_names)){
+  
+  #this model
+  this_model <- model_names[i]
+  this_model_desc <- model_desc_names[[this_model]]
+  this_abs_risk <- appx_preds_fc_wk %>% 
+    dplyr::filter(model == this_model)
+  
+  #title section
+  this_model_title <- paste0(this_model_desc, ": \"", this_model, "\"")
+  # #note needs results='asis' in code block header
+  # cat("#### ", this_model_title)
+  # [DMN] Removed b/c often not on same page, looked off
+  
+  #join with spatial
+  this_sf_abs_risk <- data_sf_orig %>% 
+    dplyr::left_join(this_abs_risk, by = "arbo_ID")
+  
+  this_p_abs_risk <- ggplot2::ggplot() +
+    ggplot2::geom_sf(data = this_sf_abs_risk,
+                     aes(fill = pred)) +
+    viridis::scale_fill_viridis("", 
+                                #limits always 0 - 1
+                                limits = c(0, 1),
+                                breaks = c(0, 1),
+                                labels = c("0: Less likely\nto report any cases", 
+                                           "1: More likely\nto report at least one case")) +
+    ggtitle("Absolute risk in forecast week",
+            subtitle = this_model_title) +
+    theme_arbo_map
+  
+  plot(this_p_abs_risk)
 }
 
-knitr::kable(model_evals_extra %>% 
-               dplyr::select(model, auc, aic, mae_temporal, mae_spatial),
-             col.names = c("Model", "AUC", "AIC", "MAE Temporal", "MAE Spatial"),
-             digits = c(0, 3, 0, 3, 3),
-             align = "c",
-             caption = "Fit statistcs by model")
 ```
 
-
+\newpage
 ### Current-week WNV relative risk maps
 
-```{r appx_rel_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%", results='asis'}
+```{r appx_rel_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="90%", results='asis'}
 
 # V4 algorithm
 # For each model:
@@ -132,8 +105,9 @@ for (i in seq_along(model_names)){
   
   #title section
   this_model_title <- paste0(this_model_desc, ": \"", this_model, "\"")
-  #note needs results='asis' in code block header
-  cat("#### ", this_model_title)
+  ##note needs results='asis' in code block header
+  #cat("#### ", this_model_title)
+  # [DMN] Removed because often not ending up on same page
   
   #this model's data joined with spatial
   this_sf_rel_risk <- data_sf_orig %>% 
@@ -162,79 +136,35 @@ for (i in seq_along(model_names)){
   plot(this_p_rel_risk)
   
   #this model's table 
-  #Table of counties with higher than average risk
-  this_kable <- knitr::kable(
-    rel_risk %>% 
-      dplyr::filter(pred_ave >= higher_risk) %>% 
-      #join with crosswalk to get pretty names
-      dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
-      dplyr::select(NAME, pred_ave),
-    col.names = c("County", "Risk"),
-    digits = 2,
-    align = c("l", "c"),
-    caption = "Counties with higher than average risk")
-  
+  if (this_rel_risk %>% 
+      dplyr::filter(rank_perc >= higher_risk) %>% 
+      nrow() > 0) {
+    #Table of counties with higher than average risk
+    this_kable <- knitr::kable(
+      this_rel_risk %>% 
+        dplyr::filter(rank_perc >= higher_risk) %>% 
+        #join with crosswalk to get pretty names
+        dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
+        dplyr::select(NAME, rank_perc),
+      col.names = c("County", "Relative risk percentile"),
+      digits = 2,
+      align = c("l", "c"),
+      caption = "Counties with higher than average risk")
+    
   #note to get kable in a for loop, you must 
   # print kable with cat extra line WITH results='asis' in header
   #https://github.com/yihui/knitr/issues/886
   print(this_kable)
-  cat("\n")
+  cat("\n")}
+  
 }
 
 ```
 
-### Current-week WNV absolute risk maps
-
-```{r appx_abs_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%", results="asis"}
-
-# Creates a map of absolute risk of the requested forecast week
-# for each model
-
-appx_preds_fc_wk <- preds %>% 
-  dplyr::filter(year_epi == epiyear_request & week_epi == epiweek_request)
-
-
-#loop for each model
-for (i in seq_along(model_names)){
-  
-  #this model
-  this_model <- model_names[i]
-  this_model_desc <- model_desc_names[[this_model]]
-  this_abs_risk <- appx_preds_fc_wk %>% 
-    dplyr::filter(model == this_model)
-  
-  #title section
-  this_model_title <- paste0(this_model_desc, ": \"", this_model, "\"")
-  #note needs results='asis' in code block header
-  cat("#### ", this_model_title)
-  
-  
-  #join with spatial
-  this_sf_abs_risk <- data_sf_orig %>% 
-    dplyr::left_join(this_abs_risk, by = "arbo_ID")
-  
-  this_p_abs_risk <- ggplot2::ggplot() +
-    ggplot2::geom_sf(data = this_sf_abs_risk,
-                     aes(fill = pred)) +
-    viridis::scale_fill_viridis("", 
-                                #limits always 0 - 1
-                                limits = c(0, 1),
-                                breaks = c(0, 1),
-                                labels = c("0: Less likely\nto report any cases", 
-                                           "1: More likely\nto report at least one case")) +
-    ggtitle("Absolute risk in forecast week",
-            subtitle = this_model_title) +
-    theme_arbo_map
-  
-  plot(this_p_abs_risk)
-}
-
-```
-
-
+\newpage
 ### Current-year forecasts
 
-```{r appx_curyr_forecast, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
+```{r appx_curyr_forecast, echo=FALSE, include=TRUE, fig.align='center', fig.width=6, fig.height=3}
 
 #Creates an epicurve of the current forecast year PREDICTIONS
 # EACH model, no ribbon (as compared to average version in main report)
@@ -328,8 +258,7 @@ appx_p_cur_yr <- ggplot2::ggplot() +
   scale_alpha_manual("", 
                      values = c("human" = 1),
                      labels = c("human" = "Historical\naverage proportion")) +
-  ggtitle(paste("Statewide model predictions in", epiyear_request, 
-                "at forecast epiweek", epiweek_request)) +
+  ggtitle(paste("Statewide model predictions made on", epiyear_request, "week", epiweek_request)) + 
   #change order of legends
   guides(
     color = guide_legend(order = 1),
@@ -343,7 +272,6 @@ appx_p_cur_yr <- ggplot2::ggplot() +
 plot(appx_p_cur_yr)
 
 ```
-
 
 ### Case estimations
 
@@ -369,105 +297,10 @@ knitr::kable(pred_yrs_fc_yr %>%
 
 ```
 
-
-\blandscape
-### Multi-year forecasts
-
-```{r appx_multiyr_forecast, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
-
-#Creates a multi-year time series chart of the predicted per model vs. 
-#   observed positive district-weeks
-
-
-appx_multiyr <- appx_preds_st %>% #from appx cur yr code block
-  #update mean_any_cases to be NA during forecast year
-  dplyr::mutate(mean_any_cases = dplyr::if_else(year_epi == epiyear_request,
-                                                NA_real_,
-                                                mean_any_cases)) %>% 
-  #modified date to deal with skipping weeks between seasons
-  # borrowed from [V3]
-  # year + decimal fraction [DMN]
-  dplyr::mutate(modwk = (week_epi - human_wk_min) / (human_wk_max - human_wk_min + 1),
-                moddate = year_epi + modwk)
-
-#for model forecasts
-appx_multiyr_long <- appx_multiyr %>% 
-  #pull needed and pivot long
-  dplyr::select(model, moddate, 
-                pred_pre, pred_post) %>% 
-  tidyr::pivot_longer(cols = c(pred_pre, pred_post),
-                      names_to = "series",
-                      values_to = "value")
-
-#for human data, using mean of any cases: appx_multiyr$mean_any_cases
-#   i.e. NOT the same as current year graphs, which use ave by week of year of all years
-
-appx_p_multiyr <- ggplot() +
-  #historical any cases (observed)
-  geom_line(data = appx_multiyr,
-            aes(x = moddate,
-                y = mean_any_cases,
-                #alpha to trick into creating a legend
-                #only works b/c using default, a black solid line
-                alpha = "human"),
-            color = "black",
-            linetype = "solid") +
-  #per model predictions
-  geom_line(data = appx_multiyr_long,
-            aes(x = moddate,
-                y = value,
-                linetype = series,
-                color = model)) +
-  #plot labels and adjustments
-  #for model colors
-  scale_color_viridis("Model", option = "turbo", discrete = TRUE) +
-  #for pre/post forecast week
-  scale_linetype_manual("Time linetype indicator",
-                        values = c("pred_pre" = "solid",
-                                   "pred_post" = 22), #22 is tight dashed
-                        labels = c("pred_pre" = "Past model forecast",
-                                   "pred_post" = "Future model forecast")) +
-  #for tricking into human legend
-  scale_alpha_manual("", 
-                     values = c("human" = 1),
-                     labels = c("human" = "Observed")) +
-  #x-axis management to only show the modeled weeks per year 
-  #   borrowed heavily from [V3]
-  scale_x_continuous(breaks = seq(from = params$year_human_start + 0.5,
-                                  to = (params$year_human_end + 1.5),
-                                  by = 1),
-                     labels = seq(from = params$year_human_start, 
-                                  to = params$year_human_end + 1, 
-                                  by = 1),
-                     limits = c((params$year_human_start),
-                                (params$year_human_end + 2))) +
-  ggtitle(paste("Statewide model predictions")) + 
-  #change order of legends
-  guides(
-    color = guide_legend(order = 1),
-    linetype = guide_legend(order = 2),
-    alpha = guide_legend(order = 3)) +
-  #[V3] How y-axis labeled in v3, keeping same [DMN]
-  ylab("Proportion of districts positive") + 
-  theme_arbo_chart +
-  theme(legend.position="bottom", 
-        #legend gets cut off so multiple rows across various aesthetics
-        legend.box = "vertical", 
-        legend.direction = "horizontal", 
-        #compact
-        legend.margin = margin(),
-        legend.key.height = unit(0.15, 'in'))
-
-
-plot(appx_p_multiyr)
-
-```
-
-\elandscape
-
+\newpage
 ### Partial effects graphs
 
-```{r appx_dep_fxs, include=TRUE, echo=FALSE, fig.align='center', out.width="100%", results='asis'}
+```{r appx_dep_fxs, include=TRUE, echo=FALSE, fig.align='center', results='asis', fig.width=5, fig.height=3}
 
 # [V3] note copied verbatim:
 # "Because the user can write model formulas from scratch, we are not able to assume anything about the regression model. Therefore, plotting the model is difficult when you don't know what components the model has. In what follows, every 1-/2-D plot from the chosen models are shown. These will have names assigned by the gam function, which should be comprehensible if the user built the model."
@@ -571,12 +404,182 @@ for (i in seq_along(model_names)){
 }#end model loop
 ```
 
+\blandscape
+### Multi-year forecasts
+
+```{r appx_multiyr_forecast, echo=FALSE, include=TRUE, fig.align='center', fig.width=10}
+
+#Creates a multi-year time series chart of the predicted per model vs. 
+#   observed positive district-weeks
+
+
+appx_multiyr <- appx_preds_st %>% #from appx cur yr code block
+  #update mean_any_cases to be NA during forecast year
+  dplyr::mutate(mean_any_cases = dplyr::if_else(year_epi == epiyear_request,
+                                                NA_real_,
+                                                mean_any_cases)) %>% 
+  #modified date to deal with skipping weeks between seasons
+  # borrowed from [V3]
+  # year + decimal fraction [DMN]
+  dplyr::mutate(modwk = (week_epi - human_wk_min) / (human_wk_max - human_wk_min + 1),
+                moddate = year_epi + modwk)
+
+#for model forecasts
+appx_multiyr_long <- appx_multiyr %>% 
+  #pull needed and pivot long
+  dplyr::select(model, moddate, 
+                pred_pre, pred_post) %>% 
+  tidyr::pivot_longer(cols = c(pred_pre, pred_post),
+                      names_to = "series",
+                      values_to = "value")
+
+#for human data, using mean of any cases: appx_multiyr$mean_any_cases
+#   i.e. NOT the same as current year graphs, which use ave by week of year of all years
+
+appx_p_multiyr <- ggplot() +
+  #historical any cases (observed)
+  geom_line(data = appx_multiyr,
+            aes(x = moddate,
+                y = mean_any_cases,
+                #alpha to trick into creating a legend
+                #only works b/c using default, a black solid line
+                alpha = "human"),
+            color = "black",
+            linetype = "solid") +
+  #per model predictions
+  geom_line(data = appx_multiyr_long,
+            aes(x = moddate,
+                y = value,
+                linetype = series,
+                color = model)) +
+  #plot labels and adjustments
+  #for model colors
+  scale_color_viridis("Model", option = "turbo", discrete = TRUE) +
+  #for pre/post forecast week
+  scale_linetype_manual("Time linetype indicator",
+                        values = c("pred_pre" = "solid",
+                                   "pred_post" = 22), #22 is tight dashed
+                        labels = c("pred_pre" = "Past model forecast",
+                                   "pred_post" = "Future model forecast")) +
+  #for tricking into human legend
+  scale_alpha_manual("", 
+                     values = c("human" = 1),
+                     labels = c("human" = "Observed")) +
+  #x-axis management to only show the modeled weeks per year 
+  #   borrowed heavily from [V3]
+  scale_x_continuous(breaks = seq(from = params$year_human_start + 0.5,
+                                  to = (params$year_human_end + 1.5),
+                                  by = 1),
+                     labels = seq(from = params$year_human_start, 
+                                  to = params$year_human_end + 1, 
+                                  by = 1),
+                     limits = c((params$year_human_start),
+                                (params$year_human_end + 2))) +
+  ggtitle(paste("Statewide model predictions")) + 
+  #change order of legends
+  guides(
+    color = guide_legend(order = 1),
+    linetype = guide_legend(order = 2),
+    alpha = guide_legend(order = 3)) +
+  #[V3] How y-axis labeled in v3, keeping same [DMN]
+  ylab("Proportion of districts positive") + 
+  theme_arbo_chart +
+  theme(legend.position="bottom", 
+        #legend gets cut off so multiple rows across various aesthetics
+        legend.box = "vertical", 
+        legend.direction = "horizontal", 
+        #compact
+        legend.margin = margin(),
+        legend.key.height = unit(0.15, 'in'))
+
+
+plot(appx_p_multiyr)
+
+```
+
+\newpage
+### Models and formulas
+
+```{r appx_model_desc, echo=FALSE, include=TRUE, results='asis'}
+
+#get named list info on models and combine into a single tibble
+appx_full_mods <- model_formulas %>% 
+  tibble::enframe(name = "model", value = "formula") %>% 
+  dplyr::left_join(model_desc_names %>% 
+                     tibble::enframe(name = "model", value = "desc"),
+                   by = "model") %>% 
+  dplyr::select(model, desc, formula)
+
+#model display short name, descriptive name, & math formula
+knitr::kable(appx_full_mods,
+               col.names = c("Model", "Description", "Formula"))
+
+```
+
+### Additional model fit statistics
+
+```{r appx_model_fit, echo=FALSE, include=TRUE}
+
+#Creates a table of expanded model fit statistics BY model
+
+#calculate additional model evaluation metrics
+#temporal and spatial MAEs
+#borrowed from validation paper code and adapted [DMN]
+
+eval_mae_temporal <- preds %>% 
+  #ONLY EVAL MODELLED WEEKS
+  filter(modeled == 1) %>% 
+  #no spatial/district
+  group_by(model, year_epi, week_epi) %>% 
+  dplyr::summarize(sum_any_cases = sum(any_cases, na.rm = TRUE),
+                   sum_pred = sum(pred, na.rm = TRUE),
+                   .groups = "drop") %>% 
+  mutate(abs_err = abs(sum_any_cases - sum_pred)) %>% 
+  #mean of all weeks
+  group_by(model) %>% 
+  dplyr::summarize(mae_temporal = mean(abs_err, na.rm = TRUE))
+
+#spatial
+eval_mae_spatial <- preds %>% 
+  #ONLY EVAL MODELLED WEEKS
+  filter(modeled == 1) %>% 
+  #spatial/district (NOT by week)
+  group_by(model, year_epi, arbo_ID) %>% 
+  dplyr::summarize(sum_any_cases = sum(any_cases, na.rm = TRUE),
+                   sum_pred = sum(pred, na.rm = TRUE),
+                   .groups = "drop") %>% 
+  mutate(abs_err = abs(sum_any_cases - sum_pred)) %>% 
+  #mean of all districts
+  group_by(model) %>% 
+  dplyr::summarize(mae_spatial = mean(abs_err, na.rm = TRUE))
+
+#join together
+model_evals_extra <- model_evals %>% 
+  left_join(eval_mae_temporal, by = c("model")) %>% 
+  left_join(eval_mae_spatial, by = c("model")) %>% 
+  dplyr::select(model, everything())
+
+if (model_evaluation | dev_write_output){
+  readr::write_csv(
+    model_evals_extra, 
+    file = file.path("..", out_folder, paste0(out_name_base, "__modeleval.csv")))
+}
+
+knitr::kable(model_evals_extra %>% 
+               dplyr::select(model, auc, aic, mae_temporal, mae_spatial),
+             col.names = c("Model", "AUC", "AIC", "MAE Temporal", "MAE Spatial"),
+             digits = c(0, 3, 0, 3, 3),
+             align = "c",
+             caption = "Fit statistcs by model")
+```
+
+\elandscape
 
 ## Data summaries
 
 ### Anomalized environmental variables
 
-```{r appx_anom_weather, echo=FALSE, include=TRUE, fig.align='center', out.width="100%", fig.height=c(3,6)}
+```{r appx_anom_weather, echo=FALSE, include=TRUE, fig.align='center', fig.height=c(4,4), fig.width=c(7,7)}
 
 #Create environmental data plots for the current year 
 #   with historical doy information in background
@@ -719,7 +722,18 @@ appx_p_env_var1_color <- ggplot() +
   ggtitle(paste("Environmental data for anomalized", params$predictor_var1, 
                 "in", max(data_env$year_epi, na.rm=TRUE))) +
   theme_arbo_chart +
-  theme(legend.position = "none") #displayed in second chart
+  theme(legend.position="bottom", 
+        #legend gets cut off so multiple rows across various aesthetics
+        legend.box="horizontal", 
+        legend.direction = "vertical",
+        #compact
+        legend.margin = margin(),
+        legend.key.height = unit(0.15, 'in')) +
+  #changing order of legend
+  guides(
+    color = guide_legend(order = 1),
+    linetype = guide_legend(order = 3),
+    fill = guide_legend(order = 2))
 
 #plot
 appx_p_env_var2_color <- ggplot() + 

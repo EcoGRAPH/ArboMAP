@@ -24,7 +24,7 @@ params:
     label: "Start of mosquito modelling period (day of year)"
     value: 140
   mosquito_doy_end: 
-    label: "End of mosquito modeeling period (day of year)"
+    label: "End of mosquito modelling period (day of year)"
     value: 214
   ## input data file locations
   file_human: 
@@ -1941,8 +1941,8 @@ if (dev_write_output){
 
 <!-- Everything below is report: text and figures. -->
 <!-- Division 1: Forecast Results -->
-<!-- 1.1 Relative risk map [modified] -->
-<!-- 1.2 Absolute risk map [condensed] -->
+<!-- 1.1 Absolute risk map [condensed] -->
+<!-- 1.2 Relative risk map [modified] -->
 <!-- 1.3 Current-year fc chart [mean w/ max/min] PLUS human hx epicurve -->
 <!-- 1.4 Positives-to-cases [condensed: mean w/ range] -->
 <!-- 1.5 Model fit statistics [short list] -->
@@ -1967,17 +1967,12 @@ if (dev_write_output){
 \fancyfoot[C]{}
 
 
-# Introduction
+# Forecast Results
 
 The Arbovirus Monitoring and Prediction (ArboMAP) system produces a weekly, county-level forecast of human West Nile virus (WNV) cases using environmental data combined with entomological data.
 
-Rationale: WNV remains a persistent public health threat in many parts of the United States. Having advance warning on where and when WNV outbreaks might occur would allow for better targeting of public health responses. The transmission of mosquito-borne diseases, such as WNV, is influenced by environmental conditions that affect many aspects of the disease transmission system.  
-
-Modelling: ArboMAP uses an ensemble of different mathematical models that each are predicting if a county will report at least one case in a given week ('positive district-week'). Results presented are an average of the models with ranges as appropriate. As part of the process, mosquito infection rate is also modeled based on the mosquito pool data, and is included in the default modelling. ArboMAP uses general additive models (GAMs) with smooths for seasonality, and also lagged weather data, which allows it to model the time-delayed effects of weather conditions. `r if(params$create_appendix){"The appendix will expand all the results to show each individual model."}`
-
-The report will first present county-level relative and absolute predicted risk, time-series graphs for current and all year forecasts, estimated human case counts for the current year, and other statistics. The second division contains summaries and views into the input data. `r if(params$create_appendix){"The optional third section, an appendix, will include more detailed information about each of the models as well as advanced forecast model results."}`
-
-# Forecast Results
+Modeling overview: 
+The transmission of mosquito-borne diseases, such as WNV, is influenced by environmental conditions that affect many aspects of the disease transmission system. ArboMAP uses an ensemble of different mathematical models that each are predicting if a county will report at least one case in a given week ('positive district-week'). Results presented are an average of the models with ranges as appropriate. As part of the process, mosquito infection rate is also modeled based on the mosquito pool data, and is included in the default modeling. ArboMAP uses general additive models (GAMs) with smooths for seasonality, and also lagged weather data, which allows it to model the time-delayed effects of weather conditions. `r if(params$create_appendix){"The appendix will expand all the results to show each individual model."}`
 
 ```{r common_themes, echo=FALSE, include=FALSE}
 
@@ -1995,9 +1990,10 @@ theme_arbo_chart <- theme_bw() +
     # grid
     panel.grid.major=element_blank(), 
     panel.grid.minor=element_blank(),
+    plot.margin = unit(c(0, 0, 0, 0), "mm"),
     #font sizes
-    plot.title = element_text(size = 12),
-    plot.subtitle = element_text(size = 11),
+    plot.title = element_text(size = 10),
+    plot.subtitle = element_text(size = 9),
     axis.title = element_text(size = 10),
     axis.text = element_text(size = 10)
   )
@@ -2014,11 +2010,81 @@ model_desc_names <- c(
   "tp-sv-nonanom" = "Non-anomalized weather with seasonally-varying thin plate splines",
   "tp-sv-anom" = "Anomalized weather with seasonally-varying thin plate splines")
 
+# NOTE on MAP figure sizing:
+# Need to remember that all different states are potentially possible 
+#  and cannot hard-code certain sizes as some states are taller than wide and vice versa
+# Using out.width and percentage (which will also work with html)
+
 ```
 
+```{r ave_preds_calc, echo=FALSE, include=FALSE}
+
+#starting data table used in both absolute and relative risk sections
+
+## Average predictions 
+# average predictions of all models per district
+preds_mod_ave <- preds %>% 
+  #specifically NOT grouping by 'model'
+  dplyr::group_by(arbo_ID, 
+                  #keeping all date-related fields, 
+                  # need to at least group on date_epi (or year+week)
+                  date_epi, week_epi, year_epi, doy) %>% 
+  dplyr::summarise(pred_ave = mean(pred, na.rm = TRUE),
+                   #some stats of all models for graphing
+                   pred_min = min(pred, na.rm = TRUE),
+                   pred_max = max(pred, na.rm = TRUE),
+                   #rest are same across models, taking first to keep
+                   #could have grouped by and gotten same result
+                   any_cases = first(any_cases),
+                   case_count = first(case_count),
+                   observed = first(observed),
+                   modeled = first(modeled),
+                   .groups = 'drop')
+
+```
+
+## Forecast week WNV absolute risk map
+
+The following map displays the **absolute risk** of predicted positive districts during epidemiological week `r epiweek_request`. 
+
+This map can be used in conjuction with the **relative risk** map. The absolute risk map shows the risk of a county reporting at least one WNV positive human case during this week, and the relative risk map shows if this risk is elevated (or not) as compared to previous years. 
+
+<!-- \vspace{-5truemm} -->
+```{r absolute_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="90%"}
+
+# Creates a map of absolute risk of the requested forecast week
+# Average of all models here (each model in appendix)
+
+# average predictions for all models per district 
+#   in the forecast week (and year)
+preds_mod_ave_fc_wk <- preds_mod_ave %>% 
+  dplyr::filter(year_epi == epiyear_request & week_epi == epiweek_request)
+
+#join with spatial
+sf_abs_risk <- data_sf_orig %>% 
+  dplyr::left_join(preds_mod_ave_fc_wk, by = "arbo_ID")
+
+p_abs_risk <- ggplot2::ggplot() +
+  ggplot2::geom_sf(data = sf_abs_risk,
+                   aes(fill = pred_ave)) +
+  viridis::scale_fill_viridis("", #"Risk\n", #\n for extra vertical space
+                              #limits always 0 - 1
+                              limits = c(0, 1),
+                              breaks = c(0, 1),
+                              labels = c("0: Less likely\nto report any cases", 
+                                         "1: More likely\nto report at least one case")) +
+  ggtitle("Absolute risk in forecast week") +
+  theme_arbo_map
+
+plot(p_abs_risk)
+
+```
+<!-- \vspace{-5truemm} -->
+
+\newpage
 ## Forecast week WNV relative risk map
 
-```{r relative_risk_map_calc, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
+```{r relative_risk_map_calc, echo=FALSE, include=FALSE}
 
 # Want to compare the current risk to the historical/previous years
 
@@ -2051,27 +2117,6 @@ model_desc_names <- c(
 #       against OBSERVED historical values (any_cases), but not certain how that 
 #       mathematically would work out (as any_cases is {0|1}). [DMN]
 
-## Average predictions 
-# average predictions of all models per district
-preds_mod_ave <- preds %>% 
-  #specifically NOT grouping by 'model'
-  dplyr::group_by(arbo_ID, 
-                  #keeping all date-related fields, 
-                  # need to at least group on date_epi (or year+week)
-                  date_epi, week_epi, year_epi, doy) %>% 
-  dplyr::summarise(pred_ave = mean(pred, na.rm = TRUE),
-                   #some stats of all models for graphing
-                   pred_min = min(pred, na.rm = TRUE),
-                   pred_max = max(pred, na.rm = TRUE),
-                   #rest are same across models, taking first to keep
-                   #could have grouped by and gotten same result
-                   any_cases = first(any_cases),
-                   case_count = first(case_count),
-                   observed = first(observed),
-                   modeled = first(modeled),
-                   .groups = 'drop')
-
-
 rel_risk <- preds_mod_ave %>% 
   #get all ave-preds at same epiweek (in any year)
   #   now only 1 row per year
@@ -2103,9 +2148,12 @@ rel_risk_distr_count <- rel_risk %>%
 
 ```
 
-In the forecast week (Week `r epiweek_request`), there are `r rel_risk_distr_count` counties with higher than average rest as compared to the same epidemiological week in previous years (`r max(human_exists_yr_min, params$year_modeling_start)` through `r params$year_modeling_end`). This **relative risk** map may be used in conjunction with the **absolute risk** map in the following section. The absolute risk map shows the risk of a county reporting at least one WNV positive human case during this week, and the relative risk map shows if this risk is elevated (or not) as compared to previous years. 
+In the forecast week (Week `r epiweek_request`), there are `r rel_risk_distr_count` counties with higher than average rest as compared to the same epidemiological week in previous years (`r max(human_exists_yr_min, params$year_modeling_start)` through `r params$year_modeling_end`). 
 
-```{r relative_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
+This **relative risk** map may be used in conjunction with the **absolute risk** map. The absolute risk map shows the risk of a county reporting at least one WNV positive human case during this week, and the relative risk map shows if this risk is elevated (or not) as compared to previous years. 
+
+<!-- \vspace{-5truemm} -->
+```{r relative_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="90%"}
 
 #plot
 p_rel_risk <- ggplot2::ggplot() +
@@ -2128,58 +2176,30 @@ p_rel_risk <- ggplot2::ggplot() +
 plot(p_rel_risk)
 
 #Table of counties with higher than average risk
-knitr::kable(rel_risk %>% 
-               dplyr::filter(pred_ave >= higher_risk) %>% 
-               #join with crosswalk to get pretty names
-               dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
-               dplyr::select(NAME, pred_ave),
-             col.names = c("County", "Risk"),
-             digits = 2,
-             align = c("l", "c"),
-             caption = "Counties with higher than average risk")
+# only IF there are counties
+if (rel_risk %>% 
+    dplyr::filter(rank_perc >= higher_risk) %>% 
+    nrow() > 0) {
+  knitr::kable(rel_risk %>% 
+                 dplyr::filter(rank_perc >= higher_risk) %>% 
+                 #join with crosswalk to get pretty names
+                 dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
+                 dplyr::select(NAME, rank_perc),
+               col.names = c("County", "Relative risk percentile"),
+               digits = 2,
+               align = c("l", "c"),
+               caption = "Counties with higher than average risk")
+}
 
 ```
 
-## Forecast week WNV absolute risk map
-
-The following map displays the **absolute risk** of predicted positive districts during epidemiological week `r epiweek_request`. This map can be used in conjuction with the **relative risk** map in the previous section. The absolute risk map shows the risk of a county reporting at least one WNV positive human case during this week, and the relative risk map shows if this risk is elevated (or not) as compared to previous years. 
-
-```{r absolute_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%"}
-
-# Creates a map of absolute risk of the requested forecast week
-# Average of all models here (each model in appendix)
-
-# average predictions for all models per district 
-#   in the forecast week (and year)
-preds_mod_ave_fc_wk <- preds_mod_ave %>% 
-  dplyr::filter(year_epi == epiyear_request & week_epi == epiweek_request)
-
-#join with spatial
-sf_abs_risk <- data_sf_orig %>% 
-  dplyr::left_join(preds_mod_ave_fc_wk, by = "arbo_ID")
-
-p_abs_risk <- ggplot2::ggplot() +
-  ggplot2::geom_sf(data = sf_abs_risk,
-                   aes(fill = pred_ave)) +
-  viridis::scale_fill_viridis("", #"Risk\n", #\n for extra vertical space
-                              #limits always 0 - 1
-                              limits = c(0, 1),
-                              breaks = c(0, 1),
-                              labels = c("0: Less likely\nto report any cases", 
-                                         "1: More likely\nto report at least one case")) +
-  ggtitle("Absolute risk in forecast week") +
-  theme_arbo_map
-
-plot(p_abs_risk)
-
-```
-
+\newpage
 ## Forecast year
 
 The following graph is the predicted epicurve of the forecast year: the average of all models is shown as a `r colorize("dark red", "darkred")` line, with the range of all models in the shaded ribbon. Predictions for the future (beyond the requested forecast date) are shown as a dotted line. The historical **observed** proportion of counties positive, averaged over all known years, is also shown, here as a `r colorize("dark blue", "darkblue")` line. This allows a comparison between the timing and height of the predicted peak of cases as compared to averaged historical years. In the averaged year, `r cases_perc_obs_hx`% of the yearly cases would have been observed by this forecast week.
 
 
-```{r current_year_forecast, echo=FALSE, include=TRUE, fig.align='center', out.width="75%", fig.height=3, fig.width=5}
+```{r current_year_forecast, echo=FALSE, include=TRUE, fig.align='center', fig.width=6, fig.height=3}
 
 #Creates an epicurve of the current forecast year PREDICTIONS
 # Average of models, with ribbon for min/max models
@@ -2512,7 +2532,9 @@ knitr::kable(model_auc %>%
 \blandscape
 ## Multi-year forecast
 
-The following chart shows the model results for the entire modeled period from `r max(human_exists_yr_min, params$year_modeling_start)` through `r params$year_modeling_end`. Years before the forecast year were used for fitting the model. Similar to the previous forecast year chart, the average of all models is shown as a `r colorize("dark red", "darkred")` line, with the range of all models as the shaded ribbon. Predictions for the future (beyond the requested forecast date) are shown as a dotted line. The historical **observed** values are shown in black. 
+The following chart shows the model results for the entire modeled period from `r max(human_exists_yr_min, params$year_modeling_start)` through `r params$year_modeling_end`. Years before the forecast year were used for fitting the model. 
+
+Similar to the previous forecast year chart, the average of all models is shown as a `r colorize("dark red", "darkred")` line, with the range of all models as the shaded ribbon. Predictions for the future (beyond the requested forecast date) are shown as a dotted line. The historical **observed** values are shown in black. 
 
 ```{r multi_year_forecast, echo=FALSE, include=TRUE, fig.align='center', fig.width=10}
 
@@ -2617,7 +2639,9 @@ The report was requested for `r params$forecast_date`, which is CDC/MMWR epiweek
 
 ## Human cases
 
-After data processing, the human case data contained a total of `r dx_human_nrow_2clean` rows containing data from years `r human_exists_yr_min` through `r human_exists_yr_max`. Over all years, the state saw a cumulative total of `r state_cases_total` human cases representing `r state_any_cases_total` positive district-weeks from a total of `r dx_human_districts` counties.
+After data processing, the human case data contained a total of `r dx_human_nrow_2clean` rows containing data from years `r human_exists_yr_min` through `r human_exists_yr_max`. 
+
+Over all years, the state saw a cumulative total of `r state_cases_total` human cases representing `r state_any_cases_total` positive district-weeks from a total of `r length(dx_human_districts)` counties.
 
 ```{r human_map, echo=FALSE, include=TRUE, fig.align='center', out.width="75%"}
 
@@ -2708,9 +2732,10 @@ plot(p_map_human)
 
 ```
 
+\newpage
 ## Mosquito pools
 
-```{r mosquito_pools_2wks_calc, out.width="100%", echo=FALSE, include=TRUE}
+```{r mosquito_pools_2wks_calc, echo=FALSE, include=TRUE}
 
 #Creates summaries of the input mosquito data: first 2 of 4 parts
 # 1. Map of the positive pools in last 2 weeks, differentiating between non-reporting and 0 positive pools. Note: 2 weeks asked for in multi-state meeting.
@@ -2764,28 +2789,27 @@ if (mosq_fcwk_exists) {
 mosq_2wks_dts <- c(make_date_yw(year = epiyear_request, week = mosq_2wks[1], weekday = 1),
                    make_date_yw(year = epiyear_request, week = mosq_2wks[2], weekday = 1))
 
-mosq_2wks_dts_str <- paste0(format(mosq_2wks_dts[1], "%m/%d/%y"),
+mosq_2wks_dts_str <- paste0(format(mosq_2wks_dts[1], "%m/%d/%Y"),
                             " through ",
-                            format(mosq_2wks_dts[2], "%m/%d/%y"))
+                            format(mosq_2wks_dts[2], "%m/%d/%Y"))
 
 #actual beginning - end dates in dataset, not purely epiweek based
 mosq_2wks_dat_dts <- c(min(data_mosq_2wk$date_obs, na.rm = TRUE),
                        max(data_mosq_2wk$date_obs, na.rm = TRUE))
 
-mosq_2wks_dat_dts_str <- paste0(format(mosq_2wks_dat_dts[1], "%m/%d/%y"),
+mosq_2wks_dat_dts_str <- paste0(format(mosq_2wks_dat_dts[1], "%m/%d/%Y"),
                                 " through ",
-                                format(mosq_2wks_dat_dts[2], "%m/%d/%y"))
-
+                                format(mosq_2wks_dat_dts[2], "%m/%d/%Y"))
 
 ```
 
-After data processing, the mosquito pool data contained a total of `r dx_mosq_nrow_2clean` rows, with `r dx_mosq_nrow_3filtered` being in the mosquito modeling period, containing data from years `r mosq_exists_yr_min` through `r mosq_exists_yr_max` with reporting from a total of `r dx_mosq_districts` counties. 
+After data processing, the mosquito pool data contained a total of `r dx_mosq_nrow_2clean` rows, with `r dx_mosq_nrow_3filtered` being in the mosquito modeling period, containing data from years `r mosq_exists_yr_min` through `r mosq_exists_yr_max` with reporting from a total of `r length(dx_mosq_districts)` counties. 
 
-In the forecast year to date, there were `r dx_mosq_nrow_maxyr` pools reported from `r dx_mosq_districts_maxyr` counties. Of these pools `r mosq_pos_num_maxyr` (`r mosq_pos_perc_maxyr`%) were reported WNV positive. 
+In the forecast year to date, there were `r dx_mosq_nrow_maxyr` pools reported from `r dx_mosq_districts_maxyr` counties. Of these pools `r mosq_pos_num_maxyr` (`r round_any(mosq_pos_perc_maxyr, 1)`%) were reported WNV positive. 
 
 Pool statistics for the past two weeks are also included. If pool data exists for the forecast epiweek, then the two weeks will be the forecast week and the week prior. If data does not exist yet for the requested forecast epiweek, then the weeks shown will be the two epiweeks prior to the forecast week. In this report, the two weeks are `r mosq_2wks_dts_str` (epiweeks `r lubridate::epiweek(mosq_2wks_dts[1])` & `r lubridate::epiweek(mosq_2wks_dts[2])`) with mosquito data existing between `r mosq_2wks_dat_dts_str`.
 
-```{r mosquito_pools_2wks, out.width="100%", echo=FALSE, include=TRUE}
+```{r mosquito_pools_2wks, echo=FALSE, include=TRUE, fig.align='center', out.width="75%"}
 
 #Creates summaries of the input mosquito data: first 2 of 4 parts
 # 1. Map of the positive pools in last 2 weeks, differentiating between non-reporting and 0 positive pools. Note: 2 weeks asked for in multi-state meeting.
@@ -2874,7 +2898,7 @@ knitr::kable(data_mosq_yr2wk %>%
 
 The next graph shows the percentage of predicted positive pools by year comparing the forecast year (in `r colorize("red", "red")`) to the requested comparison years (shades of blue) and all other years (gray). If there is sufficient data in the forecast year, the observed pools rates are shown as black dots, binned into six different time points. 
 
-```{r mosquito_pools_posrate, out.width="100%", echo=FALSE, include=TRUE, fig.height=3}
+```{r mosquito_pools_posrate, out.width="100%", echo=FALSE, include=TRUE, fig.height=2.5}
 
 #Creates summaries of the input mosquito data: part 3 of 4 parts
 # 1. Map of the positive pools in last 2 weeks, differentiating between non-reporting and 0 positive pools. Note: 2 weeks asked for in multi-state meeting.
@@ -3155,13 +3179,14 @@ plot(p_mosq_rel_risk)
 
 ```
 
+\newpage
 ## Weather
 
 After processing, weather data existed from `r min(data_env$date_obs, na.rm = TRUE)` through `r max(data_env$date_obs, na.rm = TRUE)` for `r data_env$arbo_ID %>% unique() %>% length()` counties. 
 
 The report parameters set the two environmental predictor variables as `r params$predictor_var1` and `r params$predictor_var2`. The following two graphs show the median state-wide observed weather variables for the forecast year, compared to the historical median. Observed values **greater** than the historical are drawn in `r colorize("red", "red")` and observed values **less** than the historical are drawn in `r colorize("blue", "blue")`. Values that cross the historical are in purple. The gray shaded region is a ribbon showing the historical range (min to max). 
 
-```{r weather_charts, echo=FALSE, include=TRUE, fig.align='center', out.width="100%", fig.height=c(2,6), fig.width=c(7,7)}
+```{r weather_charts, echo=FALSE, include=TRUE, fig.align='center', fig.height=c(4,4), fig.width=c(7,7)}
 
 #Create environmental data plots for the current year 
 #   with historical doy information in background
@@ -3295,7 +3320,18 @@ p_env_var1_color <- ggplot() +
   ggtitle(paste("Environmental data for", params$predictor_var1, 
                 "in", max(data_env$year_epi, na.rm=TRUE))) +
   theme_arbo_chart +
-  theme(legend.position = "none") #displayed in second chart
+  theme(legend.position="bottom", 
+        #legend gets cut off so multiple rows across various aesthetics
+        legend.box="horizontal", 
+        legend.direction = "vertical",
+        #compact
+        legend.margin = margin(),
+        legend.key.height = unit(0.15, 'in')) +
+  #changing order of legend
+  guides(
+    color = guide_legend(order = 1),
+    linetype = guide_legend(order = 3),
+    fill = guide_legend(order = 2))
 
 p_env_var2_color <- ggplot() + 
   # min/max ribbon using wide data
@@ -3346,6 +3382,24 @@ p_env_var2_color <- ggplot() +
 
 plot(p_env_var1_color)
 plot(p_env_var2_color)
+
+
+# Attempt at handling single legend for both
+# #difficult to get plots the same size if only showing one legend
+# #pulling legend out, and graphing as if 3 plots
+# get_legend <- function(my_gplot){
+#   tmp <- ggplot_gtable(ggplot_build(my_gplot))
+#   leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+#   legend <- tmp$grobs[[leg]]
+# }
+# #get legend
+# p_env_legend <- get_legend(p_env_var2_color) +
+#   #strange background showed up that I haven't dealt with before
+#   theme_void()
+# #remove legend from env plot
+# p_env_var2_color <- p_env_var2_color + 
+#   theme(legend.position = "none")
+#plot(p_env_legend)
 
 # # [DEV] Original style graphs
 # #some manipulation to get all line series in one long dataset for ggplot2
@@ -3455,19 +3509,24 @@ plot(p_env_var2_color)
 ```
 
 
-
 ```{r cond_rotate_ref_map_start, echo=FALSE, results='asis', eval=sf_wider}
-#immediate end of landscape if not rotating page
+#rotating page if map is wider than it is tall
 cat("\\blandscape")
+```
+```{r cond_newpage_ref_map_start, echo=FALSE, results='asis', eval=(!sf_wider)}
+#if NOT rotating page, still want to start on a newpage
+cat("\\newpage")
 ```
 
 ## Reference map
 
 For `r params$state_name`, the spatial data (shapefile) contained `r unique(data_sf_orig$arbo_ID) %>% length()` counties. 
 
-Alphabetical list of counties: `r unique(data_sf_orig$NAME) %>% sort() %>% stringr::str_c(collapse=", ")`
+Alphabetical list of counties: 
 
-```{r reference_map, echo=FALSE, include=TRUE, fig.align='center', out.width="100%", fig.width=if (sf_wider) 10 else 7.5}
+`r unique(data_sf_orig$NAME) %>% sort() %>% stringr::str_c(collapse=", ")`
+
+```{r reference_map, echo=FALSE, include=TRUE, fig.align='center', fig.width=if (sf_wider) 10 else 7.5}
 #Creates a reference map of county names
 
 #first, get good locations to put labels
@@ -3525,7 +3584,7 @@ cat("\\elandscape")
 ```
 
 
-## Parameters
+## Parameters used
 
 The report was run with the following parameters set. 
 
