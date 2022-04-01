@@ -787,7 +787,41 @@ plot(appx_p_env_var1_color)
 plot(appx_p_env_var2_color)
 ```
 
+### Modeled mosquito infection rate
 
+```{r appx_mir, echo=FALSE, include=TRUE}
+
+#kable of MIR summary stat from mosquito model
+# pre imputation
+# (imputed is always 0)
+
+#pre imputation (mir_stat_ctr, by year, and potentially by strata)
+mosq_mir
+
+if (mosquito_model_clean %in% mosq_nonstrat_models){
+  knitr::kable(mosq_mir %>% 
+                 dplyr::select(year_epi, mir_stat_ctr) %>% 
+                 dplyr::arrange(year_epi),
+               col.names = c("Year", "Centered MIR stat"),
+               digits = 3,
+               align = "c",
+               caption = "Mosquito model summary statistic")
+} else if (mosquito_model_clean %in% mosq_strat_models){
+  knitr::kable(mosq_mir %>% 
+                 dplyr::select(year_epi, strata, mir_stat_ctr) %>% 
+                 dplyr::arrange(year_epi, strata),
+               col.names = c("Year", "Stratum", "Centered MIR stat"),
+               digits = 3,
+               align = "c",
+               caption = "Mosquito model summary statistic")
+}
+
+
+
+
+
+
+```
 
 
 
