@@ -80,7 +80,7 @@ params:
     value: 2017
   create_appendix: 
     label: "Create a detailed appendix?"
-    value: FALSE
+    value: TRUE
   lag_length: 
     label: "Number of days of weather data to include in lags"
     value: 121
@@ -91,8 +91,8 @@ params:
     label: "Developer settings, leave as \"!r list()\""
     value: !r list(dev_write_output = TRUE, model_evaluation = TRUE, out_folder = file.path("dev", format(Sys.Date(), "%Y%m%d")))
 
-title: "West Nile Virus Forecast Report for `r params$forecast_date`"
-subtitle: "`r params$state_name`    \nArbovirus Modeling and Prediction (ArboMAP)"
+title: "West Nile Virus Forecast Report for `r params$forecast_date`  \n`r params$state_name`"
+subtitle: "Arbovirus Modeling and Prediction (ArboMAP)"
 author: "Dawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly    \n(mcwimberly@ou.edu)   \nGeography and Environmental Sustainability, University of Oklahoma"
 date: "Report compiled on `r format(Sys.time(), '%B %d, %Y')`"
 header-includes:
@@ -101,6 +101,7 @@ header-includes:
 - \newcommand{\elandscape}{\end{landscape}}
 - \usepackage{fancyhdr}
 - \pagestyle{fancy}
+- \usepackage{booktabs}
 output: 
   pdf_document:
     toc: TRUE
@@ -846,10 +847,15 @@ dx_human_districts <- data_human %>%
   dplyr::pull(arbo_ID) %>% unique() %>% sort()
 
 #min/max years of data actually PRESENT in the cleaned input data 
-# (within the user-supplied range of years to use in modelling)
+# (within the user-supplied range of years to use in modeling)
 # If set up correctly, these should align, but it is not necessarily true
 human_exists_yr_min <- min(data_human$year_epi, na.rm = TRUE)
 human_exists_yr_max <- max(data_human$year_epi, na.rm = TRUE)
+human_exists_yr_list <- data_human$year_epi %>% unique() %>% sort()
+#are there years between requested start/end years that no data were observed for? 
+#NOTE: These may be zero-case years! (and therefore fine). Or potentially missing data. 
+human_yrs_missing <- setdiff(params$year_human_start:params$year_human_end,
+                             human_exists_yr_list)
 
 
 #[V3] [DEV] imputemissingdistricts was hard coded as FALSE in v3 production code
@@ -917,6 +923,11 @@ dx_mosq_districts <- data_mosquito %>%
 # If set up correctly, these should align, but it is not necessarily true
 mosq_exists_yr_min <- min(data_mosquito$year_epi, na.rm = TRUE)
 mosq_exists_yr_max <- max(data_mosquito$year_epi, na.rm = TRUE)
+mosq_exists_yr_list <- data_mosquito$year_epi %>% unique() %>% sort()
+#are there years between requested start/end years that no data were observed for? 
+mosq_yrs_missing <- setdiff(params$year_mosquito_start:params$year_mosquito_end,
+                             mosq_exists_yr_list)
+
 
 #max/latest year diagnostics and statistics for report text and debugging
 # note this is being done after mosquito_year_end filtering
@@ -1270,11 +1281,16 @@ rm(data_env_raw)
 
 
 #min/max years of data actually PRESENT in the input data 
-# (within the user-supplied range of years to use in modelling)
+# (within the user-supplied range of years to use in modeling)
 # If set up correctly, these should align, but it is not necessarily true
 env_exists_yr_min <- min(data_env$year_epi, na.rm = TRUE)
 env_exists_yr_max <- max(data_env$year_epi, na.rm = TRUE)
-
+env_exists_yr_list <- data_env$year_epi %>% unique() %>% sort()
+#are there years between requested start/end years that no data were observed for? 
+#   pretty sure that the modeling will fail, but just for diagnostics
+#    potentially possible that gap filling will attempt to fill entire years [DMN]
+env_yrs_missing <- setdiff(params$year_weather_start:params$year_weather_end,
+                             env_exists_yr_list)
 
 ###
 # Historical env dataset - by district
@@ -1353,7 +1369,7 @@ for (v in c(params$predictor_var1, params$predictor_var2)) {
   
   # any missing environmental data is filled in with predicted values [V3]
   #   this means we are updating our data, so we will have to overwrite data_env 
-  #   note that this is POST env modelling, but PRE forecast modelling
+  #   note that this is POST env modeling, but PRE forecast modeling
   data_env_df[is.na(data_env_df[,v]), v] <- this_preds[is.na(data_env_df[,v])]
   
   #anomaly calculations: deviance between observed and predicted
@@ -1700,7 +1716,8 @@ data_env_lag <- tidyr::expand_grid(arbo_ID = data_env_mod %>%
                           "date_lag" = "date_obs"))
 #[DEV] note: top part of data_env_lag will be many NAs, 
 # if we don't have env data prior to the start of the env data (year_weather_start)
-# Fine as long as running modelling years as at least +1 of env data start
+# Fine as long as running modeling years +1 of env data start 
+#   (or starting greater than lag length in same year)
 
 # clean up (often b/c of large data)
 rm(prep_env_filler)
@@ -2043,7 +2060,7 @@ preds_mod_ave <- preds %>%
 
 ```
 
-## Forecast week WNV absolute risk map
+## Forecast week WNV absolute risk
 
 The following map displays the **absolute risk** of predicted positive districts during epidemiological week `r epiweek_request`. 
 
@@ -2082,7 +2099,7 @@ plot(p_abs_risk)
 <!-- \vspace{-5truemm} -->
 
 \newpage
-## Forecast week WNV relative risk map
+## Forecast week WNV relative risk
 
 ```{r relative_risk_map_calc, echo=FALSE, include=FALSE}
 
@@ -2359,49 +2376,6 @@ plot(p_cur_yr)
 #   xlab("Epiweek") +
 #   theme_arbo_chart
 # plot(p_human_curve)
-# 
-# 
-# # <<>> DEV Adding per model version here for the moment to see (will move to appendix)
-# preds_st_ave_yr <- preds_st_ave %>% 
-#   dplyr::filter(year_epi == epiyear_request) %>% 
-#   #mark which are forecast week and beyond (i.e. future)
-#   dplyr::mutate(post_fc_wk = dplyr::if_else(week_epi >= epiweek_request, 
-#                                      TRUE,
-#                                      FALSE))
-# 
-# p_apx_cur_yr <- ggplot2::ggplot() +
-#   #model predicted values 
-#   ggplot2::geom_line(data = preds_st_ave_yr %>% 
-#                        #censoring to just modeled period WITH buffer
-#                        #  (between human min/max weeks from alpha calc)
-#                        dplyr::filter(week_epi >= (human_wk_min - 1) &
-#                                        week_epi <= human_wk_max + 1) %>% 
-#                        #need to duplicate fc week with post_fc_wk flag set to false 
-#                        #so that lines connect
-#                        dplyr::bind_rows(preds_st_ave_yr %>% 
-#                                           dplyr::filter(week_epi == epiweek_request) %>% 
-#                                           dplyr::mutate(post_fc_wk = FALSE)), 
-#                      aes(x = week_epi,
-#                          y = pred_ave,
-#                          linetype = post_fc_wk,
-#                          color = model)) +
-#   #plot labels and adjustments
-#   ggtitle(paste("TEMPORARY DEV <<>> Statewide model predictions in", epiyear_request)) + 
-#   #[V3] How y-axis labeled in v3, keeping same [DMN]
-#   ylab("Proportion of districts positive") +
-#   xlab("Epiweek") +
-#   theme_arbo_chart
-# 
-# plot(p_apx_cur_yr)
-# 
-# 
-# # DEV code graveyard
-#   # geom_label(aes(label = paste("Forecast Week: ", epiweek_request), 
-#   #                x = epiweek_request, 
-#   #                y = Inf),
-#   #            fill = "white") +
-#   # coord_cartesian(clip = "off") +
-
 
 ```
 
@@ -2420,7 +2394,7 @@ pred_yrs <- preds %>%
   #summing all districts, all weeks in year
   dplyr::group_by(year_epi, model) %>% 
   dplyr::summarise(tot_any = sum(any_cases, na.rm = TRUE),
-                   tot_pred = sum(pred, na.rm = TRUE), #v3 totest temp dev note
+                   tot_pred = sum(pred, na.rm = TRUE), 
                    tot_cases = sum(case_count, na.rm = TRUE),
                    .groups = 'drop') %>% 
   #[V3] 
@@ -2511,8 +2485,6 @@ The following table gives a summary of how well the model is fitting the histori
 #Creates a table of basic model fit statistics: 
 # Average AUC (from all models)
 # Additional metrics available in appendix, by model
-
-# DEV <<>> would mean AIC actually useful? Not comparing models here...
 
 model_auc <- model_evals %>% 
   #average of all models
@@ -2635,11 +2607,11 @@ plot(p_multiyr)
 
 # Data summaries
 
-The report was requested for `r params$forecast_date`, which is CDC/MMWR epiweek `r epiweek_request` in epiyear `r epiyear_request`. 
+The report was requested for `r params$forecast_date`, which is CDC/MMWR Epiweek `r epiweek_request` in Epiyear `r epiyear_request`. 
 
 ## Human cases
 
-After data processing, the human case data contained a total of `r dx_human_nrow_2clean` rows containing data from years `r human_exists_yr_min` through `r human_exists_yr_max`. 
+After data processing, the human case data contained a total of `r dx_human_nrow_2clean` rows containing data from years: `r human_exists_yr_list`. Parameters were set to include human data from `r params$year_human_start` through `r params$year_human_end`, and there were `r length(human_yrs_missing)` years not found in the given data. `r if(length(human_yrs_missing)>0){paste("The following years were not found in the dataset:", human_yrs_missing, ". Confirm that these years were zero-case years, and not data missing from the dataset.")}` 
 
 Over all years, the state saw a cumulative total of `r state_cases_total` human cases representing `r state_any_cases_total` positive district-weeks from a total of `r length(dx_human_districts)` counties.
 
@@ -2803,7 +2775,11 @@ mosq_2wks_dat_dts_str <- paste0(format(mosq_2wks_dat_dts[1], "%m/%d/%Y"),
 
 ```
 
-After data processing, the mosquito pool data contained a total of `r dx_mosq_nrow_2clean` rows, with `r dx_mosq_nrow_3filtered` being in the mosquito modeling period, containing data from years `r mosq_exists_yr_min` through `r mosq_exists_yr_max` with reporting from a total of `r length(dx_mosq_districts)` counties. 
+After data processing, the mosquito pool data contained a total of `r dx_mosq_nrow_2clean` rows, containing data from years: `r human_exists_yr_list`. Overall during this timeframe, a total of `r length(dx_mosq_districts)` counties reported pool data. 
+
+Parameters were set to include mosquito data from `r params$year_mosquito_start` through `r params$year_mosquito_end`, and there were `r length(mosq_yrs_missing)` years not found in the given data. `r if(length(mosq_yrs_missing)>0){paste("The following years were not found in the dataset:", mosq_yrs_missing, ".")}` Note that even if there were no positive pools in a given year, if there were any pools tested then the data will be useful; zero infection rates do predict low-risk years and should be used.
+
+Modeling was requested from `r params$year_modeling_start` through `r params$year_modeling_end`. Years without mosquito data during these years are assumed to have average mosquito infection rates. This allows us to estimate relationships with environmental data even when mosquito data are not available. There were `r length(yrs_mir_imputed)` years where mosquito infection rates were imputed. `r if(length(yrs_mir_imputed)>0){paste("These years are: ", yrs_mir_imputed %>% sort(), ".")}` In modeling years where sufficient cmosquito data were present, the mosquito infection statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. 
 
 In the forecast year to date, there were `r dx_mosq_nrow_maxyr` pools reported from `r dx_mosq_districts_maxyr` counties. Of these pools `r mosq_pos_num_maxyr` (`r round_any(mosq_pos_perc_maxyr, 1)`%) were reported WNV positive. 
 
@@ -2881,18 +2857,24 @@ data_mosq_yr2wk <- data_mosquito %>%
                                       pools_pos = sum(wnv_result)),
                    by = "arbo_ID")
 
+# replace NA with a dash
+opts <- options(knitr.kable.NA = "-")
 knitr::kable(data_mosq_yr2wk %>% 
                #join with crosswalk to get pretty names
                dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
                dplyr::select(NAME, 
                              pools_count, pools_pos, 
-                             pools_count_yr, pools_pos_yr),
+                             pools_count_yr, pools_pos_yr) %>% 
+               dplyr::arrange(NAME),
              col.names = c("County", 
                            "Pools reported last 2 weeks", "Pools positive last 2 weeks",
                            "Pools reported YTD", "Pools positive YTD"),
              digits = 2,
              align = c("l", "c", "c", "c", "c"),
              caption = "Total reported and WNV positive mosquito pools: Past two weeks, and year to forecast week (YTD)")
+             # #don't let split over multiple pages 
+             # # ... does make it float, but paragraph regarding pred pos pools now comes before table, which is not helpful here. 
+             # longtable = FALSE, booktabs = TRUE, format = "latex")
 
 ```
 
@@ -3182,9 +3164,11 @@ plot(p_mosq_rel_risk)
 \newpage
 ## Weather
 
-After processing, weather data existed from `r min(data_env$date_obs, na.rm = TRUE)` through `r max(data_env$date_obs, na.rm = TRUE)` for `r data_env$arbo_ID %>% unique() %>% length()` counties. 
+After processing, weather data existed from `r min(data_env$date_obs, na.rm = TRUE)` through `r max(data_env$date_obs, na.rm = TRUE)` for `r data_env$arbo_ID %>% unique() %>% length()` counties. Environmental data are read and collated from all files in the base `data_weather` folder and if there are duplicate data entries for any particular day, the value from the latest file is used (i.e. the latest updated value). 
 
-The report parameters set the two environmental predictor variables as `r params$predictor_var1` and `r params$predictor_var2`. The following two graphs show the median state-wide observed weather variables for the forecast year, compared to the historical median. Observed values **greater** than the historical are drawn in `r colorize("red", "red")` and observed values **less** than the historical are drawn in `r colorize("blue", "blue")`. Values that cross the historical are in purple. The gray shaded region is a ribbon showing the historical range (min to max). 
+Parameters were set to include weather data from `r params$year_weather_start` through `r params$year_weather_end`, and there were `r length(env_yrs_missing)` years not found in the given data. `r if(length(env_yrs_missing)>0){paste("The following years were not found in the dataset:", env_yrs_missing, ".")}`
+
+The report parameters set the two environmental predictor variables as `r params$predictor_var1` and `r params$predictor_var2`. The following two graphs show the median state-wide observed weather variables for the forecast year, compared to the historical median. Observed values **greater** than the historical are drawn in `r colorize("red", "red")` and observed values **less** than the historical are drawn in `r colorize("blue", "blue")`. Values that cross the historical are in purple. The gray shaded region is a ribbon showing the historical range (min to max). `r if(params$create_appendix){"The appendix will show the anomaly graphs (same timeseries, but the weather variable has been anomalized)."}`
 
 ```{r weather_charts, echo=FALSE, include=TRUE, fig.align='center', fig.height=c(4,4), fig.width=c(7,7)}
 
