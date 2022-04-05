@@ -375,7 +375,7 @@ if (!is.null(params$dev_settings$impute_human_missing_districts)){
 
 ```
 
-```{r data_load, echo=FALSE, include=FALSE}
+```{r data_load, echo=FALSE, include=FALSE, cache=FALSE}
 #Loads data from file locations given in parameters
 #Note: does NOT do any data checks
 
@@ -474,7 +474,7 @@ dx_env_nrow_0load <- nrow(data_env_raw) #note PRE de-duplication
 
 ```
 
-```{r data_id_fields, echo=FALSE, include=FALSE} 
+```{r data_id_fields, echo=FALSE, include=FALSE, cache=FALSE} 
 
 #ID fields:
 # If FIPS field is in all, will use fips (FULL 5 character version)
@@ -645,7 +645,7 @@ id_crosswalk <- data_sf_orig %>%
 
 ```
 
-```{r data_dates, echo=FALSE, include=FALSE} 
+```{r data_dates, echo=FALSE, include=FALSE, cache=FALSE} 
 
 # Dates in data
 #   "date_obs" will become the standard date field name of the observed
@@ -825,7 +825,7 @@ date_max_model <- make_date_yw(year = params$year_modeling_end,
 ```
 
 
-```{r data_human_processing_dx, echo=FALSE, include=FALSE} 
+```{r data_human_processing_dx, echo=FALSE, include=FALSE, cache=FALSE} 
 ## Human
 
 #Record row count (in human_year_start through human_year_end)
@@ -881,7 +881,7 @@ if (impute_human_missing_districts){
 }
 ```
 
-```{r data_mosq_processing_dx, echo=FALSE, include=FALSE} 
+```{r data_mosq_processing_dx, echo=FALSE, include=FALSE, cache=FALSE} 
 
 ## Mosquito
 # Cleaning, filtering, statistics for report
@@ -948,7 +948,7 @@ mosq_pos_perc_maxyr <- mosq_pos_num_maxyr / dx_mosq_nrow_maxyr * 100 %>%
   round(3)
 ```
 
-```{r mosquito_resampling, echo=FALSE, include=FALSE} 
+```{r mosquito_resampling, echo=FALSE, include=FALSE, cache=FALSE} 
 
 if (resample_mosquito){
   
@@ -1016,7 +1016,7 @@ if (resample_mosquito){
 } #end if resample
 ```
 
-```{r mosquito_infection_model, echo=FALSE, include=FALSE} 
+```{r mosquito_infection_model, echo=FALSE, include=FALSE, cache=FALSE} 
 
 # Calculates mir_stat (mosquito infection rate), based on mosquito model
 #   Creates mosq_mir : 
@@ -1243,7 +1243,7 @@ if (dev_write_output){
 
 ```
 
-```{r data_env_latest_history, echo=FALSE, include=FALSE} 
+```{r data_env_latest_history, echo=FALSE, include=FALSE, cache=FALSE} 
 
 #This block:
 # 1) picks out latest values when have duplicate values for a particular day
@@ -1326,7 +1326,7 @@ data_env_hx <- data_env %>%
 
 ```
 
-```{r data_env_anomalization, echo=FALSE, include=FALSE} 
+```{r data_env_anomalization, echo=FALSE, include=FALSE, cache=FALSE} 
 
 # This section calculates:
 # bam model for anomalization
@@ -1429,7 +1429,7 @@ if (dev_write_output){
 
 ```
 
-```{r data_combine, echo=FALSE, include=FALSE} 
+```{r data_combine, echo=FALSE, include=FALSE, cache=FALSE} 
 
 # Human, mosq infection rate, and environmental data together
 #   creating full matrix in prep for forecast modeling
@@ -1793,7 +1793,7 @@ data_combined <- data_combined %>%
 
 ```
 
-```{r forecast_modeling, echo=FALSE, include=FALSE}
+```{r forecast_modeling, echo=FALSE, include=FALSE, cache=FALSE}
 
 # This code block does the forecast modeling
 # Switches for if saving model objects
