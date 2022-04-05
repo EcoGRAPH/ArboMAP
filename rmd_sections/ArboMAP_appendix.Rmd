@@ -307,14 +307,36 @@ knitr::kable(pred_yrs_fc_yr %>%
 
 ```
 
-\newpage
+### Additional model fit statistics
+
+The table below gives multiple model fit statistic per forecast model:
+
+* AUC : Area Under ROC Curve, values range 0 - 1. 
+* AIC : Akaike information criterion, relative fit statistic to other models
+* Temporal MAE : Mean Average Error, mean of weeks (collapsed to state)
+* Spatial MAE : Mean Average Error, mean of counties (collapsed all time)
+
+```{r appx_model_fit, echo=FALSE, include=TRUE}
+
+#Creates a table of expanded model fit statistics BY model
+# data created in forecast_modeling code block of main report
+knitr::kable(model_evals_extra %>% 
+               dplyr::select(model, auc, aic, mae_temporal, mae_spatial),
+             col.names = c("Model", "AUC", "AIC", "MAE Temporal", "MAE Spatial"),
+             digits = c(0, 3, 0, 3, 3),
+             align = c("l", rep("c", 4)),
+             caption = "Fit statistcs by model")
+```
+
 ### Partial effects graphs
 
-ArboMAP allows the user to write custom model formulas, and as such the plots below are the partial effects of **all** the smooth terms for each model. These show the component effect of the term. The y-axis scale has been shifted so the y-value is the predicted `any_cases` (positive district-week) assuming all other terms in that model were at their average value. (For a table of all formulas, see the section on "Models and formulas".)
+ArboMAP allows the user to write custom model formulas, and as such the plots below are the partial effects of all the smooth terms for each model. These show the component effect of the term. All components (not just smooths) added together would be the overall prediction. For a table of all formulas, see the section on "Models and formulas".
 
-The number after the comma in the `s(var, number)` labels is the effective degrees of freedom (EDF). The EDF is a measurement of the complexity of the smooth term - a value of 1 is a straight line, higher values are more complex curves. 
+The number after the comma in the `s({item}, {number})` labels is the effective degrees of freedom (EDF). The EDF is a measurement of the complexity of the smooth term - a value of 1 is a straight line, higher values are more complex curves. 
 
 An easy way to check on the significance of the smooth term is if you cannot draw a horizontal line through the 95% confidence interval (value +/- se, shown in the gray shaded ribbon in the relevant graphs). 
+
+All models with smooths will have 1-D graphs. Seasonally-varying models will also have '2-D' graphs (component `doymat` in standard models), however a subset of y-values have been pulled out to plot as lines. 
 
 ```{r appx_dep_fxs, include=TRUE, echo=FALSE, fig.align='center', results='asis', fig.width=5, fig.height=3}
 
@@ -331,13 +353,13 @@ An easy way to check on the significance of the smooth term is if you cannot dra
 #creates plots for each model
 # uses the model_plots creating during forecast regression:
 # from ?plot.gam() "plots the component smooth functions that make [a fitted gam object] up, on the scale of the linear predictor"
-# pulls the data table out of the plot to replot nicer
+# pulls the data table out to replot nicer
 
 # DEV NOTES FOR POSSIBLE CHANGES [DMN]
 #1. REML "The difference is likely due to you using different fitting algorithms. The default in gam() is (currently) method = "GCV.Cp" even through the recommended option is to use method = "REML""
-#2. In forecast code, added rug = TRUE to get data to show as well. Then add to plot?
-#3. added residuals = TRUE to get the residuals. Then add to plot? 
 
+#[DMN] Had thought this was true, but I don't think so anymore
+#The y-axis scale has been shifted so the y-value is the predicted `any_cases` (positive district-week) assuming all other terms in that model were at their average value.
 
 #loop for each model
 for (i in seq_along(model_names)){
@@ -366,8 +388,8 @@ for (i in seq_along(model_names)){
                            replacement = params$predictor_var2)
     
     #plots can either be 1-D or 2-D 
-    # I believe all production ArboMAP plots will be 1-D [DMN]
     # The test used in [V3] was if $main was NULL, kept for [V4]
+    # Seems that all fixed models are 1-D, and seasonally-varying is 2-D
     
     if (is.null(this_subplot$main)){
       #1-D
@@ -390,9 +412,9 @@ for (i in seq_along(model_names)){
                         ymin = y - se, ymax = y + se),
                     alpha = 0.3) +
         xlab(this_subplot$xlab) +
-        ylab(this_ylab) +
+        ylab("fit") +
         ggtitle(paste0("Component: ", this_ylab),
-                subtitle = this_model_title) +
+                subtitle = this_model) +
         theme_arbo_chart
       
     }#end 1-D
@@ -420,7 +442,7 @@ for (i in seq_along(model_names)){
         xlab(this_subplot$xlab) +
         ylab("fit") +
         ggtitle(paste0("Component: ", this_ylab),
-                subtitle = this_model_title) +
+                subtitle = this_model) +
         theme_arbo_chart
 
     }#end 2-D
@@ -539,10 +561,10 @@ The following fields may be present:
 * `mir_stat` : the mosquito infection rate statistic
 * `s(lag, by=var...)` : fixed smooth term for the environmental variable over the distributed lag period
 * `te(lag, doymat, by=var...)` : seasonally-varying smooth term for the environmental variable over the distributed lag period
-* `var1` : variable for `r params$predictor_Var1`, observed value
-* `var2` : variable for `r params$predictor_Var2`, observed value
-* `var1_anom` : variable for `r params$predictor_Var1`, anomalized value
-* `var2_anom` : variable for `r params$predictor_Var2`, anomalized value
+* `var1` : variable for `r params$predictor_var1`, observed value
+* `var2` : variable for `r params$predictor_var2`, observed value
+* `var1_anom` : variable for `r params$predictor_var1`, anomalized value
+* `var2_anom` : variable for `r params$predictor_var2`, anomalized value
 * `s(doy,...)` : smooth term for day of year, for seasonality
 
 ```{r appx_model_desc, echo=FALSE, include=TRUE, results='asis'}
@@ -560,28 +582,6 @@ knitr::kable(appx_full_mods,
                col.names = c("Model", "Description", "Formula"))
 
 ```
-
-### Additional model fit statistics
-
-The table below gives multiple model fit statistic per forecast model:
-
-* AUC : Area Under ROC Curve, values range 0 - 1. 
-* AIC : Akaike information criterion, relative fit statistic to other models
-* Temporal MAE : Mean Average Error, mean of weeks (collapsed to state)
-* Spatial MAE : Mean Average Error, mean of counties (collapsed all time)
-
-```{r appx_model_fit, echo=FALSE, include=TRUE}
-
-#Creates a table of expanded model fit statistics BY model
-# data created in forecast_modeling code block of main report
-knitr::kable(model_evals_extra %>% 
-               dplyr::select(model, auc, aic, mae_temporal, mae_spatial),
-             col.names = c("Model", "AUC", "AIC", "MAE Temporal", "MAE Spatial"),
-             digits = c(0, 3, 0, 3, 3),
-             align = "c",
-             caption = "Fit statistcs by model")
-```
-
 \elandscape
 
 ## Data summaries
