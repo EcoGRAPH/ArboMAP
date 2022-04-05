@@ -43,7 +43,7 @@ params:
     value: !r file.path("data_spatial", "sd_counties.RDS")
   file_models: 
     label: "Modelling formulas file"
-    value: !r file.path("dev", "models_tpfx.txt") #!r file.path("data_models", "models.txt")
+    value: !r file.path("data_models", "models.txt") #!r file.path("dev", "models_tpfx.txt") 
     input: file
   folder_weather: 
     label: "Name of folder where weather/environmental data are located" 
@@ -1888,14 +1888,11 @@ for (this_model in model_names){
   # add model plots to the list
   # from ?plot.gam() "plots the component smooth functions that make it up, on the scale of the linear predictor"
   model_plots[[this_model]] <- plot(
-    this_reg, select=1,
-    # [DMN] adding shift with coef to make more interpretable
-    shift = coef(this_reg)[1]
-    ## [DMN] adding data to potentially plot
-    #rug = TRUE,
-    # [DMN] adding residuals
-    #residuals = TRUE
-    ## DEV TAKING WAY TOO LONG NOW. REMOVE???? <<>>
+    this_reg, select=1
+    # [DMN] tried adding shift with coef, but ends up the same 
+    #shift = coef(this_reg)[1]
+    # [DMN] tried to add rug=TRUE for data and residuals=TRUE,
+    # however that adds a lot of time ~12 seconds per for rug, ~30 for residuals
   ) 
   
   ##
@@ -2264,7 +2261,6 @@ if (rel_risk %>%
 
 ```
 
-\newpage
 ## Forecast year
 
 The following graph is the predicted epicurve of the forecast year: the average of all models is shown as a `r colorize("dark red", "darkred")` line, with the range of all models in the shaded ribbon. Predictions for the future (beyond the requested forecast date) are shown as a dotted line. The historical **observed** proportion of counties positive, averaged over all known years, is also shown, here as a `r colorize("dark blue", "darkblue")` line. This allows a comparison between the timing and height of the predicted peak of cases as compared to averaged historical years. In the averaged year, `r cases_perc_obs_hx`% of the yearly cases would have been observed by this forecast week.
@@ -2403,7 +2399,7 @@ p_cur_yr <- ggplot2::ggplot(data = data_cur_yr) +
   scale_alpha_manual("", 
                      values = c("model_range" = 0.15),
                      labels = "Range of all models") +
-  ggtitle(paste("Statewide model predictions made on", epiyear_request, "week", epiweek_request)) + 
+  ggtitle(paste("Statewide model predictions made on", epiyear_request, "Week", epiweek_request)) + 
   #[V3] How y-axis labeled in v3, keeping same [DMN]
   ylab("Proportion of districts positive") + 
   xlab("Epiweek") +
