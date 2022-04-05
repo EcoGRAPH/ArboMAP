@@ -1887,7 +1887,16 @@ for (this_model in model_names){
   
   # add model plots to the list
   # from ?plot.gam() "plots the component smooth functions that make it up, on the scale of the linear predictor"
-  model_plots[[this_model]] <- plot(this_reg, select=1) 
+  model_plots[[this_model]] <- plot(
+    this_reg, select=1,
+    # [DMN] adding shift with coef to make more interpretable
+    shift = coef(this_reg)[1]
+    ## [DMN] adding data to potentially plot
+    #rug = TRUE,
+    # [DMN] adding residuals
+    #residuals = TRUE
+    ## DEV TAKING WAY TOO LONG NOW. REMOVE???? <<>>
+  ) 
   
   ##
   # predictions of this model
@@ -1943,6 +1952,45 @@ preds <- tibble::as_tibble(preds) %>%
                 doy = lubridate::yday(date_epi))
 model_evals <- tibble::as_tibble(model_evals)
 
+#calculate additional model evaluation metrics
+#temporal and spatial MAEs
+#borrowed from validation paper code and adapted [DMN]
+# only appears in appendix, but calc here
+# so that do not have to create appendix when running model evals if wanted [DMN]
+eval_mae_temporal <- preds %>% 
+  #ONLY EVAL MODELLED WEEKS
+  filter(modeled == 1) %>% 
+  #no spatial/district
+  group_by(model, year_epi, week_epi) %>% 
+  dplyr::summarize(sum_any_cases = sum(any_cases, na.rm = TRUE),
+                   sum_pred = sum(pred, na.rm = TRUE),
+                   .groups = "drop") %>% 
+  mutate(abs_err = abs(sum_any_cases - sum_pred)) %>% 
+  #mean of all weeks
+  group_by(model) %>% 
+  dplyr::summarize(mae_temporal = mean(abs_err, na.rm = TRUE))
+
+#spatial
+eval_mae_spatial <- preds %>% 
+  #ONLY EVAL MODELLED WEEKS
+  filter(modeled == 1) %>% 
+  #spatial/district (NOT by week)
+  group_by(model, year_epi, arbo_ID) %>% 
+  dplyr::summarize(sum_any_cases = sum(any_cases, na.rm = TRUE),
+                   sum_pred = sum(pred, na.rm = TRUE),
+                   .groups = "drop") %>% 
+  mutate(abs_err = abs(sum_any_cases - sum_pred)) %>% 
+  #mean of all districts
+  group_by(model) %>% 
+  dplyr::summarize(mae_spatial = mean(abs_err, na.rm = TRUE))
+
+#join together
+model_evals_extra <- model_evals %>% 
+  left_join(eval_mae_temporal, by = c("model")) %>% 
+  left_join(eval_mae_spatial, by = c("model")) %>% 
+  dplyr::select(model, everything())
+
+
 # if saving models, name and save out
 if (save_models){
   saveRDS(model_objs, file = file.path(out_folder, paste0(out_name_base, ".rds")))
@@ -1951,6 +1999,12 @@ if (save_models){
 if (dev_write_output){
   readr::write_csv(preds, file = file.path(out_folder, paste0(out_name_base, "_predictions.csv")))
   readr::write_csv(model_evals, file = file.path(out_folder, paste0(out_name_base, "_evals.csv")))
+}
+
+if (model_evaluation | dev_write_output){
+  readr::write_csv(
+    model_evals_extra, 
+    file = file.path(out_folder, paste0(out_name_base, "_evals_extra.csv")))
 }
 ```
 
@@ -2611,7 +2665,7 @@ The report was requested for `r params$forecast_date`, which is CDC/MMWR Epiweek
 
 ## Human cases
 
-After data processing, the human case data contained a total of `r dx_human_nrow_2clean` rows containing data from years: `r human_exists_yr_list`. Parameters were set to include human data from `r params$year_human_start` through `r params$year_human_end`, and there were `r length(human_yrs_missing)` years not found in the given data. `r if(length(human_yrs_missing)>0){paste("The following years were not found in the dataset:", human_yrs_missing, ". Confirm that these years were zero-case years, and not data missing from the dataset.")}` 
+After data processing, the human case data contained a total of `r dx_human_nrow_2clean` rows containing data from years: `r human_exists_yr_list`. Parameters were set to include human data from `r params$year_human_start` through `r params$year_human_end`, and there were `r length(human_yrs_missing)` years not found in the given data. `r if(length(human_yrs_missing)>0){paste0("The following years were not found in the dataset:", human_yrs_missing %>% sort() %>% stringr::str_c(collapse=", "), ".", " Confirm that these years were zero-case years, and not data missing from the dataset.")}` 
 
 Over all years, the state saw a cumulative total of `r state_cases_total` human cases representing `r state_any_cases_total` positive district-weeks from a total of `r length(dx_human_districts)` counties.
 
@@ -2777,9 +2831,9 @@ mosq_2wks_dat_dts_str <- paste0(format(mosq_2wks_dat_dts[1], "%m/%d/%Y"),
 
 After data processing, the mosquito pool data contained a total of `r dx_mosq_nrow_2clean` rows, containing data from years: `r human_exists_yr_list`. Overall during this timeframe, a total of `r length(dx_mosq_districts)` counties reported pool data. 
 
-Parameters were set to include mosquito data from `r params$year_mosquito_start` through `r params$year_mosquito_end`, and there were `r length(mosq_yrs_missing)` years not found in the given data. `r if(length(mosq_yrs_missing)>0){paste("The following years were not found in the dataset:", mosq_yrs_missing, ".")}` Note that even if there were no positive pools in a given year, if there were any pools tested then the data will be useful; zero infection rates do predict low-risk years and should be used.
+Parameters were set to include mosquito data from `r params$year_mosquito_start` through `r params$year_mosquito_end`, and there were `r length(mosq_yrs_missing)` years not found in the given data. `r if(length(mosq_yrs_missing)>0){paste0("The following years were not found in the dataset:", mosq_yrs_missing %>% sort() %>% stringr::str_c(collapse=", "), ".")}` Note that even if there were no positive pools in a given year, if there were any pools tested then the data will be useful; zero infection rates do predict low-risk years and should be used.
 
-Modeling was requested from `r params$year_modeling_start` through `r params$year_modeling_end`. Years without mosquito data during these years are assumed to have average mosquito infection rates. This allows us to estimate relationships with environmental data even when mosquito data are not available. There were `r length(yrs_mir_imputed)` years where mosquito infection rates were imputed. `r if(length(yrs_mir_imputed)>0){paste("These years are: ", yrs_mir_imputed %>% sort(), ".")}` In modeling years where sufficient cmosquito data were present, the mosquito infection statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. 
+Modeling was requested from `r params$year_modeling_start` through `r params$year_modeling_end`. Years without mosquito data during these years are assumed to have average mosquito infection rates. This allows us to estimate relationships with environmental data even when mosquito data are not available. There were `r length(yrs_mir_imputed)` years where mosquito infection rates were imputed. `r if(length(yrs_mir_imputed)>0){paste0("These years are: ", yrs_mir_imputed %>% sort() %>% stringr::str_c(collapse=", "), ".")}` In modeling years where sufficient cmosquito data were present, the mosquito infection statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. 
 
 In the forecast year to date, there were `r dx_mosq_nrow_maxyr` pools reported from `r dx_mosq_districts_maxyr` counties. Of these pools `r mosq_pos_num_maxyr` (`r round_any(mosq_pos_perc_maxyr, 1)`%) were reported WNV positive. 
 
@@ -3166,7 +3220,7 @@ plot(p_mosq_rel_risk)
 
 After processing, weather data existed from `r min(data_env$date_obs, na.rm = TRUE)` through `r max(data_env$date_obs, na.rm = TRUE)` for `r data_env$arbo_ID %>% unique() %>% length()` counties. Environmental data are read and collated from all files in the base `data_weather` folder and if there are duplicate data entries for any particular day, the value from the latest file is used (i.e. the latest updated value). 
 
-Parameters were set to include weather data from `r params$year_weather_start` through `r params$year_weather_end`, and there were `r length(env_yrs_missing)` years not found in the given data. `r if(length(env_yrs_missing)>0){paste("The following years were not found in the dataset:", env_yrs_missing, ".")}`
+Parameters were set to include weather data from `r params$year_weather_start` through `r params$year_weather_end`, and there were `r length(env_yrs_missing)` years not found in the given data. `r if(length(env_yrs_missing)>0){paste0("The following years were not found in the dataset:", env_yrs_missing %>% sort() %>% stringr::str_c(collapse=", "), ".")}`
 
 The report parameters set the two environmental predictor variables as `r params$predictor_var1` and `r params$predictor_var2`. The following two graphs show the median state-wide observed weather variables for the forecast year, compared to the historical median. Observed values **greater** than the historical are drawn in `r colorize("red", "red")` and observed values **less** than the historical are drawn in `r colorize("blue", "blue")`. Values that cross the historical are in purple. The gray shaded region is a ribbon showing the historical range (min to max). `r if(params$create_appendix){"The appendix will show the anomaly graphs (same timeseries, but the weather variable has been anomalized)."}`
 

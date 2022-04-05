@@ -310,7 +310,11 @@ knitr::kable(pred_yrs_fc_yr %>%
 \newpage
 ### Partial effects graphs
 
-DEV <<>>
+ArboMAP allows the user to write custom model formulas, and as such the plots below are the partial effects of **all** the smooth terms for each model. These show the component effect of the term. The y-axis scale has been shifted so the y-value is the predicted `any_cases` (positive district-week) assuming all other terms in that model were at their average value. (For a table of all formulas, see the section on "Models and formulas".)
+
+The number after the comma in the `s(var, number)` labels is the effective degrees of freedom (EDF). The EDF is a measurement of the complexity of the smooth term - a value of 1 is a straight line, higher values are more complex curves. 
+
+An easy way to check on the significance of the smooth term is if you cannot draw a horizontal line through the 95% confidence interval (value +/- se, shown in the gray shaded ribbon in the relevant graphs). 
 
 ```{r appx_dep_fxs, include=TRUE, echo=FALSE, fig.align='center', results='asis', fig.width=5, fig.height=3}
 
@@ -319,7 +323,7 @@ DEV <<>>
 
 #Estimated dependence functions
 # aka component smooth functions
-# I believe I can all these 'partial effects' [DMN]
+# I believe I can call these 'partial effects' [DMN]
 # [DMN] useful refs: 
 # https://noamross.github.io/gams-in-r-course/chapter2 
 # https://stackoverflow.com/questions/67077306/plotting-output-of-gam-model
@@ -327,7 +331,13 @@ DEV <<>>
 #creates plots for each model
 # uses the model_plots creating during forecast regression:
 # from ?plot.gam() "plots the component smooth functions that make [a fitted gam object] up, on the scale of the linear predictor"
-# [V3] here pulls the data table out of the plot to replot nicer
+# pulls the data table out of the plot to replot nicer
+
+# DEV NOTES FOR POSSIBLE CHANGES [DMN]
+#1. REML "The difference is likely due to you using different fitting algorithms. The default in gam() is (currently) method = "GCV.Cp" even through the recommended option is to use method = "REML""
+#2. In forecast code, added rug = TRUE to get data to show as well. Then add to plot?
+#3. added residuals = TRUE to get the residuals. Then add to plot? 
+
 
 #loop for each model
 for (i in seq_along(model_names)){
@@ -364,7 +374,8 @@ for (i in seq_along(model_names)){
       
       #pull data
       this_subdata <- tibble::tibble(x = this_subplot$x,
-                                     y = this_subplot$fit)
+                                     y = this_subplot$fit,
+                                     se = this_subplot$se)
       
       #replot
       p_this_subplot <- ggplot2::ggplot() +
@@ -373,6 +384,11 @@ for (i in seq_along(model_names)){
         #partial effect
         geom_line(data = this_subdata,
                   aes(x = x, y = y)) +
+        #se ribbon; added by [DMN] for [V4]
+        geom_ribbon(data = this_subdata,
+                    aes(x = x,
+                        ymin = y - se, ymax = y + se),
+                    alpha = 0.3) +
         xlab(this_subplot$xlab) +
         ylab(this_ylab) +
         ggtitle(paste0("Component: ", this_ylab),
@@ -547,55 +563,17 @@ knitr::kable(appx_full_mods,
 
 ### Additional model fit statistics
 
-AUC, AIC, temporal and spatial MAEs <<>> DEV
+The table below gives multiple model fit statistic per forecast model:
+
+* AUC : Area Under ROC Curve, values range 0 - 1. 
+* AIC : Akaike information criterion, relative fit statistic to other models
+* Temporal MAE : Mean Average Error, mean of weeks (collapsed to state)
+* Spatial MAE : Mean Average Error, mean of counties (collapsed all time)
 
 ```{r appx_model_fit, echo=FALSE, include=TRUE}
 
 #Creates a table of expanded model fit statistics BY model
-
-#calculate additional model evaluation metrics
-#temporal and spatial MAEs
-#borrowed from validation paper code and adapted [DMN]
-
-eval_mae_temporal <- preds %>% 
-  #ONLY EVAL MODELLED WEEKS
-  filter(modeled == 1) %>% 
-  #no spatial/district
-  group_by(model, year_epi, week_epi) %>% 
-  dplyr::summarize(sum_any_cases = sum(any_cases, na.rm = TRUE),
-                   sum_pred = sum(pred, na.rm = TRUE),
-                   .groups = "drop") %>% 
-  mutate(abs_err = abs(sum_any_cases - sum_pred)) %>% 
-  #mean of all weeks
-  group_by(model) %>% 
-  dplyr::summarize(mae_temporal = mean(abs_err, na.rm = TRUE))
-
-#spatial
-eval_mae_spatial <- preds %>% 
-  #ONLY EVAL MODELLED WEEKS
-  filter(modeled == 1) %>% 
-  #spatial/district (NOT by week)
-  group_by(model, year_epi, arbo_ID) %>% 
-  dplyr::summarize(sum_any_cases = sum(any_cases, na.rm = TRUE),
-                   sum_pred = sum(pred, na.rm = TRUE),
-                   .groups = "drop") %>% 
-  mutate(abs_err = abs(sum_any_cases - sum_pred)) %>% 
-  #mean of all districts
-  group_by(model) %>% 
-  dplyr::summarize(mae_spatial = mean(abs_err, na.rm = TRUE))
-
-#join together
-model_evals_extra <- model_evals %>% 
-  left_join(eval_mae_temporal, by = c("model")) %>% 
-  left_join(eval_mae_spatial, by = c("model")) %>% 
-  dplyr::select(model, everything())
-
-if (model_evaluation | dev_write_output){
-  readr::write_csv(
-    model_evals_extra, 
-    file = file.path("..", out_folder, paste0(out_name_base, "__modeleval.csv")))
-}
-
+# data created in forecast_modeling code block of main report
 knitr::kable(model_evals_extra %>% 
                dplyr::select(model, auc, aic, mae_temporal, mae_spatial),
              col.names = c("Model", "AUC", "AIC", "MAE Temporal", "MAE Spatial"),
