@@ -89,7 +89,8 @@ params:
     value: 0.02
   dev_settings: 
     label: "Developer settings, leave as \"!r list()\""
-    value: !r list(dev_write_output = TRUE, model_evaluation = TRUE, out_folder = file.path("dev", format(Sys.Date(), "%Y%m%d")))
+    value: !r list()
+    #value: !r list(dev_write_output = TRUE, model_evaluation = TRUE, out_folder = file.path("dev", format(Sys.Date(), "%Y%m%d")))
 
 title: "West Nile Virus Forecast Report for `r params$forecast_date`  \n`r params$state_name`"
 subtitle: "Arbovirus Modeling and Prediction (ArboMAP)"
@@ -134,7 +135,7 @@ pacman::p_load(
   tigris, sf, ggplot2, gridExtra, 
   viridis, ggrepel, forcats,
   #report generation and interface
-  knitr, shiny)
+  knitr, rmarkdown, shiny)
 
 #Must use recent version of readr
 if (packageVersion("readr") < 2.1){
@@ -2115,7 +2116,7 @@ preds_mod_ave <- preds %>%
 
 The following map displays the **absolute risk** of predicted positive districts during epidemiological week `r epiweek_request`. 
 
-This map can be used in conjuction with the **relative risk** map. The absolute risk map shows the risk of a county reporting at least one WNV positive human case during this week, and the relative risk map shows if this risk is elevated (or not) as compared to previous years. 
+This map can be used in conjunction with the **relative risk** map. The absolute risk map shows the risk of a county reporting at least one WNV positive human case during this week, and the relative risk map shows if this risk is elevated (or not) as compared to previous years. 
 
 <!-- \vspace{-5truemm} -->
 ```{r absolute_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="90%"}
@@ -2142,7 +2143,8 @@ p_abs_risk <- ggplot2::ggplot() +
                               labels = c("0: Less likely\nto report any cases", 
                                          "1: More likely\nto report at least one case")) +
   ggtitle("Absolute risk in forecast week") +
-  theme_arbo_map
+  theme_arbo_map +
+  theme(plot.title = element_text(size = 9))
 
 plot(p_abs_risk)
 
@@ -2216,7 +2218,7 @@ rel_risk_distr_count <- rel_risk %>%
 
 ```
 
-In the forecast week (Week `r epiweek_request`), there are `r rel_risk_distr_count` counties with higher than average rest as compared to the same epidemiological week in previous years (`r max(human_exists_yr_min, params$year_modeling_start)` through `r params$year_modeling_end`). 
+In the forecast week there are `r rel_risk_distr_count` counties with higher than average rest as compared to the same epidemiological week in previous years (`r max(human_exists_yr_min, params$year_modeling_start)` through `r params$year_modeling_end`). 
 
 This **relative risk** map may be used in conjunction with the **absolute risk** map. The absolute risk map shows the risk of a county reporting at least one WNV positive human case during this week, and the relative risk map shows if this risk is elevated (or not) as compared to previous years. 
 
@@ -2239,7 +2241,9 @@ p_rel_risk <- ggplot2::ggplot() +
                                          paste(higher_risk, ": Higher than average risk"),
                                          "100")) +
   ggtitle("Risk in forecast week relative to the same epiweek in previous years") +
-  theme_arbo_map
+  theme_arbo_map +
+  theme(plot.title = element_text(size = 9))
+
 
 plot(p_rel_risk)
 
@@ -2399,7 +2403,7 @@ p_cur_yr <- ggplot2::ggplot(data = data_cur_yr) +
   scale_alpha_manual("", 
                      values = c("model_range" = 0.15),
                      labels = "Range of all models") +
-  ggtitle(paste("Statewide model predictions made on", epiyear_request, "Week", epiweek_request)) + 
+  ggtitle(paste("Statewide forecast made on", epiyear_request, "Week", epiweek_request)) + 
   #[V3] How y-axis labeled in v3, keeping same [DMN]
   ylab("Proportion of districts positive") + 
   xlab("Epiweek") +
@@ -2665,13 +2669,14 @@ After data processing, the human case data contained a total of `r dx_human_nrow
 
 Over all years, the state saw a cumulative total of `r state_cases_total` human cases representing `r state_any_cases_total` positive district-weeks from a total of `r length(dx_human_districts)` counties.
 
-```{r human_map, echo=FALSE, include=TRUE, fig.align='center', out.width="75%"}
+\vspace{-5truemm}
+```{r human_map, echo=FALSE, include=TRUE, fig.align='center', out.width="70%"}
 
 #Creates a map of human cases: 
 # 1) over all years
 # Statistic will be total case counts, ramped
 
-# potential privacy concerns??? <<>>
+# potential privacy concerns? [DMN]
 
 # map of all human cases
 h_district <- data_human %>% 
@@ -2752,6 +2757,43 @@ plot(p_map_human)
 # 
 # plot(p_map_human_yr)
 
+```
+\vspace{-5truemm}
+
+To compare the epicurve of human cases in each years, the heatmap below shows when in each year the cases occurred. 
+
+\vspace{-5truemm}
+```{r human_heatcurves, echo=FALSE, include=TRUE, fig.align='center', out.width="80%"}
+
+# Epicurves are a standard way of looking at when cases happen
+# But very difficult to distinguish many lines on the same chart
+# or deal with many charts stacked on top of each other (small y-axis size)
+# So using a heatmap instead
+
+h_epicurve <- data_human %>% 
+  dplyr::group_by(year_epi, week_epi) %>% 
+  dplyr::summarise(case_count = n(),
+                   .groups = "drop") %>% 
+  dplyr::mutate(year_epi = factor(year_epi))
+
+
+p_epiheat <- ggplot2::ggplot() +
+  geom_tile(data = h_epicurve,
+            aes(x = week_epi, 
+                y = year_epi,
+                fill = case_count),
+            color = "black",
+            size = 0.2) +
+  viridis::scale_fill_viridis("WNV Cases",
+                              option = "rocket",
+                              direction = -1,
+                              na.value = "gray80",
+                              discrete = FALSE) +
+  xlab("Epiweek") +
+  ylab("") +
+  theme_arbo_chart
+
+plot(p_epiheat)
 ```
 
 \newpage
@@ -3275,9 +3317,13 @@ if (dev_write_output){
 
 #Colored segments for above/below median
 env_comp_colors <- c("Higher" = "red",
-                     "Crosses" = "mediumpurple4",
-                     "Lower" = "blue3",
+                     "Crosses" = "#776489", #gray-purple, neutral color
+                     "Lower" = "blue2",
                      "Historical median" = "gray20")
+#pasted median names for ease
+var1_med_name <- paste0(params$predictor_var1, "_med")
+var2_med_name <- paste0(params$predictor_var2, "_med")
+
 
 data_env_colors <- data_env_fc_yr %>% 
   dplyr::left_join(data_env_doy %>% 
@@ -3296,25 +3342,25 @@ data_env_colors <- data_env_fc_yr %>%
   dplyr::mutate(
     #var1
     color_var1 = case_when(
-      var1_y >= !!rlang::sym(paste0(params$predictor_var1, "_med")) & 
-        var1_yend >= !!rlang::sym(paste0(params$predictor_var1, "_med")) ~ "Higher",
-      var1_y >= !!rlang::sym(paste0(params$predictor_var1, "_med")) & 
-        var1_yend <= !!rlang::sym(paste0(params$predictor_var1, "_med")) ~ "Crosses",
-      var1_y <= !!rlang::sym(paste0(params$predictor_var1, "_med")) & 
-        var1_yend >= !!rlang::sym(paste0(params$predictor_var1, "_med")) ~ "Crosses",
-      var1_y <= !!rlang::sym(paste0(params$predictor_var1, "_med")) & 
-        var1_yend <= !!rlang::sym(paste0(params$predictor_var1, "_med")) ~ "Lower",
+      var1_y >= !!rlang::sym(var1_med_name) & 
+        var1_yend >= !!rlang::sym(var1_med_name) ~ "Higher",
+      var1_y >= !!rlang::sym(var1_med_name) & 
+        var1_yend <= !!rlang::sym(var1_med_name) ~ "Crosses",
+      var1_y <= !!rlang::sym(var1_med_name) & 
+        var1_yend >= !!rlang::sym(var1_med_name) ~ "Crosses",
+      var1_y <= !!rlang::sym(var1_med_name) & 
+        var1_yend <= !!rlang::sym(var1_med_name) ~ "Lower",
       TRUE ~ "forgotsomething"),
     #var2
     color_var2 = case_when(
-      var2_y >= !!rlang::sym(paste0(params$predictor_var2, "_med")) & 
-        var2_yend >= !!rlang::sym(paste0(params$predictor_var2, "_med")) ~ "Higher",
-      var2_y >= !!rlang::sym(paste0(params$predictor_var2, "_med")) & 
-        var2_yend <= !!rlang::sym(paste0(params$predictor_var2, "_med")) ~ "Crosses",
-      var2_y <= !!rlang::sym(paste0(params$predictor_var2, "_med")) & 
-        var2_yend >= !!rlang::sym(paste0(params$predictor_var2, "_med")) ~ "Crosses",
-      var2_y <= !!rlang::sym(paste0(params$predictor_var2, "_med")) & 
-        var2_yend <= !!rlang::sym(paste0(params$predictor_var2, "_med")) ~ "Lower",
+      var2_y >= !!rlang::sym(var2_med_name) & 
+        var2_yend >= !!rlang::sym(var2_med_name) ~ "Higher",
+      var2_y >= !!rlang::sym(var2_med_name) & 
+        var2_yend <= !!rlang::sym(var2_med_name) ~ "Crosses",
+      var2_y <= !!rlang::sym(var2_med_name) & 
+        var2_yend >= !!rlang::sym(var2_med_name) ~ "Crosses",
+      var2_y <= !!rlang::sym(var2_med_name) & 
+        var2_yend <= !!rlang::sym(var2_med_name) ~ "Lower",
       TRUE ~ "forgotsomething")) %>% 
   #lead(1) does not exist for last day in environmental data, so removing improper last entry
   dplyr::filter(!doy == max(data_env_fc_yr))
@@ -3330,14 +3376,14 @@ p_env_var1_color <- ggplot() +
   #historical median series
   geom_line(data = data_env_colors,
             aes(x = doy, 
-                y = !!rlang::sym(paste0(params$predictor_var1, "_med")),
+                y = !!rlang::sym(var1_med_name),
                 color = "Historical median")) +
   #line segment for year median with different colors
   geom_segment(data = data_env_colors,
                aes(x = var_x, xend = var_xend,
                    y = var1_y, yend = var1_yend,
                    color = color_var1),
-               size = 1) +
+               size = 0.9) +
   #vertical line at the doy of requested date #linetype inside of aes to trigger legend
   geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
   #scales
@@ -3377,14 +3423,14 @@ p_env_var2_color <- ggplot() +
   #historical median series
   geom_line(data = data_env_colors,
             aes(x = doy, 
-                y = !!rlang::sym(paste0(params$predictor_var2, "_med")),
+                y = !!rlang::sym(var2_med_name),
                 color = "Historical median")) +
   #line segment for year median with different colors
   geom_segment(data = data_env_colors,
                aes(x = var_x, xend = var_xend,
                    y = var2_y, yend = var2_yend,
                    color = color_var2),
-               size = 1) +
+               size = 0.9) +
   #vertical line at the doy of requested date #linetype inside of aes to trigger legend
   geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
   #scales
@@ -3670,7 +3716,7 @@ if (length(params_dev >= 1)){
 #2. {r appendix_switch, echo=FALSE, results='asis'} 
 #     with if statement for knit_child() and cat()
 # [DEV] [DMN] Using second option to use system-independent subfolder path call
-#       As you can't run the child document directly, I want it buried from the user
+#       As you can't run the child document directly, I want it outside of the main folder
 
 if (params$create_appendix){
   #child file location
