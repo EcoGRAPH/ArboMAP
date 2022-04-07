@@ -861,7 +861,7 @@ dx_human_districts <- data_human %>%
 
 #min/max years of data actually PRESENT in the cleaned input data 
 # (within the user-supplied range of years to use in modeling)
-# If set up correctly, these should align, but it is not necessarily true
+# If set up normally, these should align, but it is not necessarily true
 human_exists_yr_min <- min(data_human$year_epi, na.rm = TRUE)
 human_exists_yr_max <- max(data_human$year_epi, na.rm = TRUE)
 human_exists_yr_list <- data_human$year_epi %>% unique() %>% sort()
@@ -933,7 +933,7 @@ dx_mosq_districts <- data_mosquito %>%
 
 #min/max years of data actually PRESENT in the input data 
 # (within the user-supplied range of years to use in modelling)
-# If set up correctly, these should align, but it is not necessarily true
+# If set up normally, these should align, but it is not necessarily true
 mosq_exists_yr_min <- min(data_mosquito$year_epi, na.rm = TRUE)
 mosq_exists_yr_max <- max(data_mosquito$year_epi, na.rm = TRUE)
 mosq_exists_yr_list <- data_mosquito$year_epi %>% unique() %>% sort()
@@ -1295,7 +1295,7 @@ rm(data_env_raw)
 
 #min/max years of data actually PRESENT in the input data 
 # (within the user-supplied range of years to use in modeling)
-# If set up correctly, these should align, but it is not necessarily true
+# If set up normally, these should align, but it is not necessarily true
 env_exists_yr_min <- min(data_env$year_epi, na.rm = TRUE)
 env_exists_yr_max <- max(data_env$year_epi, na.rm = TRUE)
 env_exists_yr_list <- data_env$year_epi %>% unique() %>% sort()
@@ -1518,9 +1518,7 @@ state_any_cases_total  <- sum(data_combined_prep$any_cases, na.rm=TRUE)
 
 # What percentage of cases we'll likely have seen before the start of this week
 #   based on historical years
-# [DEV] I believe the logic wasn't quite right in [V3]. [DMN]
-#   I am adding a filter to remove the current year from the calculations, and
-#   filtering by week   
+# No human data should be here for current year
 
 cases_before_fc_wk <- data_combined_prep %>% 
   dplyr::filter(week_epi < epiweek_request) %>% 
@@ -1943,11 +1941,11 @@ for (this_model in model_names){
   #
   eval_prep <- data_combined[data_combined$modeled == 1,]
   #for display in report, auc and aic should be rounded (as opposed to more digits here)
-  eval_prep <- data.frame(auc = round_any(pROC::roc(response = eval_prep$any_cases,
+  eval_prep <- data.frame(auc = pROC::roc(response = eval_prep$any_cases,
                                                     predictor = eval_prep$pred,
-                                                    na.rm=TRUE,
-                                                    auc=TRUE)$auc, 0.00001),
-                          aic = round_any(AIC(this_reg)[1], 0.00001),
+                                                    na.rm = TRUE,
+                                                    auc = TRUE)$auc,
+                          aic = AIC(this_reg)[1],
                           model = this_model)
   model_evals <- dplyr::bind_rows(model_evals, eval_prep)
   
@@ -1969,35 +1967,35 @@ model_evals <- tibble::as_tibble(model_evals)
 # so that do not have to create appendix when running model evals if wanted [DMN]
 eval_mae_temporal <- preds %>% 
   #ONLY EVAL MODELLED WEEKS
-  filter(modeled == 1) %>% 
+  dplyr::filter(modeled == 1) %>% 
   #no spatial/district
-  group_by(model, year_epi, week_epi) %>% 
+  dplyr::group_by(model, year_epi, week_epi) %>% 
   dplyr::summarize(sum_any_cases = sum(any_cases, na.rm = TRUE),
                    sum_pred = sum(pred, na.rm = TRUE),
                    .groups = "drop") %>% 
-  mutate(abs_err = abs(sum_any_cases - sum_pred)) %>% 
+  dplyr::mutate(abs_err = abs(sum_any_cases - sum_pred)) %>% 
   #mean of all weeks
-  group_by(model) %>% 
+  dplyr::group_by(model) %>% 
   dplyr::summarize(mae_temporal = mean(abs_err, na.rm = TRUE))
 
 #spatial
 eval_mae_spatial <- preds %>% 
   #ONLY EVAL MODELLED WEEKS
-  filter(modeled == 1) %>% 
+  dplyr::filter(modeled == 1) %>% 
   #spatial/district (NOT by week)
-  group_by(model, year_epi, arbo_ID) %>% 
+  dplyr::group_by(model, year_epi, arbo_ID) %>% 
   dplyr::summarize(sum_any_cases = sum(any_cases, na.rm = TRUE),
                    sum_pred = sum(pred, na.rm = TRUE),
                    .groups = "drop") %>% 
-  mutate(abs_err = abs(sum_any_cases - sum_pred)) %>% 
+  dplyr::mutate(abs_err = abs(sum_any_cases - sum_pred)) %>% 
   #mean of all districts
-  group_by(model) %>% 
+  dplyr::group_by(model) %>% 
   dplyr::summarize(mae_spatial = mean(abs_err, na.rm = TRUE))
 
 #join together
 model_evals_extra <- model_evals %>% 
-  left_join(eval_mae_temporal, by = c("model")) %>% 
-  left_join(eval_mae_spatial, by = c("model")) %>% 
+  dplyr::left_join(eval_mae_temporal, by = c("model")) %>% 
+  dplyr::left_join(eval_mae_spatial, by = c("model")) %>% 
   dplyr::select(model, everything())
 
 
@@ -2095,6 +2093,9 @@ model_desc_names <- c(
 # Need to remember that all different states are potentially possible 
 #  and cannot hard-code certain sizes as some states are taller than wide and vice versa
 # Using out.width and percentage (which will also work with html)
+# [DEV] [DMN] Alternatively, we could switch to calculating appropriate heights and widths using
+#       the dimensions of the sf bounding box. If formatting turns ugly, this is what I would suggest.
+#       You can use variables in the r code block headers for fig.height and fig.width
 
 ```
 
@@ -2116,10 +2117,10 @@ preds_mod_ave <- preds %>%
                    pred_max = max(pred, na.rm = TRUE),
                    #rest are same across models, taking first to keep
                    #could have grouped by and gotten same result
-                   any_cases = first(any_cases),
-                   case_count = first(case_count),
-                   observed = first(observed),
-                   modeled = first(modeled),
+                   any_cases = dplyr::first(any_cases),
+                   case_count = dplyr::first(case_count),
+                   observed = dplyr::first(observed),
+                   modeled = dplyr::first(modeled),
                    .groups = 'drop')
 
 ```
@@ -2882,7 +2883,7 @@ After data processing, the mosquito pool data contained a total of `r dx_mosq_nr
 
 Parameters were set to include mosquito data from `r params$year_mosquito_start` through `r params$year_mosquito_end`, and there were `r length(mosq_yrs_missing)` years not found in the given data. `r if(length(mosq_yrs_missing)>0){paste0("The following years were not found in the dataset:", mosq_yrs_missing %>% sort() %>% stringr::str_c(collapse=", "), ".")}` Note that even if there were no positive pools in a given year, if there were any pools tested then the data will be useful; zero infection rates do predict low-risk years and should be used.
 
-Modeling was requested from `r params$year_modeling_start` through `r params$year_modeling_end`. Years without mosquito data during these years are assumed to have average mosquito infection rates. This allows us to estimate relationships with environmental data even when mosquito data are not available. There were `r length(yrs_mir_imputed)` years where mosquito infection rates were imputed. `r if(length(yrs_mir_imputed)>0){paste0("These years are: ", yrs_mir_imputed %>% sort() %>% stringr::str_c(collapse=", "), ".")}` In modeling years where sufficient cmosquito data were present, the mosquito infection statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. 
+Modeling was requested from `r params$year_modeling_start` through `r params$year_modeling_end`. Years without mosquito data during these years are assumed to have average mosquito infection rates. This allows us to estimate relationships with environmental data even when mosquito data are not available. There were `r length(yrs_mir_imputed)` years where mosquito infection rates were imputed. `r if(length(yrs_mir_imputed)>0){paste0("These years are: ", yrs_mir_imputed %>% sort() %>% stringr::str_c(collapse=", "), ".")}` In modeling years where sufficient mosquito data were present, the mosquito infection statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. 
 
 In the forecast year to date, there were `r dx_mosq_nrow_maxyr` pools reported from `r dx_mosq_districts_maxyr` counties. Of these pools `r mosq_pos_num_maxyr` (`r round_any(mosq_pos_perc_maxyr, 1)`%) were reported WNV positive. 
 
