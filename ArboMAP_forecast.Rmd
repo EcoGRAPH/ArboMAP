@@ -546,19 +546,32 @@ standarize_fips <- function(my_tbl, fips_vector = field_fips_accepted){
   # Create new field arbo_ID which will be used for matching now on
   arbo_tbl <- create_id_field(my_tbl, fips_vector)
   
-  # convert to standard 5 character (2 state + 3 county) format
-  # if length 5, confirm/convert to character
-  # if length 4, then full but read as number and state has leading 0
-  #   convert to character, pad 0 in front
-  # if length 3, confirm/convert to character, add state code
+  # FIPS codes, while use numbers, should be considered text/string
+  #   e.g. numerical math is meaningless
+  
+  #1. convert to character
+  #2. convert to standard 5 character (2 state + 3 county) format
+  # if length 5, good
+  # if length 4, then full but probably read in as number and state has leading 0
+  #   -> pad 0 in front
+  # if length 3 -> add state code
   # if length 2, then county code but read as number and county has leading 0
-  #   convert to character, pad 0 in front to 3,
-  #   then add state code
+  #    -> pad 0 in front to 3, and add state code
   
-  #grab state code from shp 
-  state_code <- data_sf_orig$STATEFP %>% unique()
-  
-  #<<>> DEV
+  #grab state code from shp, as string
+  state_code <- data_sf_orig$STATEFP %>% unique() %>% as.character()
+
+  #attempt to handle possible read-ins and formats of fips codes in user data
+  arbo_tbl <- arbo_tbl %>% 
+    dplyr::mutate(arbo_ID = as.character(arbo_ID),
+                  arbo_ID = dplyr::case_when(
+                    stringr::str_length(arbo_ID) == 4 ~ stringr::str_pad(arbo_ID, width = 5, 
+                                                                         side = "left", pad = "0"),
+                    stringr::str_length(arbo_ID) == 3 ~ paste0(.env$state_code, arbo_ID),
+                    stringr::str_length(arbo_ID) == 2 ~ paste0(.env$state_code,
+                                                               stringr::str_pad(arbo_ID, width = 3, 
+                                                                          side = "left", pad = "0")),
+                    TRUE ~ arbo_ID))
   
 }
 
