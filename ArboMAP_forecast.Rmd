@@ -2156,7 +2156,7 @@ p_abs_risk <- ggplot2::ggplot() +
                                          "1: More likely\nto report at least one case")) +
   ggtitle("Absolute risk in forecast week") +
   theme_arbo_map +
-  theme(plot.title = element_text(size = 9))
+  theme(plot.title = element_text(size = 11))
 
 plot(p_abs_risk)
 
@@ -2254,7 +2254,7 @@ p_rel_risk <- ggplot2::ggplot() +
                                          "100")) +
   ggtitle("Risk in forecast week relative to the same epiweek in previous years") +
   theme_arbo_map +
-  theme(plot.title = element_text(size = 9))
+  theme(plot.title = element_text(size = 11))
 
 
 plot(p_rel_risk)
@@ -2681,6 +2681,7 @@ After data processing, the human case data contained a total of `r dx_human_nrow
 
 Over all years, the state saw a cumulative total of `r state_cases_total` human cases representing `r state_any_cases_total` positive district-weeks from a total of `r length(dx_human_districts)` counties.
 
+\vspace{-5truemm}
 ```{r human_map, echo=FALSE, include=TRUE, fig.align='center', out.width="70%"}
 
 #Creates a map of human cases: 
@@ -2769,10 +2770,11 @@ plot(p_map_human)
 # plot(p_map_human_yr)
 
 ```
+\vspace{-5truemm}
 
 To compare the epicurve of human cases in each years, the heatmap below shows when in each year the cases occurred. 
 
-```{r human_heatcurves, echo=FALSE, include=TRUE, fig.align='center', out.width="80%"}
+```{r human_heatcurves, echo=FALSE, include=TRUE, fig.align='center', out.width="80%", fig.width=7, fig.height=3.5}
 
 # Epicurves are a standard way of looking at when cases happen
 # But very difficult to distinguish many lines on the same chart
@@ -2794,7 +2796,7 @@ p_epiheat <- ggplot2::ggplot() +
             color = "black",
             size = 0.2) +
   viridis::scale_fill_viridis("WNV Cases",
-                              option = "rocket",
+                              option = "magma",
                               direction = -1,
                               na.value = "gray80",
                               discrete = FALSE) +
