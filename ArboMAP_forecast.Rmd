@@ -1941,11 +1941,14 @@ for (this_model in model_names){
   #
   eval_prep <- data_combined[data_combined$modeled == 1,]
   #for display in report, auc and aic should be rounded (as opposed to more digits here)
-  eval_prep <- data.frame(auc = pROC::roc(response = eval_prep$any_cases,
+  # round_any() is important to use to turn AUC into a pure numeric field not class 'auc' 
+  # as bind_rows will fail otherwise [DEV]
+  eval_prep <- data.frame(auc = round_any(pROC::roc(response = eval_prep$any_cases,
                                                     predictor = eval_prep$pred,
                                                     na.rm = TRUE,
                                                     auc = TRUE)$auc,
-                          aic = AIC(this_reg)[1],
+                                          0.00001),
+                          aic = round_any(AIC(this_reg)[1], 0.00001),
                           model = this_model)
   model_evals <- dplyr::bind_rows(model_evals, eval_prep)
   
