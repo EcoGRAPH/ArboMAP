@@ -254,8 +254,8 @@ appx_p_cur_yr <- ggplot2::ggplot() +
   #current week marker
   geom_vline(xintercept = epiweek_request, linetype = "dashed", color = "grey25") +
   #plot labels and adjustments
-  #for model colors
-  scale_color_viridis("Model", option = "turbo", discrete = TRUE) +
+  #for model colors (ending spectrum early b/c dark purple looks like black)
+  scale_color_viridis("Model", option = "turbo", discrete = TRUE, end = 0.8) +
   #for pre/post forecast week
   scale_linetype_manual("Time linetype indicator",
                         values = c("pred_pre" = "solid",
@@ -266,16 +266,22 @@ appx_p_cur_yr <- ggplot2::ggplot() +
   scale_alpha_manual("", 
                      values = c("human" = 1),
                      labels = c("human" = "Historical\naverage proportion")) +
-  ggtitle(paste("Statewide model predictions made on", epiyear_request, "week", epiweek_request)) + 
+  ggtitle(paste("Statewide model predictions made on", 
+                epiyear_request, "week", epiweek_request)) +
+  #[V3] How y-axis labeled in v3, keeping same [DMN]
+  ylab("Proportion of counties positive") + 
+  xlab("Epiweek") + 
+  #theme
+  theme_arbo_chart +
+  #compact legends to fit
+  theme(legend.margin = margin(),
+        legend.key.height = unit(0.15, "in"),
+        legend.spacing = unit(0.15, "in")) +
   #change order of legends
   guides(
     color = guide_legend(order = 1),
     linetype = guide_legend(order = 2),
-    alpha = guide_legend(order = 3)) +
-  #[V3] How y-axis labeled in v3, keeping same [DMN]
-  ylab("Proportion of districts positive") + 
-  xlab("Epiweek") +
-  theme_arbo_chart 
+    alpha = guide_legend(order = 3))
 
 plot(appx_p_cur_yr)
 
@@ -338,7 +344,7 @@ An easy way to check on the significance of the smooth term is if you cannot dra
 
 All models with smooths will have 1-D graphs. Seasonally-varying models will also have 2-D graphs (components with `doymat` in standard models), however a subset of y-values have been pulled out to plot as lines. 
 
-```{r appx_dep_fxs, include=TRUE, echo=FALSE, fig.align='center', results='asis', fig.width=5, fig.height=3}
+```{r appx_dep_fxs, include=TRUE, echo=FALSE, fig.align='center', results='asis', fig.width=5.5, fig.height=3}
 
 # [V3] note copied verbatim:
 # "Because the user can write model formulas from scratch, we are not able to assume anything about the regression model. Therefore, plotting the model is difficult when you don't know what components the model has. In what follows, every 1-/2-D plot from the chosen models are shown. These will have names assigned by the gam function, which should be comprehensible if the user built the model."
@@ -402,7 +408,7 @@ for (i in seq_along(model_names)){
       #replot
       p_this_subplot <- ggplot2::ggplot() +
         #[V3]
-        geom_hline(yintercept = 0, linetype = 2) +
+        geom_hline(yintercept = 0, linetype = "longdash") +
         #partial effect
         geom_line(data = this_subdata,
                   aes(x = x, y = y)) +
@@ -415,7 +421,10 @@ for (i in seq_along(model_names)){
         ylab("fit") +
         ggtitle(paste0("Component: ", this_ylab),
                 subtitle = this_model) +
-        theme_arbo_chart
+        theme_arbo_chart +
+        #extra margin to prevent x-axis labels from being cut off
+        #trbl : top right bottom left ('margins are trouble')
+        theme(plot.margin = margin(10, 20, 10, 10)) 
       
     }#end 1-D
     
@@ -435,10 +444,13 @@ for (i in seq_along(model_names)){
       
       #[V3]
       p_this_subplot <- ggplot2::ggplot() +
-        geom_hline(yintercept = 0, linetype = 2) +
+        geom_hline(yintercept = 0, linetype = "longdash") +
         geom_line(data = this_subdata,
                   aes(x = x, y = fit,
                       group = doy, color = doy, linetype = doy)) +
+        #https://colorbrewer2.org/#type=qualitative&scheme=Dark2&n=3
+        scale_color_manual("Day of year\nsubset", values = c("#1b9e77", "#d95f02","#7570b3")) +
+        scale_linetype_manual("Day of year\nsubset", values = c("solid", "dashed", "dotdash")) +
         xlab(this_subplot$xlab) +
         ylab("fit") +
         ggtitle(paste0("Component: ", this_ylab),
@@ -505,8 +517,8 @@ appx_p_multiyr <- ggplot() +
                 linetype = series,
                 color = model)) +
   #plot labels and adjustments
-  #for model colors
-  scale_color_viridis("Model", option = "turbo", discrete = TRUE) +
+  #for model colors (ending spectrum early b/c dark purple looks like black)
+  scale_color_viridis("Model", option = "turbo", discrete = TRUE, end = 0.8) +
   #for pre/post forecast week
   scale_linetype_manual("Time linetype indicator",
                         values = c("pred_pre" = "solid",
@@ -516,7 +528,7 @@ appx_p_multiyr <- ggplot() +
   #for tricking into human legend
   scale_alpha_manual("", 
                      values = c("human" = 1),
-                     labels = c("human" = "Observed")) +
+                     labels = c("human" = "Historical observed")) +
   #x-axis management to only show the modeled weeks per year 
   #   borrowed heavily from [V3]
   scale_x_continuous(breaks = seq(from = params$year_human_start + 0.5,
@@ -534,7 +546,7 @@ appx_p_multiyr <- ggplot() +
     linetype = guide_legend(order = 2),
     alpha = guide_legend(order = 3)) +
   #[V3] How y-axis labeled in v3, keeping same [DMN]
-  ylab("Proportion of districts positive") + 
+  ylab("Proportion of counties positive") + 
   theme_arbo_chart +
   theme(legend.position="bottom", 
         #legend gets cut off so multiple rows across various aesthetics
@@ -798,7 +810,7 @@ plot(appx_p_env_var2_color)
 
 ### Modeled mosquito infection rate
 
-In modeling years where sufficient cmosquito data were present, the mosquito infection rate (MIR) statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. The following table presents the calculated centered MIR values that were used in the forecast modeling. 
+In modeling years where sufficient mosquito data were present, the mosquito infection rate (MIR) statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. The following table presents the calculated centered MIR values that were used in the forecast modeling. 
 
 ```{r appx_mir, echo=FALSE, include=TRUE}
 
