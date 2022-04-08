@@ -133,7 +133,7 @@ pacman::p_load(
   mgcv, splines, parallel, pROC,
   #spatial, maps and graphs
   tigris, sf, ggplot2, gridExtra, 
-  viridis, ggrepel, forcats,
+  viridis, ggrepel, forcats, ggpubr,
   #report generation and interface
   knitr, rmarkdown, shiny)
 
@@ -2986,7 +2986,7 @@ knitr::kable(data_mosq_yr2wk %>%
 
 The next graph shows the percentage of predicted positive pools by year comparing the forecast year (in `r colorize("red", "red")`) to the requested comparison years (shades of blue) and all other years (gray). If there is sufficient data in the forecast year, the observed pools rates are shown as black dots, binned into six different time points. 
 
-```{r mosquito_pools_posrate, out.width="100%", echo=FALSE, include=TRUE, fig.height=2.5}
+```{r mosquito_pools_posrate, out.width="100%", echo=FALSE, include=TRUE}
 
 #Creates summaries of the input mosquito data: part 3 of 4 parts
 # 1. Map of the positive pools in last 2 weeks, differentiating between non-reporting and 0 positive pools. Note: 2 weeks asked for in multi-state meeting.
@@ -2996,6 +2996,8 @@ The next graph shows the percentage of predicted positive pools by year comparin
 
 ## 3. Vector pool positive rate timeseries with year comparisons
 # creates doy-based predictions using MIR regression object [V3] [DMN]
+# single graph for non-stratified mosquito models
+# graph per stratum for stratified mosquito models
 
 mosq_bins <- 6
 
@@ -3008,11 +3010,6 @@ mosq_pool_labels <- c("endyear" = "Current year",
                       "comp2" = params$year_compare_vis2,
                       "historical" = "Other years")
 
-# [DEV] While nonstrat and strat code is very similar, 
-# keeping separate because in [V3] strat models did NOT show this graph
-# and intial runs show the actual rates off from an average of strata,
-# so perhaps stratified models need to be faceted instead ? [DMN]
-# [DEV] <<>>
 
 if (mosquito_model_clean %in% mosq_nonstrat_models) {
   
@@ -3102,34 +3099,41 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
       shape = guide_legend(order = 2)) +
     theme_arbo_chart 
   
+  plot(p_mosq_pool_pos)
+  
 } else if (mosquito_model_clean %in% mosq_strat_models){
   
-  #DEV perhaps needs to facet by strata instead??
+  # by stratum version
   
   mosq_doy_preds <- tidyr::expand_grid(
     stratum_year = rownames(nlme::random.effects(mir_glm)$stratum_year),
     doy = seq(min(data_mosquito$doy, na.rm = TRUE),
               max(data_mosquito$doy, na.rm = TRUE),
-              by = 1)) %>% 
+              by = 1)) %>%
     #add dminus variable [V3]
     dplyr::mutate(dminus = doy - mean(.$doy, na.rm = TRUE))
-  
+
   #predictions
   mosq_doy_preds$pred <- predict(mir_glm,
-                                 newdata = mosq_doy_preds %>% 
+                                 newdata = mosq_doy_preds %>%
                                    as.data.frame(),
                                  type = "response",
                                  allow.new.levels = TRUE)
-  
+
   #prep for graphing
-  mosq_doy_preds_ave <- mosq_doy_preds %>% 
-    #recover year, and summarize by year & dminus (across strata)
-    dplyr::mutate(year_epi = stringr::str_split_fixed(stratum_year, 
-                                                      "_", 
-                                                      n = 2)[,2]) %>% 
-    dplyr::group_by(year_epi, dminus, doy) %>% 
+  mosq_doy_preds_ave <- mosq_doy_preds %>%
+        #split stratum and year back out
+      dplyr::mutate(year_epi = stringr::str_split_fixed(stratum_year, "_", n = 2)[,2],
+                    strata = stringr::str_split_fixed(stratum_year, "_", n = 2)[,1],
+                    #convert year back to numeric
+                    year_epi = as.numeric(year_epi),
+                    #need to convert strata back to whatever data type as in data_strata
+                    #    in example is dbl for '101'. But could conceivably be numeric or string
+                    strata = as(strata, class(data_strata$strata))) %>%
+    # summarize by stratum, year & dminus
+    dplyr::group_by(strata, year_epi, dminus, doy) %>%
     dplyr::summarise(pred_ave = mean(pred, na.rm=TRUE),
-                     .groups = "drop") %>% 
+                     .groups = "drop") %>%
     #flag param max year, param two comparison years for colored lines
     dplyr::mutate(mosq_col_grp = case_when(
       year_epi == params$year_mosquito_end ~ "endyear",
@@ -3137,69 +3141,185 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
       year_epi == params$year_compare_vis2 ~ "comp2",
       #all other years
       TRUE ~ "hx_filter"))
-  
-  #if there are enough values in endyear ([V3] > 20), 
-  data_mosq_endyr <- data_mosquito %>% 
-    dplyr::filter(year_epi == params$year_mosquito_end)
-  # then we will also add dots along the line
-  if (nrow(data_mosq_endyr) > 20){
+
+  # loop per model
+  # the test for sufficient data must be done per stratum
+  strata_list <- data_strata %>% 
+    dplyr::pull(strata) %>% unique() %>% sort()
+  #collector for plots to arrange later
+  ps_mosq_strata <- list()
+  for (i in seq_along(strata_list)){
     
-    #note, using data_mosquito, showing actual positive sample rate
-    end_year_dot <- data_mosq_endyr %>% 
-      #make 6 [V3] groups
-      dplyr::mutate(doy_grp = ggplot2::cut_interval(doy, n = 6)) %>% 
-      #summarize by these dot groups 
-      # grouping observations nearby in time together [DMN]
-      dplyr::group_by(doy_grp) %>% 
-      dplyr::summarise(pos_mean = mean(wnv_result, na.rm = TRUE),
-                       doy_mean = mean(doy, na.rm = TRUE),
-                       .groups = "drop")
-  } else {
-    #empty tibble, for if statement in ggplot code
-    end_year_dot <- tibble()
-  } #end data prep if adding dots
+    this_strata <- strata_list[[i]]
+    
+    this_mosq_doy_preds_ave <- mosq_doy_preds_ave %>% 
+      dplyr::filter(strata == this_strata)
+    
+    this_data_mosq_endyr <- data_mosquito %>%
+      dplyr::filter(strata == this_strata,
+                    year_epi == params$year_mosquito_end)
+    
+    # #if there are enough values in endyear ([V3] > 20), 
+    # then we will also add dots along the line
+    if (nrow(this_data_mosq_endyr) > 20){
+      
+      #note, using data_mosquito, showing actual positive sample rate
+      this_end_year_dot <- this_data_mosq_endyr %>%
+        #make 6 [V3] groups
+        dplyr::mutate(doy_grp = ggplot2::cut_interval(doy, n = 6)) %>%
+        #summarize by these dot groups
+        # grouping observations nearby in time together [DMN]
+        dplyr::group_by(doy_grp) %>%
+        dplyr::summarise(pos_mean = mean(wnv_result, na.rm = TRUE),
+                         doy_mean = mean(doy, na.rm = TRUE),
+                         .groups = "drop")
+    } else {
+      #empty tibble, for if statement in ggplot code
+      this_end_year_dot <- tibble()
+    } #end data prep if adding dots
+    
+    #plot, with possible dots
+    ps_mosq_strata[[i]] <- ggplot2::ggplot() +
+      #historical (will be all gray)
+      geom_line(data = this_mosq_doy_preds_ave %>%
+                  dplyr::filter(mosq_col_grp == "hx_filter"),
+                aes(x = doy,
+                    y = pred_ave,
+                    group = factor(year_epi),
+                    color = "historical")) +
+      #colored years
+      geom_line(data = this_mosq_doy_preds_ave %>%
+                  dplyr::filter(!mosq_col_grp == "hx_filter"),
+                aes(x = doy,
+                    y = pred_ave,
+                    color = mosq_col_grp)) +
+      #potential dots
+      {if (nrow(this_end_year_dot) > 0){}
+        geom_point(data = this_end_year_dot,
+                   aes(x = doy_mean,
+                       y = pos_mean,
+                       #shape to kick an automatic legend, need to keep color as default black
+                       shape = "observed"))} +
+      # colors
+      scale_color_manual("",
+                         values = mosq_pool_colors,
+                         labels = mosq_pool_labels) +
+      scale_shape_manual("",
+                         values = c("observed" = 16), #med round circle
+                         labels = c("observed" = "Binned observations\nin forecast year")) +
+      #ggtitle("Vector pool positive rate predictions") +
+      ggtitle(paste0("Strata: ", this_strata)) +
+      ylab("Pool positive rate") +
+      xlab("Day of year") +
+      #changing order of legend
+      guides(
+        color = guide_legend(order = 1),
+        shape = guide_legend(order = 2)) +
+      theme_arbo_chart
+    
+  } #end per strata loop
   
-  #plot, with possible dots
-  p_mosq_pool_pos <- ggplot2::ggplot() +
-    #historical (will be all gray)
-    geom_line(data = mosq_doy_preds_ave %>% 
-                dplyr::filter(mosq_col_grp == "hx_filter"),
-              aes(x = doy,
-                  y = pred_ave,
-                  group = factor(year_epi),
-                  color = "historical")) +
-    #colored years
-    geom_line(data = mosq_doy_preds_ave %>%
-                dplyr::filter(!mosq_col_grp == "hx_filter"),
-              aes(x = doy,
-                  y = pred_ave,
-                  color = mosq_col_grp)) +
-    #potential dots
-    {if (nrow(end_year_dot) > 0){}
-      geom_point(data = end_year_dot,
-                 aes(x = doy_mean,
-                     y = pos_mean,
-                     #shape to kick an automatic legend, need to keep color as default black
-                     shape = "observed"))} +
-    # colors
-    scale_color_manual("",
-                       values = mosq_pool_colors,
-                       labels = mosq_pool_labels) +
-    scale_shape_manual("",
-                       values = c("observed" = 16), #med round circle
-                       labels = c("observed" = "Binned observations\nin forecast year")) +
-    ggtitle("Vector pool positive rate predictions") +
-    ylab("Pool positive rate") +
-    xlab("Day of year") +
-    #changing order of legend
-    guides(
-      color = guide_legend(order = 1),
-      shape = guide_legend(order = 2)) +
-    theme_arbo_chart 
+  #organizes multiple plots with common legend
+  ggpubr::ggarrange(plotlist = ps_mosq_strata, 
+                    common.legend = TRUE, legend = "bottom")
+  
+  
+  # #[DEV] perhaps needs to facet by stratum instead of aggregating?
+  # Summarized from all strata here
+  # 
+  # mosq_doy_preds <- tidyr::expand_grid(
+  #   stratum_year = rownames(nlme::random.effects(mir_glm)$stratum_year),
+  #   doy = seq(min(data_mosquito$doy, na.rm = TRUE),
+  #             max(data_mosquito$doy, na.rm = TRUE),
+  #             by = 1)) %>% 
+  #   #add dminus variable [V3]
+  #   dplyr::mutate(dminus = doy - mean(.$doy, na.rm = TRUE))
+  # 
+  # #predictions
+  # mosq_doy_preds$pred <- predict(mir_glm,
+  #                                newdata = mosq_doy_preds %>% 
+  #                                  as.data.frame(),
+  #                                type = "response",
+  #                                allow.new.levels = TRUE)
+  # 
+  # #prep for graphing
+  # mosq_doy_preds_ave <- mosq_doy_preds %>% 
+  #   #recover year, and summarize by year & dminus (across strata)
+  #   dplyr::mutate(year_epi = stringr::str_split_fixed(stratum_year, 
+  #                                                     "_", 
+  #                                                     n = 2)[,2]) %>% 
+  #   dplyr::group_by(year_epi, dminus, doy) %>% 
+  #   dplyr::summarise(pred_ave = mean(pred, na.rm=TRUE),
+  #                    .groups = "drop") %>% 
+  #   #flag param max year, param two comparison years for colored lines
+  #   dplyr::mutate(mosq_col_grp = case_when(
+  #     year_epi == params$year_mosquito_end ~ "endyear",
+  #     year_epi == params$year_compare_vis1 ~ "comp1",
+  #     year_epi == params$year_compare_vis2 ~ "comp2",
+  #     #all other years
+  #     TRUE ~ "hx_filter"))
+  # 
+  # #if there are enough values in endyear ([V3] > 20), 
+  # data_mosq_endyr <- data_mosquito %>% 
+  #   dplyr::filter(year_epi == params$year_mosquito_end)
+  # # then we will also add dots along the line
+  # if (nrow(data_mosq_endyr) > 20){
+  #   
+  #   #note, using data_mosquito, showing actual positive sample rate
+  #   end_year_dot <- data_mosq_endyr %>% 
+  #     #make 6 [V3] groups
+  #     dplyr::mutate(doy_grp = ggplot2::cut_interval(doy, n = 6)) %>% 
+  #     #summarize by these dot groups 
+  #     # grouping observations nearby in time together [DMN]
+  #     dplyr::group_by(doy_grp) %>% 
+  #     dplyr::summarise(pos_mean = mean(wnv_result, na.rm = TRUE),
+  #                      doy_mean = mean(doy, na.rm = TRUE),
+  #                      .groups = "drop")
+  # } else {
+  #   #empty tibble, for if statement in ggplot code
+  #   end_year_dot <- tibble()
+  # } #end data prep if adding dots
+  # 
+  # #plot, with possible dots
+  # p_mosq_pool_pos <- ggplot2::ggplot() +
+  #   #historical (will be all gray)
+  #   geom_line(data = mosq_doy_preds_ave %>% 
+  #               dplyr::filter(mosq_col_grp == "hx_filter"),
+  #             aes(x = doy,
+  #                 y = pred_ave,
+  #                 group = factor(year_epi),
+  #                 color = "historical")) +
+  #   #colored years
+  #   geom_line(data = mosq_doy_preds_ave %>%
+  #               dplyr::filter(!mosq_col_grp == "hx_filter"),
+  #             aes(x = doy,
+  #                 y = pred_ave,
+  #                 color = mosq_col_grp)) +
+  #   #potential dots
+  #   {if (nrow(end_year_dot) > 0){}
+  #     geom_point(data = end_year_dot,
+  #                aes(x = doy_mean,
+  #                    y = pos_mean,
+  #                    #shape to kick an automatic legend, need to keep color as default black
+  #                    shape = "observed"))} +
+  #   # colors
+  #   scale_color_manual("",
+  #                      values = mosq_pool_colors,
+  #                      labels = mosq_pool_labels) +
+  #   scale_shape_manual("",
+  #                      values = c("observed" = 16), #med round circle
+  #                      labels = c("observed" = "Binned observations\nin forecast year")) +
+  #   ggtitle("Vector pool positive rate predictions") +
+  #   ylab("Pool positive rate") +
+  #   xlab("Day of year") +
+  #   #changing order of legend
+  #   guides(
+  #     color = guide_legend(order = 1),
+  #     shape = guide_legend(order = 2)) +
+  #   theme_arbo_chart 
   
 } # end else strata models 
 
-plot(p_mosq_pool_pos)
 
 ```
 
