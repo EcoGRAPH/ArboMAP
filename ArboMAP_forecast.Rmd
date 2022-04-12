@@ -139,19 +139,24 @@ pacman::p_load(
 
 #Must use recent version of readr
 if (packageVersion("readr") < 2.1){
-  install.packages("readr")
+  install.packages("readr", repos="http://cran.us.r-project.org")
 }
+
 
 # IF the user is trying to create a pdf, 
 # AND there is no LaTeX installation, 
 # THEN install tinytex
 if (knitr::is_latex_output() &
     Sys.which("pdflatex") == ""){
-  install.packages("tinytex")
+  install.packages("tinytex", repos="http://cran.us.r-project.org")
   tinytex::install_tinytex()
 }
+# If warning about new TeX, may need to run:
+# tinytex::reinstall_tinytex()
+# but I don't have a test for this [DEV]
+
 # [DEV] This may not play well if they are using xelatex or lualatex instead
-# however, I believe they need to set that in YAML headers too, so really shouldn't be a problem here
+# however, they need to set that in YAML headers too, so shouldn't be a problem here
 
 #Single use functions are found in their section 
 # for convenience when reviewing/editing code
@@ -1141,7 +1146,7 @@ if (mosquito_model_clean %in% c("MIGR", "MII")) {
                          family = binomial(),
                          data = data_mosq_df)
   
-  ##DEV : seemingly not used again in [V3], so temporarily removing to see if we need to keep it
+  ##[DEV] : present in [V3], but not used, probably old dev testing
   #data_mosq_df$est <- predict(data_mosq_df, newdata=wnv, type="response")
   #data_mosquito <- data_mosq_df %>% tibble::as_tibble()
   
@@ -1198,10 +1203,9 @@ if (mosquito_model_clean %in% mosq_strat_models) {
                          family = binomial(),
                          data = data_mosq_df)
   
-  ##DEV : seemingly not used again in [V3], so temporarily removing to see if we need to keep it
+  ##[DEV] : present in [V3], but not used, probably old dev testing
   #data_mosq_df$est <- predict(data_mosq_df, newdata=wnv, type="response")
   #data_mosquito <- data_mosq_df %>% tibble::as_tibble()
-  
   
   if (mosquito_model_clean == "stratifiedMIGR") {
     
@@ -2078,13 +2082,15 @@ theme_arbo_chart <- theme_bw() +
     # grid
     panel.grid.major=element_blank(), 
     panel.grid.minor=element_blank(),
-    plot.margin = unit(c(0, 0, 0, 0), "mm"),
+    #trbl : compact, while giving t(op) margin space to prevent title from being cut off
+    plot.margin = unit(c(1, 0, 0, 0), "mm"),
     #font sizes
     plot.title = element_text(size = 10),
     plot.subtitle = element_text(size = 9),
     axis.title = element_text(size = 10),
     axis.text = element_text(size = 10)
   )
+
 
 #Named list of short model descriptions / better names
 # includes large set of potential names, less with be used in the actual reports most likely
@@ -3378,7 +3384,7 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
                   y = mir_stat_ctr,
                   #strata
                   color = factor(strata)),
-              size = 1) +
+              size = 0.7) +
     # plot themes and display
     scale_color_viridis("Stratum",
                         option = "turbo",
@@ -3391,7 +3397,6 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
     ylab("Relative risk") +
     theme_arbo_chart +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  
   
 } #end else strata models
 
