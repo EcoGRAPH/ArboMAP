@@ -3085,12 +3085,12 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
                   y = pred_ave,
                   color = mosq_col_grp)) +
     #potential dots
-    {if (nrow(end_year_dot) > 0){}
+    {if (nrow(end_year_dot) > 0){
       geom_point(data = end_year_dot,
                  aes(x = doy_mean,
                      y = pos_mean,
                      #shape to kick an automatic legend, need to keep color as default black
-                     shape = "observed"))} +
+                     shape = "observed"))}} +
     # colors
     scale_color_manual("",
                        values = mosq_pool_colors,
@@ -3199,12 +3199,12 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
                     y = pred_ave,
                     color = mosq_col_grp)) +
       #potential dots
-      {if (nrow(this_end_year_dot) > 0){}
+      {if (nrow(this_end_year_dot) > 0){
         geom_point(data = this_end_year_dot,
                    aes(x = doy_mean,
                        y = pos_mean,
                        #shape to kick an automatic legend, need to keep color as default black
-                       shape = "observed"))} +
+                       shape = "observed"))}} +
       # colors
       scale_color_manual("",
                          values = mosq_pool_colors,
