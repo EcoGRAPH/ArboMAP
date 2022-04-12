@@ -1040,7 +1040,7 @@ if (resample_mosquito){
 
 # Calculates mir_stat (mosquito infection rate), based on mosquito model
 #   Creates mosq_mir : 
-#   dataset with 'year_obs' and 'mir_stat's, (and 'strata' for stratified models)
+#   dataset with 'year_epi' and 'mir_stat's, (and 'strata' for stratified models)
 #   mir_stat_raw : calculated via modelling
 #   mir_stat_ctr : post centering of above raw value
 #   mir_stat : NOT created in this block, but in combining data code block below.
@@ -1088,7 +1088,7 @@ if (mosquito_model_clean == "AUC") {
   data_mosquito <- data_mosquito %>% 
     # #remove rows with NA
     # # [V3] [DEV] note: I'm assuming glmer is unhappy otherwise [DMN]
-    # dplyr::filter_at(vars(wnv_result, doy, year_obs),
+    # dplyr::filter_at(vars(wnv_result, doy, year_epi),
     #                  #all variables listed must be not NA
     #                  all_vars(!is.na(.))) %>% 
     # [V3] create a variable that at least has a little chance of being orthogonal to 1.
@@ -1158,7 +1158,7 @@ if (mosquito_model_clean %in% c("MIGR", "MII")) {
   if (mosquito_model_clean == "MIGR") {
     
     #[V3] predict random effects for all years
-    mosq_mir <- tibble(year_obs = rownames(nlme::random.effects(mir_glm)$year_epi) %>% 
+    mosq_mir <- tibble(year_epi = rownames(nlme::random.effects(mir_glm)$year_epi) %>% 
                          as.numeric(),
                        #[,1] are intercept values [DMN]
                        mir_stat_raw = nlme::random.effects(mir_glm)$year_epi[,1]) 
