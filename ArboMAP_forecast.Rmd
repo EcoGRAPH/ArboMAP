@@ -2896,12 +2896,14 @@ mosq_2wks_dat_dts_str <- paste0(format(mosq_2wks_dat_dts[1], "%m/%d/%Y"),
 
 ```
 
-After data processing, the mosquito pool data contained a total of `r dx_mosq_nrow_2clean` rows, containing data from years: `r human_exists_yr_list`. Overall during this timeframe, a total of `r length(dx_mosq_counties)` counties reported pool data. 
+After data processing, the mosquito pool data contained a total of `r dx_mosq_nrow_2clean` rows, containing data from years: `r human_exists_yr_list`. Overall during this time frame, a total of `r length(dx_mosq_counties)` counties reported pool data. 
 
 Parameters were set to include mosquito data from `r params$year_mosquito_start` through `r params$year_mosquito_end`.
 `r if(length(mosq_yrs_missing) == 0){paste0("Data from all years were found in the data file.")}`
 `r if(length(mosq_yrs_missing)>0){paste0("The following years were not found in the dataset:", mosq_yrs_missing %>% sort() %>% stringr::str_c(collapse=", "), ".")}` 
 Note that even if there were no positive pools in a given year, if there were any pools tested then the data will be useful; zero infection rates do predict low-risk years and should be used.
+
+Parameters were set to include mosquito data from day of year `r params$mosquito_doy_start` through `r params$mosquito_doy_end`. The mosquito infection rate modeling is very sensitive to early mosquito pool results, which is why a cut-off is used. Sensitivity analyses indicate that a start day of year of 140 is a reasonable cut-off for a high modeling accuracy. 
 
 Modeling was requested from `r params$year_modeling_start` through `r params$year_modeling_end`. Years without mosquito data during these years are assumed to have average mosquito infection rates. This allows us to estimate relationships with environmental data even when mosquito data are not available. There were `r length(yrs_mir_imputed)` years where mosquito infection rates were imputed. `r if(length(yrs_mir_imputed)>0){paste0("These years are: ", yrs_mir_imputed %>% sort() %>% stringr::str_c(collapse=", "), ".")}` In modeling years where sufficient mosquito data were present, the mosquito infection statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. 
 
