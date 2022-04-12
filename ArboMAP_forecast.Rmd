@@ -1585,10 +1585,15 @@ prep_mir_filler <- dplyr::mutate(prep_mir_filler,
                                                            mir_stat_ctr))
 
 # If mir_stat has been imputed, then doing exactfit
+# but ONLY if within human years data 
+# (otherwise doing an exactfit of ... 0)
+# e.g. if there is no mosquito data yet for forecast year, this is NOT what we want
 #   Add appropriate exactfit columns here
 
 yrs_mir_imputed <- prep_mir_filler %>% 
-  dplyr::filter(mir_impute == TRUE) %>% 
+  dplyr::filter(mir_impute == TRUE,
+                year_epi >= params$year_human_start &
+                  year_epi <= params$year_human_end) %>% 
   dplyr::pull(year_epi) %>% unique() %>% sort(decreasing = TRUE)
 
 #loop over these years to add a column for each year
