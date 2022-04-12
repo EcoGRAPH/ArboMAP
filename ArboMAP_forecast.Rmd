@@ -64,7 +64,7 @@ params:
     label: "Start year of weather/environmental data to use"
     value: 2000
   year_weather_end: 
-    label: "End year of weather/environmentla data to use"
+    label: "End year of weather/environmental data to use"
     value: 2018
   year_modeling_start: 
     label: "Year to start modelling (likely same year as start of human data)"
@@ -429,6 +429,8 @@ data_sf_box <- data_sf_orig %>%
                 y_len = abs(ymax - ymin))
 #TRUE if wider, to be used with dynamic sizing/page orientation #[DEV] 
 sf_wider <- data_sf_box$x_len > data_sf_box$y_len
+# apparently can't use ! in knitr headers, so making separate object for inverse
+sf_taller <- !sf_wider
 
 
 if (is.null(model_formulas)){
@@ -3719,7 +3721,7 @@ plot(p_env_var2_color)
 #rotating page if map is wider than it is tall
 cat("\\blandscape")
 ```
-```{r cond_newpage_ref_map_start, echo=FALSE, results='asis', eval=(!sf_wider)}
+```{r cond_newpage_ref_map_start, echo=FALSE, results='asis', eval=sf_taller}
 #if NOT rotating page, still want to start on a newpage
 cat("\\newpage")
 ```
