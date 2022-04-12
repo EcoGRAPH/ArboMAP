@@ -25,7 +25,7 @@ params:
     value: 140
   mosquito_doy_end: 
     label: "End of mosquito modelling period (day of year)"
-    value: 214
+    value: 366
   ## input data file locations
   file_human: 
     label: "Human data file"
