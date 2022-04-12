@@ -38,12 +38,12 @@ params:
   file_strata: 
     label: "Stratification file, leave as \"\" if no strata"
     value: !r file.path("data_strata", "example_strata_SD.csv")
-  file_district_sf: 
+  file_county_sf: 
     label: "Spatial data, either file location or command. Use \"create\" to download the census spatial data once and create a file in data_spatial folder. Use \"always_download\" to download census spatial data each time."
     value: !r file.path("data_spatial", "sd_counties.RDS")
   file_models: 
     label: "Modelling formulas file"
-    value: !r file.path("data_models", "models.txt") #!r file.path("dev", "models_tpfx.txt") 
+    value: !r file.path("data_models", "models.txt") #!r file.path("dev", "models_tpfx.txt")
     input: file
   folder_weather: 
     label: "Name of folder where weather/environmental data are located" 
@@ -207,7 +207,7 @@ NOTE: [DEV] Likely no longer functional from [V3] -->
 # mosquito_data: tbl of mosquito pool data (overrides file_mosquito)
 # stratification_data: tbl of strata (overrides file_stratification)
 # weather_data: tbl of weather data (overrides folder_weather & processing)
-# district_sf: sf object of counties/districts for state (overrides file_district_sf)
+# county_sf: sf object of counties/districts for state (overrides file_county_sf)
 # models_to_run: model formulas to run (overrides file_models)
 
 ##CACHED MODELS
@@ -400,7 +400,7 @@ if (is.null(data_strata)){
 
 if (is.null(data_sf_orig)){
   
-  if (params$file_district_sf == "create"){
+  if (params$file_county_sf == "create"){
     #if user set to "create" then we will download tigris shapefile and save for future use
     #download tigris, internet required
     data_sf_orig <- tigris::counties(state = params$state_code, cb = TRUE)
@@ -408,12 +408,12 @@ if (is.null(data_sf_orig)){
     #make folder if does not exist (if exists, just shows warning, suppressed)
     dir.create("data_spatial", showWarnings = FALSE)
     saveRDS(data_sf_orig, file.path("data_spatial", paste0(params$state_code, "_counties.RDS")))
-  } else if (params$file_district_sf == "always_download"){
+  } else if (params$file_county_sf == "always_download"){
     #if "always_download" then we will download tigris shapefile each time (no save), internet required
     data_sf_orig <- tigris::counties(state = params$state_code, cb = TRUE)
   } else {
     #read in file from params
-    data_sf_orig <- readRDS(params$file_district_sf)
+    data_sf_orig <- readRDS(params$file_county_sf)
   }
 }#end is.null
 
@@ -481,7 +481,7 @@ dx_env_nrow_0load <- nrow(data_env_raw) #note PRE de-duplication
 
 #ID fields:
 # If FIPS field is in all, will use fips (FULL 5 character version)
-# Else use original district/county name matching
+# Else use original county/district name matching
 # Accepted field names here, there will be preferred, 
 # but this gives some flexibility 
 # Processing happens after read in, will create "arbo_ID" used afterwards
@@ -489,7 +489,7 @@ dx_env_nrow_0load <- nrow(data_env_raw) #note PRE de-duplication
 # Each list in DESCENDING order of priority
 #   will only take the field that appears first
 field_fips_accepted <- c("fips", "FIPS", "fips_code", "FIPS_CODE")
-field_names_accepted <- c("district", "county")
+field_names_accepted <- c("county", "district")
 
 
 #ID Functions
@@ -847,7 +847,7 @@ date_max_model <- make_date_yw(year = params$year_modeling_end,
 dx_human_nrow_1range <- nrow(data_human)
 
 #Clean human data
-# remove any with unmatched district info
+# remove any with unmatched county info
 #   especially necessary for doing regression modeling
 data_human <- data_human %>% 
   dplyr::filter(arbo_ID %in% unique(data_sf_orig$arbo_ID),
@@ -2457,11 +2457,11 @@ plot(p_cur_yr)
 
 ## Case estimation
 
-ArboMAP models are based on 'positive district-weeks', the probability that a district would have at least one human WNV case in a given week. These values can be used to predict a total number of **cases**, shown in the table below. 
+ArboMAP models are based on 'positive county-weeks', the probability that a county would have at least one human WNV case in a given week. These values can be used to predict a total number of **cases**, shown in the table below. 
 
 ```{r positives_to_cases, echo=FALSE, include=TRUE}
 
-#Estimates number of cases from positive district-weeks
+#Estimates number of cases from positive county-weeks
 # Splits out previous yearly summaries to model
 #   and predicts on current year
 
@@ -2587,7 +2587,7 @@ Similar to the previous forecast year chart, the average of all models is shown 
 ```{r multi_year_forecast, echo=FALSE, include=TRUE, fig.align='center', fig.width=10}
 
 #Creates a multi-year time series chart of the predicted (model average) vs. 
-#   observed positive district-weeks
+#   observed positive county-weeks
 
 multiyr <- preds_st_mod_ave %>% #tbl from beginning of current_year_forecast code block
   #update mean_any_cases to be NA during forecast year
@@ -2691,7 +2691,7 @@ After data processing, the human case data contained a total of `r dx_human_nrow
 `r if(length(human_yrs_missing) == 0){paste0("Data from all years were found in the data file.")}`
 `r if(length(human_yrs_missing) > 0){paste0("The following years were not found in the dataset:", human_yrs_missing %>% sort() %>% stringr::str_c(collapse=", "), ".", " Confirm that these years were zero-case years, and not data missing from the dataset.")}` 
 
-Over all years, the state saw a cumulative total of `r state_cases_total` human cases representing `r state_any_cases_total` positive district-weeks from a total of `r length(dx_human_counties)` counties.
+Over all years, the state saw a cumulative total of `r state_cases_total` human cases representing `r state_any_cases_total` positive county-weeks from a total of `r length(dx_human_counties)` counties.
 
 \vspace{-5truemm}
 ```{r human_map, echo=FALSE, include=TRUE, fig.align='center', out.width="70%"}
@@ -2703,11 +2703,11 @@ Over all years, the state saw a cumulative total of `r state_cases_total` human 
 # potential privacy concerns? [DMN]
 
 # map of all human cases
-h_district <- data_human %>% 
+h_county <- data_human %>% 
   #filter by human start and end years
   dplyr::filter(year_epi >= params$year_human_start &
                   year_epi <= params$year_human_end) %>% 
-  #summarize to district over all years
+  #summarize to county over all years
   dplyr::group_by(arbo_ID) %>% 
   dplyr::summarise(case_count = n(),
                    .groups = "drop") %>% 
@@ -2720,7 +2720,7 @@ h_district <- data_human %>%
 
 #create spatial with data
 sf_human <- data_sf_orig %>% 
-  dplyr::left_join(h_district, by = "arbo_ID")
+  dplyr::left_join(h_county, by = "arbo_ID")
 
 p_map_human <- ggplot() +
   geom_sf(data = sf_human,
@@ -2755,7 +2755,7 @@ plot(p_map_human)
 # h_distr_yr <- data_human %>% 
 #   #filter to year
 #   dplyr::filter(year_epi == prev_human_yr) %>% 
-#   #summarize to district
+#   #summarize to county
 #   dplyr::group_by(arbo_ID) %>% 
 #   dplyr::summarise(case_count = n(),
 #                    .groups = "drop") %>% 
@@ -2919,7 +2919,7 @@ Pool statistics for the past two weeks are also included. If pool data exists fo
 
 ## 1. Map of mosquito pools last 2 weeks
 
-#summarize by district
+#summarize by county
 data_m2wk_sum <- data_mosq_2wk %>% 
   dplyr::group_by(arbo_ID) %>% 
   dplyr::summarise(pools_count = n(),
@@ -2964,7 +2964,7 @@ data_mosq_yr2wk <- data_mosquito %>%
   #filter to forecast epiyear and up to this forecast week
   filter(year_epi == epiyear_request &
            week_epi <= epiweek_request) %>% 
-  #summarize to district
+  #summarize to county
   dplyr::group_by(arbo_ID) %>% 
   dplyr::summarise(pools_count_yr = n(),
                    pools_pos_yr = sum(wnv_result)) %>%
@@ -3417,7 +3417,7 @@ The report parameters set the two environmental predictor variables as `r params
 # [V3] used medians, so retained in [V4]
 
 # historical data - state-wide 
-#   as opposed to by district data_env_hx
+#   as opposed to by county data_env_hx
 data_env_doy <- data_env %>% 
   #summarize to state
   dplyr::group_by(doy) %>% 
