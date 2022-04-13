@@ -1,0 +1,1 @@
+if (!require("pacman")) install.packages("pacman", repos="http://cran.us.r-project.org"); library(pacman); pacman::p_load(rmarkdown, shiny); rmarkdown::render("ArboMAP_forecast.Rmd", params = "ask", output_format = "html_document"); system2("open", "ArboMAP_forecast.html")

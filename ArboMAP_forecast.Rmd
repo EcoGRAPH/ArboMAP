@@ -117,10 +117,11 @@ output:
 options(warn=-1)
 ```
 
+
 ```{r libraries, include=FALSE}
 
 #make sure pacman is installed
-if (!require("pacman")) install.packages("pacman"); library(pacman)
+if (!require("pacman")) install.packages("pacman", repos="http://cran.us.r-project.org"); library(pacman)
 
 #load packages, install if not installed
 pacman::p_load(
