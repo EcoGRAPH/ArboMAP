@@ -423,17 +423,25 @@ if (is.null(data_sf_orig)){
 }#end is.null
 
 #determine if spatial data is wider than it is tall
-data_sf_box <- data_sf_orig %>% 
+sf_box_dist <- data_sf_orig %>% 
   #get bounding box with xmin, xmax, ymin, ymax
   sf::st_bbox() %>% 
-  #convert into tibble for calcs
-  as.list() %>% 
-  tibble::as_tibble_row() %>% 
-  #calc x length and y length
-  dplyr::mutate(x_len = abs(xmax - xmin),
-                y_len = abs(ymax - ymin))
-#TRUE if wider, to be used with dynamic sizing/page orientation #[DEV] 
-sf_wider <- data_sf_box$x_len > data_sf_box$y_len
+  #convert into sfc object
+  sf::st_as_sfc() %>%
+  #to turn into points
+  sf::st_cast("POINT") %>% 
+  #calculate all distances between points
+  sf::st_distance()
+#points:
+#1: xmin, ymin,
+#2: xmax, ymin
+#3: xmax, ymax
+#4: xmin, ymax
+#5: point 1
+# Want distance xmin to xmax, so can use distance between pts 1 & 2
+# Want distance ymin to ymax, so can use distance between pts 1 & 4
+#TRUE if wider (x distance > y distance), to be used with dynamic sizing/page orientation #[DEV] 
+sf_wider <- sf_box_dist[1,2] > sf_box_dist[1,4]
 # apparently can't use ! in knitr headers, so making separate object for inverse
 sf_taller <- !sf_wider
 
@@ -3746,7 +3754,7 @@ Alphabetical list of counties:
 
 `r unique(data_sf_orig$NAME) %>% sort() %>% stringr::str_c(collapse=", ")`
 
-```{r reference_map, echo=FALSE, include=TRUE, fig.align='center', fig.width=if (sf_wider) 10 else 7.5}
+```{r reference_map, echo=FALSE, include=TRUE, fig.align='center', fig.width=if (sf_wider) 10 else 7.5, out.width='100%'}
 #Creates a reference map of county names
 
 #first, get good locations to put labels
@@ -3799,8 +3807,12 @@ p_ref <- ggplot() +
 plot(p_ref)
 ```
 
-```{r cond_rotate_ref_map_end, echo = FALSE, results = 'asis', eval = sf_wider}
+```{r cond_rotate_ref_map_end, echo = FALSE, results = 'asis', eval=sf_wider}
 cat("\\elandscape")
+```
+```{r cond_newpage_ref_map_end, echo=FALSE, results='asis', eval=sf_taller}
+#if NOT rotating page, still want to start on a newpage for params
+cat("\\newpage")
 ```
 
 
