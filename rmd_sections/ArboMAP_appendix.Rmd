@@ -398,8 +398,12 @@ for (i in seq_along(model_names)){
 
   #title section
   this_model_title <- paste0(this_model_desc, ": \"", this_model, "\"")
-  #note needs results='asis' in code block header
-  cat("#### ", this_model_title)
+  cat("#### ", this_model_title, "\n")
+  # #cat headers, but only in latex, doesn't work for html
+  # if (knitr::is_latex_output()) {
+  #   #note needs results='asis' in code block header, and \n to render properly
+  #   cat("#### ", this_model_title, "\n")
+  # }
 
   #each plot object seems to contain multiple plot objects
   # for each smooth term
@@ -480,6 +484,9 @@ for (i in seq_along(model_names)){
     }#end 2-D
     
     plot(p_this_subplot)
+    
+    #neccessary for markdown to render properly inside loop
+    cat("\n\n")
     
   }#end subplot loop
   
