@@ -38,7 +38,7 @@ for (i in seq_along(model_names)){
   # [DMN] Removed b/c often not on same page, looked off
   
   #join with spatial
-  this_sf_abs_risk <- data_sf_orig %>% 
+  this_sf_abs_risk <- data_sf %>% 
     dplyr::left_join(this_abs_risk, by = "arbo_ID")
   
   this_p_abs_risk <- ggplot2::ggplot() +
@@ -126,7 +126,7 @@ for (i in seq_along(model_names)){
   # [DMN] Removed because often not ending up on same page
   
   #this model's data joined with spatial
-  this_sf_rel_risk <- data_sf_orig %>% 
+  this_sf_rel_risk <- data_sf %>% 
     dplyr::left_join(this_rel_risk,
                      by = "arbo_ID")
   
