@@ -270,12 +270,12 @@ if (!is.null(params$dev_settings$data_weather)){
   #load from file, data_load code block
   data_weather <- NULL
 }
-if (!is.null(params$dev_settings$data_sf_orig)){
+if (!is.null(params$dev_settings$data_sf)){
   #override data
-  data_sf_orig <- params$dev_settings$data_sf_orig
+  data_sf <- params$dev_settings$data_sf
 } else {
   #load from file, data_load code block
-  data_sf_orig <- NULL
+  data_sf <- NULL
 }
 if (!is.null(params$dev_settings$model_formulas)){
   #override data
@@ -403,47 +403,24 @@ if (is.null(data_strata)){
   }
 }
 
-if (is.null(data_sf_orig)){
+if (is.null(data_sf)){
   
   if (params$file_county_sf == "create"){
     #if user set to "create" then we will download tigris shapefile and save for future use
     #download tigris, internet required
-    data_sf_orig <- tigris::counties(state = params$state_code, cb = TRUE)
+    data_sf <- tigris::counties(state = params$state_code, cb = TRUE)
     #save out for use next time
     #make folder if does not exist (if exists, just shows warning, suppressed)
     dir.create("data_spatial", showWarnings = FALSE)
-    saveRDS(data_sf_orig, file.path("data_spatial", paste0(params$state_code, "_counties.RDS")))
+    saveRDS(data_sf, file.path("data_spatial", paste0(params$state_code, "_counties.RDS")))
   } else if (params$file_county_sf == "always_download"){
     #if "always_download" then we will download tigris shapefile each time (no save), internet required
-    data_sf_orig <- tigris::counties(state = params$state_code, cb = TRUE)
+    data_sf <- tigris::counties(state = params$state_code, cb = TRUE)
   } else {
     #read in file from params
-    data_sf_orig <- readRDS(params$file_county_sf)
+    data_sf <- readRDS(params$file_county_sf)
   }
 }#end is.null
-
-#determine if spatial data is wider than it is tall
-sf_box_dist <- data_sf_orig %>% 
-  #get bounding box with xmin, xmax, ymin, ymax
-  sf::st_bbox() %>% 
-  #convert into sfc object
-  sf::st_as_sfc() %>%
-  #to turn into points
-  sf::st_cast("POINT") %>% 
-  #calculate all distances between points
-  sf::st_distance()
-#points:
-#1: xmin, ymin,
-#2: xmax, ymin
-#3: xmax, ymax
-#4: xmin, ymax
-#5: point 1
-# Want distance xmin to xmax, so can use distance between pts 1 & 2
-# Want distance ymin to ymax, so can use distance between pts 1 & 4
-#TRUE if wider (x distance > y distance), to be used with dynamic sizing/page orientation #[DEV] 
-sf_wider <- sf_box_dist[1,2] > sf_box_dist[1,4]
-# apparently can't use ! in knitr headers, so making separate object for inverse
-sf_taller <- !sf_wider
 
 
 if (is.null(model_formulas)){
@@ -486,6 +463,60 @@ data_env_raw <- env_csv_files %>%
 dx_mosq_nrow_0load <- nrow(data_mosquito)
 dx_human_nrow_0load <- nrow(data_human)
 dx_env_nrow_0load <- nrow(data_env_raw) #note PRE de-duplication
+
+
+```
+
+```{r map_dimensions_sizes, echo=FALSE, include=FALSE, cache=FALSE}
+
+#Because this can be run for any state, 
+# different states have different dimensions 
+# and some are wider than tall and vice versa
+# Calculating where reference map will be rotated, and 
+# appropriate maps sizes
+
+#determine if spatial data is wider than it is tall
+sf_box_dist <- data_sf %>% 
+  #get bounding box with xmin, xmax, ymin, ymax
+  sf::st_bbox() %>% 
+  #convert into sfc object
+  sf::st_as_sfc() %>%
+  #to turn into points
+  sf::st_cast("POINT") %>% 
+  #calculate all distances between points
+  sf::st_distance()
+#points:
+#1: xmin, ymin,
+#2: xmax, ymin
+#3: xmax, ymax
+#4: xmin, ymax
+#5: point 1
+# Want distance xmin to xmax, so can use distance between pts 1 & 2
+# Want distance ymin to ymax, so can use distance between pts 1 & 4
+#TRUE if wider (x distance > y distance), to be used with dynamic sizing/page orientation #[DEV] 
+sf_wider <- sf_box_dist[1,2] > sf_box_dist[1,4]
+# apparently can't use ! in knitr headers, so making separate object for inverse
+sf_taller <- !sf_wider
+
+#aspect ratio is height/width
+sf_asp_ratio <- sf_box_dist[1,4] / sf_box_dist[1,2]
+
+#calculate width of reference map
+# which will either be on a landscape or portrait page
+# assuming US letter size paper
+ref_map_width <- if (sf_wider){10} else {7}
+ref_map_height <- ref_map_width * sf_asp_ratio #note returns units obj not numeric
+#however, if the calc height is too tall to most likely fit on the page, recalculate
+if (sf_taller & 
+    ref_map_height > units::as_units(7)){
+  ref_map_height <- 7
+  ref_map_width <- ref_map_height / sf_asp_ratio
+} else if (sf_wider & 
+           ref_map_height > units::as_units(6)){
+  ref_map_height <- 6
+  ref_map_width <- ref_map_height / sf_asp_ratio
+}
+
 
 
 ```
@@ -574,7 +605,7 @@ standarize_fips <- function(my_tbl, fips_vector = field_fips_accepted){
   #    -> pad 0 in front to 3, and add state code
   
   #grab state code from shp, as string
-  state_code <- data_sf_orig$STATEFP %>% unique() %>% as.character()
+  state_code <- data_sf$STATEFP %>% unique() %>% as.character()
 
   #attempt to handle possible read-ins and formats of fips codes in user data
   arbo_tbl <- arbo_tbl %>% 
@@ -643,9 +674,9 @@ if (confirm_id_fields(field_fips_accepted)){
     data_strata <- standarize_fips(data_strata)
   }
   
-  #  data_sf_orig will be dealt with separately, as it is standard format
+  #  data_sf will be dealt with separately, as it is standard format
   #census shape: GEOID is 5 char FIPS code
-  data_sf_orig <- data_sf_orig %>% 
+  data_sf <- data_sf %>% 
     dplyr::mutate(arbo_ID = GEOID)
   
 } else if (confirm_id_fields(field_names_accepted)){
@@ -659,15 +690,15 @@ if (confirm_id_fields(field_fips_accepted)){
     data_strata <- standarize_names(data_strata)
   }
   
-  #  data_sf_orig will be dealt with separately, as it is standard format
+  #  data_sf will be dealt with separately, as it is standard format
   #census shape: NAME is county name
-  data_sf_orig <- data_sf_orig %>% 
+  data_sf <- data_sf %>% 
     dplyr::mutate(arbo_ID = simplifynames(NAME))
   
 }#end arbo_ID setup
 
-#Create a crosswalk from arbo_ID to 'pretty' names (data_sf_orig$NAME)
-id_crosswalk <- data_sf_orig %>% 
+#Create a crosswalk from arbo_ID to 'pretty' names (data_sf$NAME)
+id_crosswalk <- data_sf %>% 
   sf::st_drop_geometry() %>% 
   dplyr::select(NAME, arbo_ID)
 
@@ -863,7 +894,7 @@ dx_human_nrow_1range <- nrow(data_human)
 # remove any with unmatched county info
 #   especially necessary for doing regression modeling
 data_human <- data_human %>% 
-  dplyr::filter(arbo_ID %in% unique(data_sf_orig$arbo_ID),
+  dplyr::filter(arbo_ID %in% unique(data_sf$arbo_ID),
                 #remove any without a good date
                 (!is.na(date_obs)))
 
@@ -892,7 +923,7 @@ human_yrs_missing <- setdiff(params$year_human_start:params$year_human_end,
 #     I can't think of a time where this would be wanted. May be able to delete in future. [DMN]
 if (impute_human_missing_districts){
   #list of districts in that state that are missing from human data
-  districts_missing <- data_sf_orig$arbo_ID[!(data_sf_orig$arbo_ID %in% dx_human_districts)]
+  districts_missing <- data_sf$arbo_ID[!(data_sf$arbo_ID %in% dx_human_districts)]
   #create random rows to fill in one observation for each missing district
   # by pulling a sampled row from the observed human data (for a different district) 
   sample_rows <- data_human %>% 
@@ -923,7 +954,7 @@ dx_mosq_nrow_1range <- nrow(data_mosquito)
 #   Not original done in [V3] for simpleratio or AUC, 
 #   but it makes sense to be consistent here. 
 data_mosquito <- data_mosquito %>% 
-  dplyr::filter(arbo_ID %in% unique(data_sf_orig$arbo_ID),
+  dplyr::filter(arbo_ID %in% unique(data_sf$arbo_ID),
                 #remove any with NAs in wnv_result or doy
                 #both are needed in regression modeling
                 #doy (and rest of date-related fields) would be na is date_obs was na
@@ -2168,7 +2199,7 @@ preds_mod_ave_fc_wk <- preds_mod_ave %>%
   dplyr::filter(year_epi == epiyear_request & week_epi == epiweek_request)
 
 #join with spatial
-sf_abs_risk <- data_sf_orig %>% 
+sf_abs_risk <- data_sf %>% 
   dplyr::left_join(preds_mod_ave_fc_wk, by = "arbo_ID")
 
 p_abs_risk <- ggplot2::ggplot() +
@@ -2252,7 +2283,7 @@ rel_risk <- preds_mod_ave %>%
   dplyr::ungroup()
 
 #join with spatial
-sf_rel_risk <- data_sf_orig %>% 
+sf_rel_risk <- data_sf %>% 
   dplyr::left_join(rel_risk, by = "arbo_ID")
 
 #same breaks as [V3]
@@ -2730,7 +2761,7 @@ After data processing, the human case data contained a total of `r dx_human_nrow
 Over all years, the state saw a cumulative total of `r state_cases_total` human cases representing `r state_any_cases_total` positive county-weeks from a total of `r length(dx_human_counties)` counties.
 
 \vspace{-5truemm}
-```{r human_map, echo=FALSE, include=TRUE, fig.align='center', out.width="70%"}
+```{r human_map, echo=FALSE, include=TRUE, fig.align='center', out.width="80%"}
 
 #Creates a map of human cases: 
 # 1) over all years
@@ -2748,14 +2779,14 @@ h_county <- data_human %>%
   dplyr::summarise(case_count = n(),
                    .groups = "drop") %>% 
   #add in zero counties (notice RIGHT join)
-  dplyr::right_join(data_sf_orig %>% 
+  dplyr::right_join(data_sf %>% 
                       sf::st_drop_geometry(),
                     by = "arbo_ID") %>% 
   #and add zeros for case counts (would be NA from right join)
   dplyr::mutate(case_count = dplyr::if_else(is.na(case_count), 0L, case_count))
 
 #create spatial with data
-sf_human <- data_sf_orig %>% 
+sf_human <- data_sf %>% 
   dplyr::left_join(h_county, by = "arbo_ID")
 
 p_map_human <- ggplot() +
@@ -2796,14 +2827,14 @@ plot(p_map_human)
 #   dplyr::summarise(case_count = n(),
 #                    .groups = "drop") %>% 
 #   #add in zero counties (notice RIGHT join)
-#   dplyr::right_join(data_sf_orig %>% 
+#   dplyr::right_join(data_sf %>% 
 #                       sf::st_drop_geometry(),
 #                     by = "arbo_ID") %>% 
 #   #and add zeros for case counts (would be NA from right join)
 #   dplyr::mutate(case_count = dplyr::if_else(is.na(case_count), 0L, case_count))
 # 
 # #create spatial with data
-# sf_human_yr <- data_sf_orig %>% 
+# sf_human_yr <- data_sf %>% 
 #   dplyr::left_join(h_distr_yr, by = "arbo_ID")
 # 
 # p_map_human_yr <- ggplot() +
@@ -2941,7 +2972,7 @@ In the forecast year to date, there were `r dx_mosq_nrow_maxyr` pools reported f
 
 Pool statistics for the past two weeks are also included. If pool data exists for the forecast epiweek, then the two weeks will be the forecast week and the week prior. If data does not exist yet for the requested forecast epiweek, then the weeks shown will be the two epiweeks prior to the forecast week. In this report, the two weeks are `r mosq_2wks_dts_str` (epiweeks `r lubridate::epiweek(mosq_2wks_dts[1])` & `r lubridate::epiweek(mosq_2wks_dts[2])`) with mosquito data existing between `r mosq_2wks_dat_dts_str`.
 
-```{r mosquito_pools_2wks, echo=FALSE, include=TRUE, fig.align='center', out.width="75%"}
+```{r mosquito_pools_2wks, echo=FALSE, include=TRUE, fig.align='center', out.width="90%"}
 
 #Creates summaries of the input mosquito data: first 2 of 4 parts
 # 1. Map of the positive pools in last 2 weeks, differentiating between non-reporting and 0 positive pools. Note: 2 weeks asked for in multi-state meeting.
@@ -2967,14 +2998,14 @@ data_m2wk_sum <- data_mosq_2wk %>%
                 pools_pos_disp = factor(pools_pos_disp, 
                                         levels = rev(levels(pools_pos_disp)))) %>% 
   # add in non-reporting counties (for these two weeks) via RIGHT join
-  dplyr::right_join(data_sf_orig %>% 
+  dplyr::right_join(data_sf %>% 
                       sf::st_drop_geometry(),
                     by = "arbo_ID") %>% 
   dplyr::mutate(pools_pos_disp = forcats::fct_explicit_na(pools_pos_disp,
                                                           na_level = "No pools reported"))
 
 #join to sf data
-sf_mosq2wk <- data_sf_orig %>% 
+sf_mosq2wk <- data_sf %>% 
   dplyr::left_join(data_m2wk_sum, by = "arbo_ID")
 
 #map
@@ -3770,13 +3801,9 @@ cat("\\newpage")
 
 ## Reference map
 
-For `r params$state_name`, the spatial data (shapefile) contained `r unique(data_sf_orig$arbo_ID) %>% length()` counties. 
+For `r params$state_name`, the spatial data (shapefile) contained `r unique(data_sf$arbo_ID) %>% length()` counties: `r unique(data_sf$NAME) %>% sort() %>% stringr::str_c(collapse=", ")`
 
-Alphabetical list of counties: 
-
-`r unique(data_sf_orig$NAME) %>% sort() %>% stringr::str_c(collapse=", ")`
-
-```{r reference_map, echo=FALSE, include=TRUE, fig.align='center', fig.width=if (sf_wider) 10 else 7.5, out.width='100%'}
+```{r reference_map, echo=FALSE, include=TRUE, fig.align='center', fig.width=ref_map_width, fig.height=ref_map_height, out.width='100%'}
 #Creates a reference map of county names
 
 #first, get good locations to put labels
@@ -3796,7 +3823,7 @@ st_centroid_within_poly <- function(poly){
   ctrd_inpoly <- st_point_on_surface(poly)
 }
 #get the best points for labeling
-sf_point_ref <- data_sf_orig %>%
+sf_point_ref <- data_sf %>%
   mutate(lon = purrr::map_dbl(geometry, ~st_centroid_within_poly(.x) %>% 
                                 st_coordinates() %>% 
                                 .[ , "X"]),
@@ -3806,7 +3833,7 @@ sf_point_ref <- data_sf_orig %>%
 
 #map with labels
 p_ref <- ggplot() +
-  geom_sf(data = data_sf_orig,
+  geom_sf(data = data_sf,
           #so each has a different color
           aes(fill = arbo_ID),
           color = "gray50",
@@ -3816,15 +3843,16 @@ p_ref <- ggplot() +
                            aes(x = lon, 
                                y = lat,
                                label = NAME),
+                           # text size
+                           size = 3, 
                            #keep text closer to centroids
                            box.padding = 0.01, 
                            point.padding = 0) +
   #better colors
   viridis::scale_fill_viridis(alpha = 0.25, option = "turbo", begin = 0.1, end = 0.9, discrete = TRUE) +
-  theme_arbo_map +
-  #attempt to make as large as possible
-  scale_x_continuous(expand = c(0,0)) +
-  scale_y_continuous(expand = c(0,0)) 
+  theme_arbo_map 
+  # #attempt to make as large as possible
+  # scale_x_continuous(expand = c(0,0))
 
 plot(p_ref)
 ```
@@ -3864,7 +3892,7 @@ if (!is.null(params_dev$data_human)){params_dev$data_human <-"Override data give
 if (!is.null(params_dev$data_mosquito)){params_dev$data_mosquito <-"Override data given"}
 if (!is.null(params_dev$data_strata)){params_dev$data_strata <-"Override data given"}
 if (!is.null(params_dev$data_weather)){params_dev$data_weather <-"Override data given"}
-if (!is.null(params_dev$data_sf_orig)){params_dev$data_sf_orig <-"Override data given"}
+if (!is.null(params_dev$data_sf)){params_dev$data_sf <-"Override data given"}
 if (!is.null(params_dev$model_formulas)){params_dev$model_formulas <-"Override data given"}
 if (!is.null(params_dev$models_cached)){params_dev$models_cached <-"Override data given"}
 
