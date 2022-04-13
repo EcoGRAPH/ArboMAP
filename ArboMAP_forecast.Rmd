@@ -2099,6 +2099,8 @@ theme_arbo_chart <- theme_bw() +
     axis.text = element_text(size = 10)
   )
 
+#na color for risk maps
+color_risk_na <- "gray50"
 
 #Named list of short model descriptions / better names
 # includes large set of potential names, less with be used in the actual reports most likely
@@ -2171,16 +2173,27 @@ sf_abs_risk <- data_sf_orig %>%
 
 p_abs_risk <- ggplot2::ggplot() +
   ggplot2::geom_sf(data = sf_abs_risk,
-                   aes(fill = pred_ave)) +
-  viridis::scale_fill_viridis("", #"Risk\n", #\n for extra vertical space
+                   aes(fill = pred_ave,
+                       #fake alpha to get NA legend entry
+                       alpha = "Not able to model")) +
+  viridis::scale_fill_viridis("", 
                               #limits always 0 - 1
                               limits = c(0, 1),
                               breaks = c(0, 1),
                               labels = c("0: Less likely\nto report any cases", 
-                                         "1: More likely\nto report at least one case")) +
+                                         "1: More likely\nto report at least one case"),
+                              na.value = color_risk_na) +
+  #fake scale for NA legend entry
+  scale_alpha_manual("", values = 1) +
   ggtitle("Absolute risk in forecast week") +
   theme_arbo_map +
-  theme(plot.title = element_text(size = 11))
+  theme(plot.title = element_text(size = 11)) +
+  #override legend for alpha to get nice
+  guides(alpha = guide_legend("", override.aes = list(fill = color_risk_na),
+                              #reorder legends for that color ramp is first
+                              order = 2)) +
+  guides(fill = guide_colorbar(order = 1))
+
 
 plot(p_abs_risk)
 
@@ -2265,7 +2278,9 @@ This **relative risk** map may be used in conjunction with the **absolute risk**
 p_rel_risk <- ggplot2::ggplot() +
   #by rank percentile
   ggplot2::geom_sf(data = sf_rel_risk,
-                   aes(fill = rank_perc)) +
+                   aes(fill = rank_perc,
+                       #fake alpha to get NA legend entry
+                       alpha = "Not able to model")) +
   viridis::scale_fill_viridis("", #"Risk\n", #\n for extra vertical space
                               #limits always 0 - 100
                               limits = c(0, 100),
@@ -2275,12 +2290,19 @@ p_rel_risk <- ggplot2::ggplot() +
                                          paste(lower_risk, ": Lower than average risk"),
                                          "50: Average risk",
                                          paste(higher_risk, ": Higher than average risk"),
-                                         "100")) +
+                                         "100"),
+                              na.value = color_risk_na) +
+  #fake scale for NA legend entry
+  scale_alpha_manual("", values = 1) +
   ggtitle("Risk in forecast week relative to the same epiweek in previous years") +
   theme_arbo_map +
-  theme(plot.title = element_text(size = 11))
-
-
+  theme(plot.title = element_text(size = 11)) +
+  #override legend for alpha to get nice
+  guides(alpha = guide_legend("", override.aes = list(fill = color_risk_na),
+                              #reorder legends for that color ramp is first
+                              order = 2)) +
+  guides(fill = guide_colorbar(order = 1))
+  
 plot(p_rel_risk)
 
 #Table of counties with higher than average risk

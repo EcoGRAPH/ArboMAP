@@ -43,16 +43,26 @@ for (i in seq_along(model_names)){
   
   this_p_abs_risk <- ggplot2::ggplot() +
     ggplot2::geom_sf(data = this_sf_abs_risk,
-                     aes(fill = pred)) +
+                     aes(fill = pred,
+                         #fake alpha to get NA legend entry
+                         alpha = "Not able to model")) +
     viridis::scale_fill_viridis("", 
                                 #limits always 0 - 1
                                 limits = c(0, 1),
                                 breaks = c(0, 1),
                                 labels = c("0: Less likely\nto report any cases", 
-                                           "1: More likely\nto report at least one case")) +
+                                           "1: More likely\nto report at least one case"),
+                              na.value = color_risk_na) +
+    #fake scale for NA legend entry
+    scale_alpha_manual("", values = 1) +
     ggtitle("Absolute risk in forecast week",
             subtitle = this_model_title) +
-    theme_arbo_map
+    theme_arbo_map +
+    #override legend for alpha to get correct
+    guides(alpha = guide_legend("", override.aes = list(fill = color_risk_na),
+                                #reorder legends for that color ramp is first
+                                order = 2)) +
+    guides(fill = guide_colorbar(order = 1))
   
   plot(this_p_abs_risk)
 }
@@ -124,7 +134,9 @@ for (i in seq_along(model_names)){
   this_p_rel_risk <- ggplot2::ggplot() +
     #by rank percentile
     ggplot2::geom_sf(data = this_sf_rel_risk,
-                     aes(fill = rank_perc)) +
+                     aes(fill = rank_perc,
+                       #fake alpha to get NA legend entry
+                       alpha = "Not able to model")) +
     viridis::scale_fill_viridis("", 
                                 #limits always 0 - 100
                                 limits = c(0, 100),
@@ -134,10 +146,18 @@ for (i in seq_along(model_names)){
                                            paste(lower_risk, ": Lower than average risk"),
                                            "50: Average risk",
                                            paste(higher_risk, ": Higher than average risk"),
-                                           "100")) +
+                                           "100"),
+                                na.value = color_risk_na) +
+    #fake scale for NA legend entry
+    scale_alpha_manual("", values = 1) +
     ggtitle("Risk in forecast week relative to the same epiweek in previous years",
             subtitle = this_model_title) +
-    theme_arbo_map
+    theme_arbo_map +
+    #override legend for alpha to get correct
+    guides(alpha = guide_legend("", override.aes = list(fill = color_risk_na),
+                                #reorder legends for that color ramp is first
+                                order = 2)) +
+    guides(fill = guide_colorbar(order = 1))
   
   plot(this_p_rel_risk)
   
