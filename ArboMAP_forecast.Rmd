@@ -3189,6 +3189,8 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
     scale_shape_manual("",
                        values = c("observed" = 16), #med round circle
                        labels = c("observed" = "Binned observations\nfor forecast year")) +
+    ylab("Pool positive rate") +
+    xlab("Day of year") +
     #changing order of legend
     guides(
       color = guide_legend(order = 1),
