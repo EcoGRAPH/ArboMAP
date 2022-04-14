@@ -1697,9 +1697,10 @@ if (dev_write_output){
 
 #sequence of dates for env data matrix 
 # Start date is lag length days before the start of the requested modeling start year
-env_mod_date_start <- as.Date(paste0(params$year_modeling_start, "-01-01"), 
-                                     #lag length days before modeling start
-                                    format = "%Y-%m-%d") - lubridate::days(params$lag_length)
+env_mod_yr_jan1 <- as.Date(paste0(params$year_modeling_start, "-01-01"), 
+                           format = "%Y-%m-%d")
+#lag length days before modeling start
+env_mod_date_start <- env_mod_yr_jan1 - lubridate::days(params$lag_length)
 env_dates <- seq.Date(from = env_mod_date_start,
                       to = as.Date(paste0(params$year_modeling_end, "-12-31"), 
                                    format = "%Y-%m-%d"),
@@ -3494,7 +3495,7 @@ Parameters were set to include weather data from `r params$year_weather_start` t
 <!-- `r if(length(env_yrs_missing) == 0){paste0("Data from all years were found in the data file. ")}` -->
 <!-- `r if(length(env_yrs_missing) > 0){paste0("The following years were not found in the dataset:", env_yrs_missing %>% sort() %>% stringr::str_c(collapse=", "), ". ")}` -->
 `r if(length(env_missing_dates) == 0){paste0("All necessary weather data were found in the data file. ")}`
-`r if(length(env_missing_dates) > 0){paste0("ArboMAP uses weather data from ", env_mod_date_start, ", which is the environmental lag length days (", params$lag_length, ") prior to January 1 of the modeling start year (", params$year_modeling_start, ") through the forecast date. The following days were not found in the dataset from : ", env_missing_dates %>% sort() %>% stringr::str_c(collapse=", "), ". Missing dates, e.g. recent dates that are not yet available are filled in with the historical mean for that day of year.")}`
+`r if(length(env_missing_dates) > 0){paste0("ArboMAP used weather data from ", env_mod_date_start, ", which is the environmental lag length days (", params$lag_length, ") prior to the start of the modeling period, ", env_mod_yr_jan1, ", through the forecast date. The following days were not found in the dataset: ", env_missing_dates %>% sort() %>% stringr::str_c(collapse=", "), ". Missing dates, e.g. recent dates that are not yet available are filled in with the historical mean for that day of year.")}`
 
 
 The report parameters set the two environmental predictor variables as `r params$predictor_var1` and `r params$predictor_var2`. The following two graphs show the median state-wide observed weather variables for the forecast year, compared to the historical median. Observed values **greater** than the historical are drawn in `r colorize("red", "red")` and observed values **less** than the historical are drawn in `r colorize("blue", "blue")`. Values that cross the historical are in purple. The gray shaded region is a ribbon showing the historical range (min to max). `r if(params$create_appendix){"The appendix will show the anomaly graphs (same timeseries, but the weather variable has been anomalized)."}`
