@@ -508,13 +508,15 @@ sf_asp_ratio <- sf_box_dist[1,4] / sf_box_dist[1,2]
 ref_map_width <- if (sf_wider){10} else {7}
 ref_map_height <- ref_map_width * sf_asp_ratio #note returns units obj not numeric
 #however, if the calc height is too tall to most likely fit on the page, recalculate
+max_height_portrait <-  7
+max_height_landscape <- 5
 if (sf_taller & 
-    ref_map_height > units::as_units(7)){
-  ref_map_height <- 7
+    ref_map_height > units::as_units(max_height_portrait)){
+  ref_map_height <- max_height_portrait
   ref_map_width <- ref_map_height / sf_asp_ratio
 } else if (sf_wider & 
-           ref_map_height > units::as_units(6)){
-  ref_map_height <- 6
+           ref_map_height > units::as_units(max_height_landscape)){
+  ref_map_height <- max_height_landscape
   ref_map_width <- ref_map_height / sf_asp_ratio
 }
 
