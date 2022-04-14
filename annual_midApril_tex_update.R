@@ -1,0 +1,1 @@
+if (!require("tinytex")) {install.packages("tinytex", repos="http://cran.us.r-project.org"); tinytex::install_tinytex()} else {tinytex::reinstall_tinytex()}
