@@ -1387,13 +1387,13 @@ data_env_hx <- data_env %>%
 
 ```
 
-```{r data_env_anomalization, echo=FALSE, include=FALSE, cache=FALSE} 
+```{r data_env_anomalization, echo=FALSE, cache=FALSE, include=FALSE}
 
 # This section calculates:
 # bam model for anomalization
 #   generating predicted values 
 #   anomaly: observed - predicted
-#   Also fills in missing env data in known period with predicted values
+#   Also fills in EXPLICIT missing env data in known period with predicted values
 # adds anomalized historical values to data_env_hx
 
 # Params format reminder/example: 
@@ -1695,13 +1695,11 @@ if (dev_write_output){
 # within known env period, the missing have been replaced 
 #   with bam predictions during anomalization 
 
-#sequence of dates for env data matrix [V3]
-# from Jan 1 of the year BEFORE the start of the requested modeling start year
-# through the end of the requested modeling end year
-#   Note: Creating daily rows here, but will join on weekly date below with data_combined_prep. 
-#         I think we are creating more data than we need to and then discarding the rest? [DMN]
-env_dates <- seq.Date(from = as.Date(paste0(params$year_modeling_start - 1, "-01-01"), 
-                                     format = "%Y-%m-%d"),
+#sequence of dates for env data matrix 
+# Start date is lag length days before the start of the requested modeling start year
+env_dates <- seq.Date(from = as.Date(paste0(params$year_modeling_start, "-01-01"), 
+                                     #lag length days before modeling start
+                                    format = "%Y-%m-%d") - lubridate::days(params$lag_length),
                       to = as.Date(paste0(params$year_modeling_end, "-12-31"), 
                                    format = "%Y-%m-%d"),
                       by = 1)
@@ -1709,25 +1707,39 @@ env_dates <- seq.Date(from = as.Date(paste0(params$year_modeling_start - 1, "-01
 prep_env_filler <- tidyr::expand_grid(arbo_ID = data_env %>% 
                                         dplyr::pull(arbo_ID) %>% 
                                         unique() %>% sort(),
-                                      date_obs = env_dates)
+                                      date_obs = env_dates) %>% 
+  dplyr::mutate(doy = as.numeric(format(date_obs, "%j")))
 
 
 # create a new env dataset to use for modelling
 #     could overwrite old one like [V3], but creating new since removing data [DMN]
-# subset of env data to add to
-data_env_mod <- data_env %>% 
-  # select only variables we are going to use
-  #using contains gets both unanomalized and anomalized columns
-  dplyr::select(arbo_ID,
-                date_obs,
-                doy,
-                tidyselect::contains(c(params$predictor_var1, 
-                                       params$predictor_var2))) %>%
-  #add rows from filler
-  dplyr::left_join(prep_env_filler, by = c("arbo_ID", "date_obs")) %>% 
+data_env_mod <- prep_env_filler %>% 
+  #get data that exists
+  dplyr::left_join(data_env %>% 
+                     # select only variables we are going to use
+                     #using contains gets both unanomalized and anomalized columns
+                     dplyr::select(arbo_ID,
+                                   date_obs,
+                                   tidyselect::contains(c(params$predictor_var1, 
+                                                          params$predictor_var2))),
+                   by = c("arbo_ID", "date_obs")) %>% 
   #get historical values from hx table
-  dplyr::left_join(data_env_hx, by = c("arbo_ID", "doy")) %>% 
-  #replace all missing with reasonable values
+  dplyr::left_join(data_env_hx, by = c("arbo_ID", "doy")) 
+
+#check for missing days to report out
+env_missing_dates <- data_env_mod %>% 
+  #if any column is NA (we created the dataframe with all dates, so this is checking the variable columns)
+  dplyr::filter(dplyr::if_any(tidyr::everything(), is.na)) %>% 
+  #get unique dates
+  dplyr::select(date_obs) %>% 
+  dplyr::distinct() %>% 
+  #but only want dates up to the day before the date of forecast
+  dplyr::filter(date_obs < date_request) %>% 
+  #pull for vector
+  dplyr::pull() %>% sort()
+
+#replace any missing with reasonable values
+data_env_mod <- data_env_mod %>% 
   #   raw values get mean of doy
   #   anom values get 0 (no anomaly)
   #creating HARD CODED field names for bam later
@@ -3476,8 +3488,11 @@ plot(p_mosq_rel_risk)
 After processing, weather data existed from `r min(data_env$date_obs, na.rm = TRUE)` through `r max(data_env$date_obs, na.rm = TRUE)` for `r data_env$arbo_ID %>% unique() %>% length()` counties. Environmental data are read and collated from all files in the base `data_weather` folder and if there are duplicate data entries for any particular day, the value from the latest file is used (i.e. the latest updated value). 
 
 Parameters were set to include weather data from `r params$year_weather_start` through `r params$year_weather_end`.
-`r if(length(env_yrs_missing) == 0){paste0("Data from all years were found in the data file.")}`
-`r if(length(env_yrs_missing) > 0){paste0("The following years were not found in the dataset:", env_yrs_missing %>% sort() %>% stringr::str_c(collapse=", "), ".")}`
+<!-- `r if(length(env_yrs_missing) == 0){paste0("Data from all years were found in the data file. ")}` -->
+<!-- `r if(length(env_yrs_missing) > 0){paste0("The following years were not found in the dataset:", env_yrs_missing %>% sort() %>% stringr::str_c(collapse=", "), ". ")}` -->
+`r if(length(env_missing_dates) == 0){paste0("Data from all days in all years were found in the data file. ")}`
+`r if(length(env_missing_dates) > 0){paste0("The following days were not found in the dataset:", env_missing_dates %>% sort() %>% stringr::str_c(collapse=", "), ".")}`
+
 
 The report parameters set the two environmental predictor variables as `r params$predictor_var1` and `r params$predictor_var2`. The following two graphs show the median state-wide observed weather variables for the forecast year, compared to the historical median. Observed values **greater** than the historical are drawn in `r colorize("red", "red")` and observed values **less** than the historical are drawn in `r colorize("blue", "blue")`. Values that cross the historical are in purple. The gray shaded region is a ribbon showing the historical range (min to max). `r if(params$create_appendix){"The appendix will show the anomaly graphs (same timeseries, but the weather variable has been anomalized)."}`
 
