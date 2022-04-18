@@ -2364,7 +2364,7 @@ if (rel_risk %>%
                  dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
                  dplyr::select(NAME, rank_perc),
                col.names = c("County", "Relative risk percentile"),
-               digits = 2,
+               digits = 0,
                align = c("l", "c"),
                caption = "Counties with higher than average risk")
 }
