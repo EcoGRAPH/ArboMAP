@@ -1597,7 +1597,7 @@ if (mosquito_model_clean %in% mosq_nonstrat_models){
     #join with mosq_mir to get 'mir_stat_'s
     dplyr::left_join(mosq_mir, by = c("year_epi")) %>% 
     #add flag if MIR summary stat needs to be imputed (i.e. if that combination is missing)
-    # AND if the year in within the human year range 
+    # AND if the year in within the modeling year range 
     dplyr::mutate(mir_impute = (is.na(mir_stat_ctr) & 
                                   year_epi >= params$year_modeling_start &
                                   year_epi <= params$year_modeling_end))
