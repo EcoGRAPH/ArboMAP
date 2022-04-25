@@ -3563,146 +3563,153 @@ var1_med_name <- paste0(params$predictor_var1, "_med")
 var2_med_name <- paste0(params$predictor_var2, "_med")
 
 
-data_env_colors <- data_env_fc_yr %>% 
-  dplyr::left_join(data_env_doy %>% 
-                     dplyr::select(doy, ends_with("_med")),
-                   by = "doy") %>% 
-  #line segments are drawn x to xend, y to yend
-  # going to do day by day: x segments are doy to doy+1
-  #   y segments are value + lead(1) value
-  dplyr::mutate(var_x = doy, 
-                var_xend = dplyr::lead(var_x, n = 1),
-                var1_y = !!rlang::sym(paste0(params$predictor_var1, "_med_yr")),
-                var1_yend = dplyr::lead(var1_y, n = 1),
-                var2_y =  !!rlang::sym(paste0(params$predictor_var2, "_med_yr")),
-                var2_yend = dplyr::lead(var2_y, n = 1)) %>% 
-  #now flag if y - yend is above, below, or crosses historical median
-  dplyr::mutate(
-    #var1
-    color_var1 = case_when(
-      var1_y >= !!rlang::sym(var1_med_name) & 
-        var1_yend >= !!rlang::sym(var1_med_name) ~ "Higher",
-      var1_y >= !!rlang::sym(var1_med_name) & 
-        var1_yend <= !!rlang::sym(var1_med_name) ~ "Crosses",
-      var1_y <= !!rlang::sym(var1_med_name) & 
-        var1_yend >= !!rlang::sym(var1_med_name) ~ "Crosses",
-      var1_y <= !!rlang::sym(var1_med_name) & 
-        var1_yend <= !!rlang::sym(var1_med_name) ~ "Lower",
-      TRUE ~ "forgotsomething"),
-    #var2
-    color_var2 = case_when(
-      var2_y >= !!rlang::sym(var2_med_name) & 
-        var2_yend >= !!rlang::sym(var2_med_name) ~ "Higher",
-      var2_y >= !!rlang::sym(var2_med_name) & 
-        var2_yend <= !!rlang::sym(var2_med_name) ~ "Crosses",
-      var2_y <= !!rlang::sym(var2_med_name) & 
-        var2_yend >= !!rlang::sym(var2_med_name) ~ "Crosses",
-      var2_y <= !!rlang::sym(var2_med_name) & 
-        var2_yend <= !!rlang::sym(var2_med_name) ~ "Lower",
-      TRUE ~ "forgotsomething")) %>% 
-  #lead(1) does not exist for last day in environmental data, so removing improper last entry
-  dplyr::filter(!doy == max(data_env_fc_yr))
+# only plot IF there is data for the forecast year
+#  there SHOULD be, but the if will prevent the report from throwing error
+#  and failing to finish b/c of these graphs
 
+if (nrow(data_env_fc_yr) > 0){
 
-p_env_var1_color <- ggplot() + 
-  # min/max ribbon using wide data
-  geom_ribbon(data = data_env_doy, 
+  # calculate flag field for the different colors to data
+  data_env_colors <- data_env_fc_yr %>% 
+    dplyr::left_join(data_env_doy %>% 
+                       dplyr::select(doy, ends_with("_med")),
+                     by = "doy") %>% 
+    #line segments are drawn x to xend, y to yend
+    # going to do day by day: x segments are doy to doy+1
+    #   y segments are value + lead(1) value
+    dplyr::mutate(var_x = doy, 
+                  var_xend = dplyr::lead(var_x, n = 1),
+                  var1_y = !!rlang::sym(paste0(params$predictor_var1, "_med_yr")),
+                  var1_yend = dplyr::lead(var1_y, n = 1),
+                  var2_y =  !!rlang::sym(paste0(params$predictor_var2, "_med_yr")),
+                  var2_yend = dplyr::lead(var2_y, n = 1)) %>% 
+    #now flag if y - yend is above, below, or crosses historical median
+    dplyr::mutate(
+      #var1
+      color_var1 = case_when(
+        var1_y >= !!rlang::sym(var1_med_name) & 
+          var1_yend >= !!rlang::sym(var1_med_name) ~ "Higher",
+        var1_y >= !!rlang::sym(var1_med_name) & 
+          var1_yend <= !!rlang::sym(var1_med_name) ~ "Crosses",
+        var1_y <= !!rlang::sym(var1_med_name) & 
+          var1_yend >= !!rlang::sym(var1_med_name) ~ "Crosses",
+        var1_y <= !!rlang::sym(var1_med_name) & 
+          var1_yend <= !!rlang::sym(var1_med_name) ~ "Lower",
+        TRUE ~ "forgotsomething"),
+      #var2
+      color_var2 = case_when(
+        var2_y >= !!rlang::sym(var2_med_name) & 
+          var2_yend >= !!rlang::sym(var2_med_name) ~ "Higher",
+        var2_y >= !!rlang::sym(var2_med_name) & 
+          var2_yend <= !!rlang::sym(var2_med_name) ~ "Crosses",
+        var2_y <= !!rlang::sym(var2_med_name) & 
+          var2_yend >= !!rlang::sym(var2_med_name) ~ "Crosses",
+        var2_y <= !!rlang::sym(var2_med_name) & 
+          var2_yend <= !!rlang::sym(var2_med_name) ~ "Lower",
+        TRUE ~ "forgotsomething")) %>% 
+    #lead(1) does not exist for last day in environmental data, so removing improper last entry
+    dplyr::filter(!doy == max(data_env_fc_yr))
+  
+  #plots
+  p_env_var1_color <- ggplot() + 
+    # min/max ribbon using wide data
+    geom_ribbon(data = data_env_doy, 
+                aes(x = doy, 
+                    ymin = !!rlang::sym(paste0(params$predictor_var1, "_min")), 
+                    ymax = !!rlang::sym(paste0(params$predictor_var1, "_max")),
+                    fill = "minmax")) +
+    #historical median series
+    geom_line(data = data_env_colors,
               aes(x = doy, 
-                  ymin = !!rlang::sym(paste0(params$predictor_var1, "_min")), 
-                  ymax = !!rlang::sym(paste0(params$predictor_var1, "_max")),
-                  fill = "minmax")) +
-  #historical median series
-  geom_line(data = data_env_colors,
-            aes(x = doy, 
-                y = !!rlang::sym(var1_med_name),
-                color = "Historical median")) +
-  #line segment for year median with different colors
-  geom_segment(data = data_env_colors,
-               aes(x = var_x, xend = var_xend,
-                   y = var1_y, yend = var1_yend,
-                   color = color_var1),
-               size = 0.9) +
-  #vertical line at the doy of requested date #linetype inside of aes to trigger legend
-  geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
-  #scales
-  scale_fill_manual("",
-                    values = c("minmax" = "grey80"),
-                    labels = "Range over all years") +
-  scale_linetype_manual("",
-                        values = c("forecast_doy" = "dashed"),
-                        labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
-  scale_color_manual("Year median compared\nto historical median", 
-                     values = env_comp_colors) +
-  xlab("Day of the year") + 
-  ylab(params$predictor_var1) +
-  ggtitle(paste("Environmental data for", params$predictor_var1, 
-                "in", max(data_env$year_epi, na.rm=TRUE))) +
-  theme_arbo_chart +
-  theme(legend.position="bottom", 
-        #legend gets cut off so multiple rows across various aesthetics
-        legend.box="horizontal", 
-        legend.direction = "vertical",
-        #compact
-        legend.margin = margin(),
-        legend.key.height = unit(0.15, 'in')) +
-  #changing order of legend
-  guides(
-    color = guide_legend(order = 1),
-    linetype = guide_legend(order = 3),
-    fill = guide_legend(order = 2))
-
-p_env_var2_color <- ggplot() + 
-  # min/max ribbon using wide data
-  geom_ribbon(data = data_env_doy, 
+                  y = !!rlang::sym(var1_med_name),
+                  color = "Historical median")) +
+    #line segment for year median with different colors
+    geom_segment(data = data_env_colors,
+                 aes(x = var_x, xend = var_xend,
+                     y = var1_y, yend = var1_yend,
+                     color = color_var1),
+                 size = 0.9) +
+    #vertical line at the doy of requested date #linetype inside of aes to trigger legend
+    geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
+    #scales
+    scale_fill_manual("",
+                      values = c("minmax" = "grey80"),
+                      labels = "Range over all years") +
+    scale_linetype_manual("",
+                          values = c("forecast_doy" = "dashed"),
+                          labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
+    scale_color_manual("Year median compared\nto historical median", 
+                       values = env_comp_colors) +
+    xlab("Day of the year") + 
+    ylab(params$predictor_var1) +
+    ggtitle(paste("Environmental data for", params$predictor_var1, 
+                  "in", max(data_env$year_epi, na.rm=TRUE))) +
+    theme_arbo_chart +
+    theme(legend.position="bottom", 
+          #legend gets cut off so multiple rows across various aesthetics
+          legend.box="horizontal", 
+          legend.direction = "vertical",
+          #compact
+          legend.margin = margin(),
+          legend.key.height = unit(0.15, 'in')) +
+    #changing order of legend
+    guides(
+      color = guide_legend(order = 1),
+      linetype = guide_legend(order = 3),
+      fill = guide_legend(order = 2))
+  
+  p_env_var2_color <- ggplot() + 
+    # min/max ribbon using wide data
+    geom_ribbon(data = data_env_doy, 
+                aes(x = doy, 
+                    ymin = !!rlang::sym(paste0(params$predictor_var2, "_min")), 
+                    ymax = !!rlang::sym(paste0(params$predictor_var2, "_max")),
+                    fill = "minmax")) +
+    #historical median series
+    geom_line(data = data_env_colors,
               aes(x = doy, 
-                  ymin = !!rlang::sym(paste0(params$predictor_var2, "_min")), 
-                  ymax = !!rlang::sym(paste0(params$predictor_var2, "_max")),
-                  fill = "minmax")) +
-  #historical median series
-  geom_line(data = data_env_colors,
-            aes(x = doy, 
-                y = !!rlang::sym(var2_med_name),
-                color = "Historical median")) +
-  #line segment for year median with different colors
-  geom_segment(data = data_env_colors,
-               aes(x = var_x, xend = var_xend,
-                   y = var2_y, yend = var2_yend,
-                   color = color_var2),
-               size = 0.9) +
-  #vertical line at the doy of requested date #linetype inside of aes to trigger legend
-  geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
-  #scales
-  scale_fill_manual("",
-                    values = c("minmax" = "grey80"),
-                    labels = "Range over all years") +
-  scale_linetype_manual("",
-                        values = c("forecast_doy" = "dashed"),
-                        labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
-  scale_color_manual("Year median compared\nto historical median", 
-                     values = env_comp_colors) +
-  xlab("Day of the year") + 
-  ylab(params$predictor_var2) +
-  ggtitle(paste("Environmental data for", params$predictor_var2, 
-                "in", max(data_env$year_epi, na.rm=TRUE))) +
-  theme_arbo_chart +
-  theme(legend.position="bottom", 
-        #legend gets cut off so multiple rows across various aesthetics
-        legend.box="horizontal", 
-        legend.direction = "vertical",
-        #compact
-        legend.margin = margin(),
-        legend.key.height = unit(0.15, 'in')) +
-  #changing order of legend
-  guides(
-    color = guide_legend(order = 1),
-    linetype = guide_legend(order = 3),
-    fill = guide_legend(order = 2))
+                  y = !!rlang::sym(var2_med_name),
+                  color = "Historical median")) +
+    #line segment for year median with different colors
+    geom_segment(data = data_env_colors,
+                 aes(x = var_x, xend = var_xend,
+                     y = var2_y, yend = var2_yend,
+                     color = color_var2),
+                 size = 0.9) +
+    #vertical line at the doy of requested date #linetype inside of aes to trigger legend
+    geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
+    #scales
+    scale_fill_manual("",
+                      values = c("minmax" = "grey80"),
+                      labels = "Range over all years") +
+    scale_linetype_manual("",
+                          values = c("forecast_doy" = "dashed"),
+                          labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
+    scale_color_manual("Year median compared\nto historical median", 
+                       values = env_comp_colors) +
+    xlab("Day of the year") + 
+    ylab(params$predictor_var2) +
+    ggtitle(paste("Environmental data for", params$predictor_var2, 
+                  "in", max(data_env$year_epi, na.rm=TRUE))) +
+    theme_arbo_chart +
+    theme(legend.position="bottom", 
+          #legend gets cut off so multiple rows across various aesthetics
+          legend.box="horizontal", 
+          legend.direction = "vertical",
+          #compact
+          legend.margin = margin(),
+          legend.key.height = unit(0.15, 'in')) +
+    #changing order of legend
+    guides(
+      color = guide_legend(order = 1),
+      linetype = guide_legend(order = 3),
+      fill = guide_legend(order = 2))
+  
+  plot(p_env_var1_color)
+  plot(p_env_var2_color)
+  
+} #end if data_env_fc_yr has data
 
-plot(p_env_var1_color)
-plot(p_env_var2_color)
-
-
-# Consider single legend for both? [DEV] See ggpubr::ggarrange(common.legend=TRUE)
 
 # # [DEV] Original style graphs
 # #some manipulation to get all line series in one long dataset for ggplot2
