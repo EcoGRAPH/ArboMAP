@@ -2373,7 +2373,9 @@ if (rel_risk %>%
 
 ## Forecast year
 
-The following graph is the predicted epicurve of the forecast year: the average of all models is shown as a `r colorize("dark red", "darkred")` line, with the range of all models in the shaded ribbon. Predictions for the future (beyond the requested forecast date) are shown as a dotted line. The historical **observed** proportion of counties positive, averaged over all known years, is also shown, here as a `r colorize("dark blue", "darkblue")` line. This allows a comparison between the timing and height of the predicted peak of cases as compared to averaged historical years. In the averaged year, `r cases_perc_obs_hx`% of the yearly cases would have been observed by this forecast week.
+The following graph is the predicted epicurve of the forecast year: the average of all models is shown as a `r colorize("dark red", "darkred")` line, with the range of all models in the shaded ribbon. Forecasts are shown as a dotted line and the predicted values from before the current forecast week ('backcast') are shown as a solid line. `r if(params$create_appendix){"The appendix will have a version of this chart with a series for each model, rather than an average."}`
+
+The historical **observed** proportion of counties positive, averaged over all known years, is also shown, here as a `r colorize("dark blue", "darkblue")` line. This allows a comparison between the timing and height of the predicted peak of cases as compared to averaged historical years. In the averaged year, `r cases_perc_obs_hx`% of the yearly cases would have been observed by this forecast week.
 
 
 ```{r current_year_forecast, echo=FALSE, include=TRUE, fig.align='center', fig.width=6, fig.height=3.1}
@@ -2493,15 +2495,15 @@ p_cur_yr <- ggplot2::ggplot(data = data_cur_yr) +
                                    "pred_mod_ave_pre" = "solid",
                                    "pred_mod_ave_post" = 22), #22 is tight dashed
                         labels = c("pp_mean" = "Historical\naverage proportion", 
-                                   "pred_mod_ave_pre" = "Past forecast",
-                                   "pred_mod_ave_post" = "Future forecast")) +
+                                   "pred_mod_ave_pre" = "Backcast",
+                                   "pred_mod_ave_post" = "Forecast")) +
   scale_color_manual("",
                      values = c("pp_mean" = "darkblue", 
                                 "pred_mod_ave_pre" = "darkred",
                                 "pred_mod_ave_post" = "darkred"), 
                      labels = c("pp_mean" = "Historical\naverage proportion", 
-                                "pred_mod_ave_pre" = "Past forecast",
-                                "pred_mod_ave_post" = "Future forecast")) +
+                                "pred_mod_ave_pre" = "Backcast",
+                                "pred_mod_ave_post" = "Forecast")) +
   #fill and alpha match to keep ribbon in one legend
   scale_fill_manual("", 
                     values = c("model_range" = "darkred"),
@@ -2666,7 +2668,7 @@ knitr::kable(model_auc %>%
 
 The following chart shows the model results for the entire modeled period from `r max(human_exists_yr_min, params$year_modeling_start)` through `r params$year_modeling_end`. Years before the forecast year were used for fitting the model. 
 
-Similar to the previous forecast year chart, the average of all models is shown as a `r colorize("dark red", "darkred")` line, with the range of all models as the shaded ribbon. Predictions for the future (beyond the requested forecast date) are shown as a dotted line. The historical **observed** values are shown in black. 
+Similar to the previous forecast year chart, the average of all models is shown as a `r colorize("dark red", "darkred")` line, with the range of all models as the shaded ribbon. Forecasts are shown as a dotted line and predicted values from before the current forecast week ('backcast') are shown as a solid line. The historical **observed** values are shown in black. `r if(params$create_appendix){"The appendix will have a version of this chart with a series for each model, rather than an average."}`
 
 ```{r multi_year_forecast, echo=FALSE, include=TRUE, fig.align='center', fig.width=10}
 
@@ -2724,15 +2726,15 @@ p_multiyr <- ggplot() +
                                    "pred_mod_ave_pre" = "solid",
                                    "pred_mod_ave_post" = 22), #22 is tight dashed
                         labels = c("mean_any_cases" = "Observed", 
-                                   "pred_mod_ave_pre" = "Past forecast",
-                                   "pred_mod_ave_post" = "Future forecast")) +
+                                   "pred_mod_ave_pre" = "Backcast",
+                                   "pred_mod_ave_post" = "Forecast")) +
   scale_color_manual("",
                      values = c("mean_any_cases" = "black", 
                                 "pred_mod_ave_pre" = "darkred",
                                 "pred_mod_ave_post" = "darkred"), 
                      labels = c("mean_any_cases" = "Observed",  
-                                "pred_mod_ave_pre" = "Past forecast",
-                                "pred_mod_ave_post" = "Future forecast")) +
+                                "pred_mod_ave_pre" = "Backcast",
+                                "pred_mod_ave_post" = "Forecast")) +
   #fill and alpha match to keep ribbon in one legend
   scale_fill_manual("", 
                     values = c("model_range" = "darkred"),
@@ -2896,6 +2898,7 @@ p_epiheat <- ggplot2::ggplot() +
                               direction = -1,
                               na.value = "gray80",
                               discrete = FALSE) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 8)) +
   xlab("Epiweek") +
   ylab("") +
   theme_arbo_chart
@@ -3497,8 +3500,7 @@ Parameters were set to include weather data from `r params$year_weather_start` t
 `r if(length(env_missing_dates) == 0){paste0("All necessary weather data were found in the data file. ")}`
 `r if(length(env_missing_dates) > 0){paste0("ArboMAP used weather data from ", env_mod_date_start, ", which is the environmental lag length days (", params$lag_length, ") prior to the start of the modeling period, ", env_mod_yr_jan1, ", through the forecast date. The following days were not found in the dataset: ", env_missing_dates %>% sort() %>% stringr::str_c(collapse=", "), ". Missing dates, e.g. recent dates that are not yet available are filled in with the historical mean for that day of year.")}`
 
-
-The report parameters set the two environmental predictor variables as `r params$predictor_var1` and `r params$predictor_var2`. The following two graphs show the median state-wide observed weather variables for the forecast year, compared to the historical median. Observed values **greater** than the historical are drawn in `r colorize("red", "red")` and observed values **less** than the historical are drawn in `r colorize("blue", "blue")`. Values that cross the historical are in purple. The gray shaded region is a ribbon showing the historical range (min to max). `r if(params$create_appendix){"The appendix will show the anomaly graphs (same timeseries, but the weather variable has been anomalized)."}`
+The report parameters set the two environmental predictor variables as `r params$predictor_var1` and `r params$predictor_var2`. The following two graphs show the median state-wide observed weather variables for the forecast year, compared to the historical median.Two or more consecutive days that are **greater** than the historical median are drawn in `r colorize("red", "red")` and consecutive days that are **less** than the historical median are drawn in `r colorize("blue", "blue")`. Consecutive days that overlap the historical median (i.e. one day above and the next below, or the opposite) are in purple. The gray shaded region is a ribbon showing the historical range (min to max). `r if(params$create_appendix){"The appendix will show the anomaly graphs (same timeseries, but the weather variable has been anomalized)."}`
 
 ```{r weather_charts, echo=FALSE, include=TRUE, fig.align='center', fig.height=c(4,4), fig.width=c(7,7)}
 
