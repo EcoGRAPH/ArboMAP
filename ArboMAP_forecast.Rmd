@@ -2674,8 +2674,8 @@ Similar to the previous forecast year chart, the average of all models is shown 
 #   observed positive county-weeks
 
 multiyr <- preds_st_mod_ave %>% #tbl from beginning of current_year_forecast code block
-  #update mean_any_cases to be NA during forecast year
-  dplyr::mutate(mean_any_cases = dplyr::if_else(year_epi == epiyear_request,
+  #update mean_any_cases to be NA for any year AFTER human end year (incl forecast year)
+  dplyr::mutate(mean_any_cases = dplyr::if_else(year_epi > params$year_human_end,
                                                 NA_real_,
                                                 mean_any_cases)) %>% 
   #censoring to just modeled period WITH buffer
@@ -2744,13 +2744,13 @@ p_multiyr <- ggplot() +
   #x-axis management to only show the modelled weeks per year 
   #   borrowed heavily from [V3]
   scale_x_continuous(breaks = seq(from = params$year_human_start + 0.5,
-                                  to = (params$year_human_end + 1.5),
+                                  to = epiyear_request + 0.5,
                                   by = 1),
                      labels = seq(from = params$year_human_start, 
-                                  to = params$year_human_end + 1, 
+                                  to = epiyear_request, 
                                   by = 1),
-                     limits = c((params$year_human_start),
-                                (params$year_human_end + 2))) +
+                     limits = c(params$year_human_start,
+                                epiyear_request + 1)) +
   ggtitle(paste("Statewide model predictions")) + 
   #[V3] How y-axis labeled in v3, keeping same [DMN]
   ylab("Proportion of counties positive") + 
