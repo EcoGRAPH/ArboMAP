@@ -1903,7 +1903,9 @@ model_plots <- list()
 preds <- data.frame()
 
 # using list of models, run each one
-for (this_model in model_names){
+for (i in seq_along(model_names)){
+  
+  this_model <- model_names[[i]]
   
   ##
   # formula set up
