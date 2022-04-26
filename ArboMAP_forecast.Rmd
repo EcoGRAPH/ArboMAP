@@ -214,13 +214,6 @@ NOTE: [DEV] Likely no longer functional from [V3] -->
 # save_models: TRUE/FALSE: Will create a list of saved model objects (using rest of input params)
 # models_cached: must be named list of model objects, named from modeling file to pattern match (output of save_models)
 
-##MOSQUITO
-# resampling mosquito data before mosquito model
-# NOTE: resampling code is mostly left as v3, and is likely inoperable 
-#   unless field names are different in mosquito file that needs resampling.
-#resample_mosquito: TRUE/FALSE
-#resample_file: path and file
-
 ##REGRESSION
 # reg_function: "GAM" (hook for future possibility)
 
@@ -295,17 +288,6 @@ if (!is.null(params$dev_settings$models_cached)){
 } else {
   models_cached <- NULL
 }
-
-
-##MOSQUITO
-if (!is.null(params$dev_settings$resample_mosquito)){
-  #use param given
-  resample_mosquito <- params$dev_settings$resample_mosquito
-} else {
-  #default is FALSE
-  resample_mosquito <- FALSE
-}
-#resample_file: Up to the dev user to provide path&file correctly
 
 ##REGRESSION
 if (!is.null(params$dev_settings$reg_function)){
@@ -1012,74 +994,6 @@ mosq_pos_num_maxyr <- data_mosq_maxyr %>%
 #percent of pools positive in max year
 mosq_pos_perc_maxyr <- mosq_pos_num_maxyr / dx_mosq_nrow_maxyr * 100 %>% 
   round(3)
-```
-
-```{r mosquito_resampling, echo=FALSE, include=FALSE, cache=FALSE} 
-
-if (resample_mosquito){
-  
-  # read and process resampling file
-  data_resample <- readr::read_csv(params$resample_file, show_col_types = FALSE)
-  
-  # added needed dates
-  data_resample <- data_resample %>% 
-    #try old specified format first
-    #gives NA when given dates like "2019-6-4"
-    dplyr::mutate(date_obs = as.Date(col_date, format = "%m/%d/%Y"),
-                  #test for NA and let as.Date guess this time
-                  #MUST use ifelse, not if_else b/c that evaluates all
-                  # and as.Date will throw error if given the old format without pattern
-                  # however ifelse strips date format, so must cast it afterwards
-                  # note: zoo package used for default origin for as.Date()
-                  date_obs = as.Date(ifelse(is.na(date_obs), 
-                                            as.Date(col_date), 
-                                            date_obs)),
-                  # and doy
-                  doy = as.numeric(format(date_obs, "%j")))
-  
-  # [V3] NOTE: Keeping original (v3) code with new names only
-  # No test resample file to try
-  # However, I believe it will fail as currently/previously coded, 
-  #   unless mosquito data file has a different format when it needs resampling
-  #   data_mosquito$total nor $positives does not exist?
-  
-  #create subset
-  positivedoys <- data_resample$doy[data_resample$wnv_result == 1]
-  negativedoys <- data_resample$doy[data_resample$wnv_result == 0]
-  
-  # create and fill up the expanded file
-  wnv <- data.frame()
-  for (i in 1:nrow(data_mosquito)) {
-    
-    positives <- data_mosquito$positives[i]
-    negatives <- data_mosquito$total[i] - data_mosquito$positives[i]
-    
-    if (positives > 0) {
-      
-      tempdf1 <- data.frame(doy = sample(x=positivedoys,
-                                         size=positives,
-                                         replace=TRUE),
-                            year_epi = data_mosquito$year_epi[i],
-                            arbo_ID = district_shapes$arbo_ID[1], #? [V3] hard-coded first? DEV 
-                            wnv_result = 1)
-      
-    } else { tempdf1 <- data.frame() }
-    
-    if (negatives > 0) {
-      
-      tempdf0 <- data.frame(doy = sample(x=negativedoys,
-                                         size=negatives,
-                                         replace=TRUE),
-                            year_epi = data_mosquito$year_epi[i],
-                            arbo_ID = district_shapes$arbo_ID[1], #? [V3] hard-coded first? DEV 
-                            wnv_result = 0)
-      
-    } else { tempdf2 <- data.frame() }
-    
-    data_mosquito <- dplyr::bind_rows(data_mosquito, tempdf1, tempdf0)
-  }
-  
-} #end if resample
 ```
 
 ```{r mosquito_infection_model, echo=FALSE, include=FALSE, cache=FALSE} 
