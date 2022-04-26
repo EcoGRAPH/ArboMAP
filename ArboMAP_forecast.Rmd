@@ -49,7 +49,7 @@ params:
     label: "Name of folder where weather/environmental data are located" 
     value: "data_weather"
   year_human_start: 
-    label: "Start year of human data to use"
+    label: "Start year of human data to use and this will also be the start year of modelling"
     value: 2004
   year_human_end: 
     label: "End year of human data to use"
@@ -65,12 +65,6 @@ params:
     value: 2000
   year_weather_end: 
     label: "End year of weather/environmental data to use"
-    value: 2018
-  year_modeling_start: 
-    label: "Year to start modelling (likely same year as start of human data)"
-    value: 2004
-  year_modeling_end: 
-    label: "Year to end modelling"
     value: 2018
   year_compare_vis1: 
     label: "Year to highlight as a comparison year in certain graphs"
@@ -875,14 +869,24 @@ date_epiweek_request <- make_date_yw(year = epiyear_request,
 #day of year of the ending date of the requested epiweek
 doy_dt_epiwk_req <- lubridate::yday(date_epiweek_request)
 
+#Modelling years
+# Used to be separate parameter, but is really driven by other inputs
+# To avoid confusion and mismatches years in strange ways,
+#  now being set internally
+# Start year is the same of the start of human data. 
+#  Can't model before human data, and to move modelling start, change start of human data
+year_modeling_start <- params$year_human_start 
+# End year is the year of the forecast date
+year_modeling_end <- epiyear_request
+
 #Various other dates
 #ending date of the FIRST epiweek in the MIN modelling year
-date_min_model <- make_date_yw(year = params$year_modeling_start,
+date_min_model <- make_date_yw(year = year_modeling_start,
                                week = 1,
                                weekday = 7)
 #ending date of LAST epiweek in the MAX modelling year
-date_max_model <- make_date_yw(year = params$year_modeling_end,
-                               week = get_last_epiweek(params$year_modeling_end), #could be 52 or 53
+date_max_model <- make_date_yw(year = year_modeling_end,
+                               week = get_last_epiweek(year_modeling_end), #could be 52 or 53
                                weekday = 7)
 
 ```
@@ -1599,8 +1603,8 @@ if (mosquito_model_clean %in% mosq_nonstrat_models){
     #add flag if MIR summary stat needs to be imputed (i.e. if that combination is missing)
     # AND if the year in within the modeling year range 
     dplyr::mutate(mir_impute = (is.na(mir_stat_ctr) & 
-                                  year_epi >= params$year_modeling_start &
-                                  year_epi <= params$year_modeling_end))
+                                  year_epi >= year_modeling_start &
+                                  year_epi <= year_modeling_end))
   
 } else if (mosquito_model_clean %in% mosq_strat_models){
   
@@ -1619,8 +1623,8 @@ if (mosquito_model_clean %in% mosq_nonstrat_models){
     #add flag if MIR summary stat needs to be imputed (i.e. if that combination is missing)
     # AND if the year in within the modeling year range 
     dplyr::mutate(mir_impute = (is.na(mir_stat_ctr) & 
-                                  year_epi >= params$year_modeling_start &
-                                  year_epi <= params$year_modeling_end))
+                                  year_epi >= year_modeling_start &
+                                  year_epi <= year_modeling_end))
 }
 
 #replace NA mir_stat_ctr with zero (i.e. average risk, per comment from [V3])
@@ -1697,12 +1701,12 @@ if (dev_write_output){
 
 #sequence of dates for env data matrix 
 # Start date is lag length days before the start of the requested modeling start year
-env_mod_yr_jan1 <- as.Date(paste0(params$year_modeling_start, "-01-01"), 
+env_mod_yr_jan1 <- as.Date(paste0(year_modeling_start, "-01-01"), 
                            format = "%Y-%m-%d")
 #lag length days before modeling start
 env_mod_date_start <- env_mod_yr_jan1 - lubridate::days(params$lag_length)
 env_dates <- seq.Date(from = env_mod_date_start,
-                      to = as.Date(paste0(params$year_modeling_end, "-12-31"), 
+                      to = as.Date(paste0(year_modeling_end, "-12-31"), 
                                    format = "%Y-%m-%d"),
                       by = 1)
 #create blank tbl with all dates and counties (counties that were present in env data)
@@ -2317,7 +2321,7 @@ rel_risk_distr_count <- rel_risk %>%
 
 ```
 
-In the forecast week there are `r rel_risk_distr_count` counties with higher than average risk as compared to the same epidemiological week in previous years (`r max(human_exists_yr_min, params$year_modeling_start)` through `r params$year_modeling_end`). 
+In the forecast week there are `r rel_risk_distr_count` counties with higher than average risk as compared to the same epidemiological week in previous years (`r max(human_exists_yr_min, year_modeling_start)` through `r year_modeling_end`). 
 
 This **relative risk** map may be used in conjunction with the **absolute risk** map. The absolute risk map shows the risk of a county reporting at least one WNV positive human case during this week, and the relative risk map shows if this risk is elevated (or not) as compared to previous years. 
 
@@ -2668,7 +2672,7 @@ knitr::kable(model_auc %>%
 \blandscape
 ## Multi-year forecast
 
-The following chart shows the model results for the entire modeled period from `r max(human_exists_yr_min, params$year_modeling_start)` through `r params$year_modeling_end`. Years before the forecast year were used for fitting the model. 
+The following chart shows the model results for the entire modeled period from `r max(human_exists_yr_min, year_modeling_start)` through `r year_modeling_end`. Years before the forecast year were used for fitting the model. 
 
 Similar to the previous forecast year chart, the average of all models is shown as a `r colorize("dark red", "darkred")` line, with the range of all models as the shaded ribbon. Forecasts are shown as a dotted line and predicted values from before the current forecast week ('backcast') are shown as a solid line. The historical **observed** values are shown in black. `r if(params$create_appendix){"The appendix will have a version of this chart with a series for each model, rather than an average."}`
 
@@ -2988,7 +2992,7 @@ Note that even if there were no positive pools in a given year, if there were an
 
 Parameters were set to include mosquito data from day of year `r params$mosquito_doy_start` through `r params$mosquito_doy_end`. The mosquito infection rate modeling is very sensitive to early mosquito pool results, which is why a cut-off is used. Sensitivity analyses indicate that a start day of year of 140 is a reasonable cut-off for a high modeling accuracy. 
 
-Modeling was requested from `r params$year_modeling_start` through `r params$year_modeling_end`. Years without mosquito data during these years are assumed to have average mosquito infection rates. This allows us to estimate relationships with environmental data even when mosquito data are not available. There were `r length(yrs_mir_imputed)` years where mosquito infection rates were imputed. `r if(length(yrs_mir_imputed)>0){paste0("These years are: ", yrs_mir_imputed %>% sort() %>% stringr::str_c(collapse=", "), ".")}` In modeling years where sufficient mosquito data were present, the mosquito infection statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. 
+Modeling was done from `r year_modeling_start` through `r year_modeling_end`. Years without mosquito data during these years are assumed to have average mosquito infection rates. This allows us to estimate relationships with environmental data even when mosquito data are not available. There were `r length(yrs_mir_imputed)` years where mosquito infection rates were imputed. `r if(length(yrs_mir_imputed)>0){paste0("These years are: ", yrs_mir_imputed %>% sort() %>% stringr::str_c(collapse=", "), ".")}` In modeling years where sufficient mosquito data were present, the mosquito infection statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. 
 
 In the forecast year to date, there were `r dx_mosq_nrow_maxyr` pools reported from `r dx_mosq_counties_maxyr` counties. Of these pools, `r mosq_pos_num_maxyr` (`r round_any(mosq_pos_perc_maxyr, 1)`%) were reported WNV positive. 
 
