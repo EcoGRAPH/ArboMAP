@@ -779,7 +779,7 @@ if (nrow(appx_data_env_fc_yr) > 0){
     scale_linetype_manual("",
                           values = c("forecast_doy" = "dashed"),
                           labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
-    scale_color_manual("Year median compared to historical median", 
+    scale_color_manual("Forecast year median\ncompared to historical median", 
                        values = env_comp_colors) +
     xlab("Day of the year") + 
     ylab(params$predictor_var1) +
@@ -827,7 +827,7 @@ if (nrow(appx_data_env_fc_yr) > 0){
     scale_linetype_manual("",
                           values = c("forecast_doy" = "dashed"),
                           labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
-    scale_color_manual("Year median compared to historical median", 
+    scale_color_manual("Forecast year median\ncompared to historical median", 
                        values = env_comp_colors) +
     xlab("Day of the year") + 
     ylab(params$predictor_var2) +
