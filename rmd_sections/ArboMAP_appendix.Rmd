@@ -274,8 +274,8 @@ appx_p_cur_yr <- ggplot2::ggplot() +
   #current week marker
   geom_vline(xintercept = epiweek_request, linetype = "dashed", color = "grey25") +
   #plot labels and adjustments
-  #for model colors (ending spectrum early b/c dark purple looks like black)
-  scale_color_viridis("Model", option = "turbo", discrete = TRUE, end = 0.8) +
+  #for model colors (limiting spectrum b/c dark red/purple looks like black)
+  scale_color_viridis("Model", option = "turbo", discrete = TRUE, begin = 0.1, end = 0.9) +
   #for pre/post forecast week
   scale_linetype_manual("Time linetype indicator",
                         values = c("pred_pre" = "solid",
@@ -554,8 +554,8 @@ appx_p_multiyr <- ggplot() +
                 linetype = series,
                 color = model)) +
   #plot labels and adjustments
-  #for model colors (ending spectrum early b/c dark purple looks like black)
-  scale_color_viridis("Model", option = "turbo", discrete = TRUE, end = 0.8) +
+  #for model colors (limiting spectrum b/c dark red/purple looks like black)
+  scale_color_viridis("Model", option = "turbo", discrete = TRUE, begin = 0.1, end = 0.9) +
   #for pre/post forecast week
   scale_linetype_manual("Time linetype indicator",
                         values = c("pred_pre" = "solid",
