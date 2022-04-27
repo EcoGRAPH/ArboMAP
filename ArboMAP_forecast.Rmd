@@ -87,7 +87,7 @@ params:
     #value: !r list(dev_write_output = TRUE, model_evaluation = TRUE, out_folder = file.path("dev", format(Sys.Date(), "%Y%m%d")))
 
 title: "West Nile Virus Forecast Report for `r params$forecast_date`  \n`r params$state_name`"
-subtitle: "Arbovirus Modeling and Prediction (ArboMAP)"
+subtitle: "DEMO for Arbovirus Modeling and Prediction (ArboMAP): Synthetic Data  \nNot for Epidemiological Use"
 author: "Dawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly    \n(mcwimberly@ou.edu)   \nGeography and Environmental Sustainability, University of Oklahoma"
 date: "Report compiled on `r format(Sys.time(), '%B %d, %Y')`"
 header-includes:
@@ -2032,8 +2032,9 @@ if (model_evaluation | dev_write_output){
 \fancyhead[L]{`r params$state_name`}
 \fancyhead[C]{}
 \fancyfoot[R]{\thepage}
-\fancyfoot[L]{Report compiled on `r format(Sys.time(), '%B %d, %Y')`}
-\fancyfoot[C]{}
+\fancyfoot[L]{Compiled on `r format(Sys.time(), '%B %d, %Y')`}
+<!-- \fancyfoot[C]{} -->
+\fancyfoot[C]{FOR DEMONSTRATION ONLY}
 
 
 # Forecast results
