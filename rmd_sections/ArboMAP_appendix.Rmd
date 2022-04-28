@@ -724,16 +724,16 @@ if (nrow(appx_data_env_fc_yr) > 0){
                   var1_yend = dplyr::lead(var1_y, n = 1),
                   var2_y =  !!rlang::sym(paste0(var2_anom_med_name, "_yr")),
                   var2_yend = dplyr::lead(var2_y, n = 1)) %>% 
-    #now flag if y - yend is above, below, or crosses historical median
+    #now flag if y - yend is above, below, or overlaps with historical median
     dplyr::mutate(
       #var1
       color_var1 = case_when(
         var1_y >= !!rlang::sym(var1_anom_med_name) & 
           var1_yend >= !!rlang::sym(var1_anom_med_name) ~ "Higher",
         var1_y >= !!rlang::sym(var1_anom_med_name) & 
-          var1_yend <= !!rlang::sym(var1_anom_med_name) ~ "Crosses",
+          var1_yend <= !!rlang::sym(var1_anom_med_name) ~ "Overlaps",
         var1_y <= !!rlang::sym(var1_anom_med_name) & 
-          var1_yend >= !!rlang::sym(var1_anom_med_name) ~ "Crosses",
+          var1_yend >= !!rlang::sym(var1_anom_med_name) ~ "Overlaps",
         var1_y <= !!rlang::sym(var1_anom_med_name) & 
           var1_yend <= !!rlang::sym(var1_anom_med_name) ~ "Lower",
         TRUE ~ "forgotsomething"),
@@ -742,9 +742,9 @@ if (nrow(appx_data_env_fc_yr) > 0){
         var2_y >= !!rlang::sym(var2_anom_med_name) & 
           var2_yend >= !!rlang::sym(var2_anom_med_name) ~ "Higher",
         var2_y >= !!rlang::sym(var2_anom_med_name) & 
-          var2_yend <= !!rlang::sym(var2_anom_med_name) ~ "Crosses",
+          var2_yend <= !!rlang::sym(var2_anom_med_name) ~ "Overlaps",
         var2_y <= !!rlang::sym(var2_anom_med_name) & 
-          var2_yend >= !!rlang::sym(var2_anom_med_name) ~ "Crosses",
+          var2_yend >= !!rlang::sym(var2_anom_med_name) ~ "Overlaps",
         var2_y <= !!rlang::sym(var2_anom_med_name) & 
           var2_yend <= !!rlang::sym(var2_anom_med_name) ~ "Lower",
         TRUE ~ "forgotsomething")) %>% 
