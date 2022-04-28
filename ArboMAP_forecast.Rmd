@@ -512,7 +512,7 @@ if (sf_taller &
 # Each list in DESCENDING order of priority
 #   will only take the field that appears first
 field_fips_accepted <- c("fips", "FIPS", "fips_code", "FIPS_CODE")
-field_names_accepted <- c("county", "district")
+field_names_accepted <- c("county", "district", "parish", "Parish")
 
 
 #ID Functions
