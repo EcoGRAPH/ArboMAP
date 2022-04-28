@@ -207,7 +207,7 @@ NOTE: [DEV] Likely no longer functional from [V3] -->
 # mosquito_data: tbl of mosquito pool data (overrides file_mosquito)
 # stratification_data: tbl of strata (overrides file_stratification)
 # weather_data: tbl of weather data (overrides folder_weather & processing)
-# county_sf: sf object of counties/districts for state (overrides file_county_sf)
+# county_sf: sf object of counties for state (overrides file_county_sf)
 # models_to_run: model formulas to run (overrides file_models)
 
 ##CACHED MODELS
@@ -2041,7 +2041,7 @@ if (model_evaluation | dev_write_output){
 
 The Arbovirus Monitoring and Prediction (ArboMAP) system produces a weekly, county-level forecast of human West Nile virus (WNV) cases using environmental data combined with entomological data.
 
-*Modeling overview*: The transmission of mosquito-borne diseases, such as WNV, is influenced by environmental conditions that affect many aspects of the disease transmission system. ArboMAP uses an ensemble of different mathematical models that each are predicting if a county will report at least one case in a given week ('positive district-week'). Results presented are an average of the models with ranges as appropriate. As part of the process, mosquito infection rate is also modeled based on the mosquito pool data, and is included in the default modeling. ArboMAP uses generalized additive models (GAMs) with smooths for seasonality, and also lagged weather data, which allows it to model the time-delayed effects of weather conditions. `r if(params$create_appendix){"The appendix will expand all the results to show each individual model."}`
+*Modeling overview*: The transmission of mosquito-borne diseases, such as WNV, is influenced by environmental conditions that affect many aspects of the disease transmission system. ArboMAP uses an ensemble of different mathematical models that each are predicting if a county will report at least one case in a given week ('positive county-week'). Results presented are an average of the models with ranges as appropriate. As part of the process, mosquito infection rate is also modeled based on the mosquito pool data, and is included in the default modeling. ArboMAP uses generalized additive models (GAMs) with smooths for seasonality, and also lagged weather data, which allows it to model the time-delayed effects of weather conditions. `r if(params$create_appendix){"The appendix will expand all the results to show each individual model."}`
 
 ```{r common_themes, echo=FALSE, include=FALSE}
 
@@ -2098,7 +2098,7 @@ model_desc_names <- c(
 #starting data table used in both absolute and relative risk sections
 
 ## Average predictions 
-# average predictions of all models per district
+# average predictions of all models per county
 preds_mod_ave <- preds %>% 
   #specifically NOT grouping by 'model'
   dplyr::group_by(arbo_ID, 
@@ -2131,7 +2131,7 @@ This map can be used in conjunction with the **relative risk** map. The absolute
 # Creates a map of absolute risk of the requested forecast week
 # Average of all models here (each model in appendix)
 
-# average predictions for all models per district 
+# average predictions for all models per county 
 #   in the forecast week (and year)
 preds_mod_ave_fc_wk <- preds_mod_ave %>% 
   dplyr::filter(year_epi == epiyear_request & week_epi == epiweek_request)
@@ -2179,23 +2179,23 @@ plot(p_abs_risk)
 # [V3] I've tried to be faithful to the intent of the algorithm from v3, 
 #       but there were no why-comments, so I had to try to logic it out [DMN]
 # [V3] The following is the v3 algorithm, below this is the new V4 algorithm:
-# V3.1. Take the mean of the predictions across all models for each district-week
+# V3.1. Take the mean of the predictions across all models for each county-week
 #     Note: using the preds_ave tbl created in forecast-summary code block
-# V3.2. If there are more than 1 predictions in a district-year, 
+# V3.2. If there are more than 1 predictions in a county-year, 
 #     (just as a check that the calculation will work) 
 #     then find the PRED value that would have occurred approximately 
-#       at the SAME DOY as the current forecast week, for each district-year
+#       at the SAME DOY as the current forecast week, for each county-year
 #       (using the ave pred values from step 1.)  
 #       via a linear interpolation (using DOY)
-# V3.3. RANK these pred values (~DOY-of-forecast model-average pred values for each district-year)
-#     and divide by the number of years of values each district has.
+# V3.3. RANK these pred values (~DOY-of-forecast model-average pred values for each county-year)
+#     and divide by the number of years of values each county has.
 #     This creates a ~percentile of RANKED risk (basically)
 # V3.4. Break percentile into categories
 
 # V4 algorithm
-# 1. Take the mean of the predictions across all models for each district-week
-# 2. For each district-year, get the pred value at the same EPI WEEK as the forecast week
-# 3. RANK these pred values and divide by the number of years of values each district has.
+# 1. Take the mean of the predictions across all models for each county-week
+# 2. For each county-year, get the pred value at the same EPI WEEK as the forecast week
+# 3. RANK these pred values and divide by the number of years of values each county has.
 #     This creates a ~percentile of RANKED risk (basically)
 # 4. Percentile values kept as continuous to match style of absolute risk maps
 #     [V3]: <= 12.5% lower than ave, => 87.5% higher than ave
@@ -2209,7 +2209,7 @@ rel_risk <- preds_mod_ave %>%
   #get all ave-preds at same epiweek (in any year)
   #   now only 1 row per year
   dplyr::filter(week_epi == epiweek_request) %>% 
-  # rank within each district
+  # rank within each county
   dplyr::group_by(arbo_ID) %>% 
   dplyr::mutate(rank_pred = rank(pred_ave, ties.method = 'random'),
                 #percentile of ranked pred by number of years
@@ -2310,7 +2310,7 @@ The historical **observed** proportion of counties positive, averaged over all k
 # [DEV] Note that human summary data is on a different scale
 #   than forecast, and ggplot2 does NOT allow for 2 different x-axes
 # Rescaled by using the average historical proportion positive
-#   as opposed to the [V3] count of districts positive
+#   as opposed to the [V3] count of counties positive
 
 ## Statewide average predictions
 # averaging to state first
@@ -2550,7 +2550,7 @@ pos_case_preds_ave <- pred_yrs_fc_yr %>%
 knitr::kable(pos_case_preds_ave %>%
                dplyr::select(year_epi, ave_tot_pred, ave_sd_pred_cases, range_pred_cases),
              col.names = c("Year", 
-                           "Predicted positive district-weeks", 
+                           "Predicted positive county-weeks", 
                            "Average estimated cases (standard dev)", 
                            "Range of estimated cases"),
              digits = 0, 
