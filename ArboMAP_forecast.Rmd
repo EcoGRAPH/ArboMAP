@@ -3852,7 +3852,7 @@ if (!is.null(params_dev$models_cached)){params_dev$models_cached <-"Override dat
 if (length(params_dev >= 1)){
   param_dev_table <- tibble::tibble(Parameter = names(params_dev), Value = unlist(params_dev))
   knitr::kable(param_dev_table, 
-               caption = "Developer overrides and parameters",
+               caption = "Advanced settings and parameters",
                row.names = FALSE)
 }
 
