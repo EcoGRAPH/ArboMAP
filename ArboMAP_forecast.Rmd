@@ -598,6 +598,7 @@ standarize_fips <- function(my_tbl, fips_vector = field_fips_accepted){
                                                                           side = "left", pad = "0")),
                     TRUE ~ arbo_ID))
   
+  return(arbo_tbl)
 }
 
 simplifynames <- function(priornames=NULL) {
