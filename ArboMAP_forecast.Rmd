@@ -2189,6 +2189,7 @@ plot(p_abs_risk)
 #       (using the ave pred values from step 1.)  
 #       via a linear interpolation (using DOY)
 # V3.3. RANK these pred values (~DOY-of-forecast model-average pred values for each county-year)
+#           using 'random' method to break ties
 #     and divide by the number of years of values each county has.
 #     This creates a ~percentile of RANKED risk (basically)
 # V3.4. Break percentile into categories
@@ -2198,6 +2199,10 @@ plot(p_abs_risk)
 # 2. For each county-year, get the pred value at the same EPI WEEK as the forecast week
 # 3. RANK these pred values and divide by the number of years of values each county has.
 #     This creates a ~percentile of RANKED risk (basically)
+#     NOTE: TIES BREAKING has switched to 'average' as 'random' produces unstable results
+#           when there are large numbers of ties (many 0s, for example)
+#           especially large differences in results when running arbo ID off of fips code vs county name 
+#             (for some reason, probably related to how they do 'random')
 # 4. Percentile values kept as continuous to match style of absolute risk maps
 #     [V3]: <= 12.5% lower than ave, => 87.5% higher than ave
 #     Will need to indicate something similar in legend
@@ -2212,7 +2217,7 @@ rel_risk <- preds_mod_ave %>%
   dplyr::filter(week_epi == epiweek_request) %>% 
   # rank within each county
   dplyr::group_by(arbo_ID) %>% 
-  dplyr::mutate(rank_pred = rank(pred_ave, ties.method = 'random'),
+  dplyr::mutate(rank_pred = rank(pred_ave, ties.method = "average"),
                 #percentile of ranked pred by number of years
                 # note: rank such that lowest pred = 1
                 rank_perc = rank_pred / n() * 100) %>% 
