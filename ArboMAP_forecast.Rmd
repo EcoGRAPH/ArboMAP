@@ -137,7 +137,6 @@ if (packageVersion("readr") < 2.1){
   install.packages("readr", repos="http://cran.us.r-project.org")
 }
 
-
 # IF the user is trying to create a pdf, 
 # AND there is no LaTeX installation, 
 # THEN install tinytex
@@ -1713,7 +1712,7 @@ data_env_lag <- tidyr::expand_grid(arbo_ID = data_env_mod %>%
                           "date_lag" = "date_obs"))
 #[DEV] note: top part of data_env_lag will be many NAs, 
 # if we don't have env data prior to the start of the env data (year_weather_start)
-# Fine as long as running modeling years +1 of env data start 
+# Fine as long as running modeling (human start) year +1 of env data start 
 #   (or starting greater than lag length in same year)
 
 # clean up (often b/c of large data)
