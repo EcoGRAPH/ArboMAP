@@ -26,7 +26,6 @@ params:
   mosquito_doy_end: 
     label: "End of mosquito modelling period (day of year)"
     value: 366
-  ## input data file locations
   file_human: 
     label: "Human data file"
     value: !r file.path("data_human", "simulated_human_data.csv")
@@ -43,7 +42,7 @@ params:
     value: !r file.path("data_spatial", "sd_counties.RDS")
   file_models: 
     label: "Modelling formulas file"
-    value: !r file.path("data_models", "models.txt") #!r file.path("dev", "models_tpfx.txt")
+    value: !r file.path("data_models", "models.txt") 
     input: file
   folder_weather: 
     label: "Name of folder where weather/environmental data are located" 
@@ -84,7 +83,6 @@ params:
   dev_settings: 
     label: "Developer settings, leave as \"!r list()\""
     value: !r list()
-    #value: !r list(dev_write_output = TRUE, model_evaluation = TRUE, out_folder = file.path("dev", format(Sys.Date(), "%Y%m%d")))
 
 title: "West Nile Virus Forecast Report for `r params$forecast_date`  \n`r params$state_name`"
 subtitle: "DEMO for Arbovirus Modeling and Prediction (ArboMAP): Synthetic Data  \nNot for Epidemiological Use"
@@ -178,14 +176,12 @@ colorize <- function(x, color) {
 <!-- Code blocks: -->
 <!--  dev_parameters: Checks for overrides from named list of dev parameters. 
 Only really accessible if rmd called from script. -->
-<!--  data_load: Load all data - human, mosquito, environmenta, spatial, models. 
+<!--  data_load: Load all data - human, mosquito, environmental, spatial, models. 
 No data checks or processing here. -->
 <!--  data_id_fields: add a standardized arbo_ID field based on names or fips code, 
 depending on fields in datasets. One or the other, not a mix -->
 <!--  data_human_processing_dx: Process the human data, create diagnostics/stats -->
 <!--  data_mosq_processing_dx: Process the mosquito data, create diagnostics/stats -->
-<!--  mosquito_resampling: Optional section for resampling of mosquito data. 
-NOTE: [DEV] Likely no longer functional from [V3] -->
 <!--  mosquito_infection_model: run selected mosquito model to generate mir_stat used in modeling -->
 <!--  data_env_latest_history: processes the environment data
 1) gets latest updated value for a day, 
@@ -313,7 +309,6 @@ if (!is.null(params$dev_settings$out_name_base)){
 } else {
   #default 
   #out_name_base <- "ArboMAP_forecast_"
-  # <<>> DEV testing
   out_name_base <- paste0(params$mosquito_model, "_", Sys.time() %>% format("%Y%m%d%H%M"))
 }
 if (!is.null(params$dev_settings$dev_write_output)){
@@ -469,7 +464,7 @@ sf_box_dist <- data_sf %>%
 #5: point 1
 # Want distance xmin to xmax, so can use distance between pts 1 & 2
 # Want distance ymin to ymax, so can use distance between pts 1 & 4
-#TRUE if wider (x distance > y distance), to be used with dynamic sizing/page orientation #[DEV] 
+#TRUE if wider (x distance > y distance), to be used with dynamic sizing/page orientation  
 sf_wider <- sf_box_dist[1,2] > sf_box_dist[1,4]
 # apparently can't use ! in knitr headers, so making separate object for inverse
 sf_taller <- !sf_wider
@@ -810,7 +805,9 @@ data_mosquito <- data_mosquito %>%
                 #epi year and week
                 year_epi = lubridate::epiyear(date_obs),
                 week_epi = lubridate::epiweek(date_obs),
-                date_epi = make_date_yw(year = year_epi, week = week_epi, weekday = 7),
+                date_epi = make_date_yw(year = year_epi, 
+                                        week = week_epi, 
+                                        weekday = 7),
                 #also doy, used later in mosq modelling
                 doy = lubridate::yday(date_obs)) %>% 
   #filter year range from parameter input
@@ -820,15 +817,17 @@ data_mosquito <- data_mosquito %>%
 
 
 data_env_raw <- data_env_raw %>% 
-  #already has year field from GEE <<>> DEV document in user's guide data requirements
   #filter year range from parameter input
+  #already has year field from GEE, however
   # for consistency, this ALSO will be epi year
   dplyr::mutate(date_obs = as.Date(paste(year, doy, sep = "-"),
                                    "%Y-%j"),
                 #epi year and week
                 year_epi = lubridate::epiyear(date_obs),
                 week_epi = lubridate::epiweek(date_obs),
-                date_epi = make_date_yw(year = year_epi, week = week_epi, weekday = 7)) %>%  
+                date_epi = make_date_yw(year = year_epi, 
+                                        week = week_epi, 
+                                        weekday = 7)) %>%  
   dplyr::filter(year_epi >= params$year_weather_start & 
                   year_epi <= params$year_weather_end) 
 
@@ -2200,7 +2199,7 @@ plot(p_abs_risk)
 #     This creates a ~percentile of RANKED risk (basically)
 #     NOTE: TIES BREAKING has switched to 'average' as 'random' produces unstable results
 #           when there are large numbers of ties (many 0s, for example)
-#           especially large differences in results when running arbo ID off of fips code vs county name 
+#           especially in results when running arbo ID off of fips code vs county name 
 #             (for some reason, probably related to how they do 'random')
 # 4. Percentile values kept as continuous to match style of absolute risk maps
 #     [V3]: <= 12.5% lower than ave, => 87.5% higher than ave
@@ -2459,7 +2458,7 @@ plot(p_cur_yr)
 #             aes(x = week_epi, y = tot_any)) +
 #   #current week marker
 #   geom_vline(xintercept = epiweek_request, linetype="dashed", color = "grey75") +
-#   ggtitle("DEV TEST <<>> [V3] counties with any number of cases, over all years") +
+#   ggtitle("Counties with any number of cases, over all years") +
 #   ylab("Count of counties") +
 #   xlab("Epiweek") +
 #   theme_arbo_chart
@@ -3251,105 +3250,8 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
   #organizes multiple plots with common legend
   ggpubr::ggarrange(plotlist = ps_mosq_strata, 
                     common.legend = TRUE, legend = "bottom")
-  
-  
-  # #[DEV] perhaps needs to facet by stratum instead of aggregating?
-  # Summarized from all strata here
-  # 
-  # mosq_doy_preds <- tidyr::expand_grid(
-  #   stratum_year = rownames(nlme::random.effects(mir_glm)$stratum_year),
-  #   doy = seq(min(data_mosquito$doy, na.rm = TRUE),
-  #             max(data_mosquito$doy, na.rm = TRUE),
-  #             by = 1)) %>% 
-  #   #add dminus variable [V3]
-  #   dplyr::mutate(dminus = doy - mean(.$doy, na.rm = TRUE))
-  # 
-  # #predictions
-  # mosq_doy_preds$pred <- predict(mir_glm,
-  #                                newdata = mosq_doy_preds %>% 
-  #                                  as.data.frame(),
-  #                                type = "response",
-  #                                allow.new.levels = TRUE)
-  # 
-  # #prep for graphing
-  # mosq_doy_preds_ave <- mosq_doy_preds %>% 
-  #   #recover year, and summarize by year & dminus (across strata)
-  #   dplyr::mutate(year_epi = stringr::str_split_fixed(stratum_year, 
-  #                                                     "_", 
-  #                                                     n = 2)[,2]) %>% 
-  #   dplyr::group_by(year_epi, dminus, doy) %>% 
-  #   dplyr::summarise(pred_ave = mean(pred, na.rm=TRUE),
-  #                    .groups = "drop") %>% 
-  #   #flag param max year, param two comparison years for colored lines
-  #   dplyr::mutate(mosq_col_grp = case_when(
-  #     year_epi == params$year_mosquito_end ~ "endyear",
-  #     year_epi == params$year_compare_vis1 ~ "comp1",
-  #     year_epi == params$year_compare_vis2 ~ "comp2",
-  #     #all other years
-  #     TRUE ~ "hx_filter"))
-  # 
-  # #if there are enough values in endyear ([V3] > 20), 
-  # data_mosq_endyr <- data_mosquito %>% 
-  #   dplyr::filter(year_epi == params$year_mosquito_end)
-  # # then we will also add dots along the line
-  # if (nrow(data_mosq_endyr) > 20){
-  #   
-  #   #note, using data_mosquito, showing actual positive sample rate
-  #   end_year_dot <- data_mosq_endyr %>% 
-  #     #make 6 [V3] groups
-  #     dplyr::mutate(doy_grp = ggplot2::cut_interval(doy, n = 6)) %>% 
-  #     #summarize by these dot groups 
-  #     # grouping observations nearby in time together [DMN]
-  #     dplyr::group_by(doy_grp) %>% 
-  #     dplyr::summarise(pos_mean = mean(wnv_result, na.rm = TRUE),
-  #                      doy_mean = mean(doy, na.rm = TRUE),
-  #                      .groups = "drop")
-  # } else {
-  #   #empty tibble, for if statement in ggplot code
-  #   end_year_dot <- tibble()
-  # } #end data prep if adding dots
-  # 
-  # #plot, with possible dots
-  # p_mosq_pool_pos <- ggplot2::ggplot() +
-  #   #historical (will be all gray)
-  #   geom_line(data = mosq_doy_preds_ave %>% 
-  #               dplyr::filter(mosq_col_grp == "hx_filter"),
-  #             aes(x = doy,
-  #                 y = pred_ave,
-  #                 group = factor(year_epi),
-  #                 color = "historical")) +
-  #   #colored years
-  #   geom_line(data = mosq_doy_preds_ave %>%
-  #               dplyr::filter(!mosq_col_grp == "hx_filter"),
-  #             aes(x = doy,
-  #                 y = pred_ave,
-  #                 color = mosq_col_grp)) +
-  #   #potential dots
-  #   {if (nrow(end_year_dot) > 0){}
-  #     geom_point(data = end_year_dot,
-  #                aes(x = doy_mean,
-  #                    y = pos_mean,
-  #                    #shape to kick an automatic legend, need to keep color as default black
-  #                    shape = "observed"))} +
-  #   # colors
-  #   scale_color_manual("",
-  #                      values = mosq_pool_colors,
-  #                      labels = mosq_pool_labels) +
-  #   scale_shape_manual("",
-  #                      values = c("observed" = 16), #med round circle
-  #                      labels = c("observed" = "Binned observations\nin forecast year")) +
-  #   ggtitle("Vector pool positive rate predictions") +
-  #   ylab("Pool positive rate") +
-  #   xlab("Day of year") +
-  #   #changing order of legend
-  #   guides(
-  #     color = guide_legend(order = 1),
-  #     shape = guide_legend(order = 2)) +
-  #   theme_arbo_chart 
-  
+
 } # end else strata models 
-
-
 ```
 
 The last mosquito graph shows the relative risk due to the mosquito infection rate as a time-series of all known years. `r if (mosquito_model_clean %in% mosq_strat_models){"Mosquito strata are shown in different colors."}`
