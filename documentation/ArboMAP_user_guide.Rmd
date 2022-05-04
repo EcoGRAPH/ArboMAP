@@ -1,0 +1,93 @@
+---
+title: "ArboMAP: Arbovirus Modeling and Prediction   \nWest Nile Virus Forecasting"
+subtitle: "User Guide"
+author: "Dawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly    \n(mcwimberly@ou.edu)   \nGeography and Environmental Sustainability, University of Oklahoma"
+date: "Updated May XX, 2022 for Version 4.0"
+output: 
+  pdf_document:
+    toc: true
+    toc_depth: 3
+---
+  
+# Introduction
+
+## ArboMAP forecasting system overview
+
+## WNV history and modeling
+West Nile virus (WNV) in South Dakota is our example in this document. WNV circulates primarily among mosquitoes and birds, but occasionally spills over into human or other hosts. In humans, the majority (~80%) of infections show no symptoms and are not diagnosed except perhaps accidentally during blood donation. Some small proportion of individuals will develop symptoms such as headache, fever, and rash, but in about one out of every 100 infected individuals, the disease becomes neuroinvasive and can cause debilitating illness and death.
+
+WNV was first introduced to the U.S. in 1999 on the east coast, after which it spread in a westward-moving wave across the country. The early years produced thousands of cases as WNV invaded new regions. Birds were immunologically naive, so the virus decimated entire avian populations and spilled over into humans in an outbreak that lasted several years in some states.
+
+In South Dakota, there were more than a thousand reported cases in 2002-2003 (Wimberly et al. 2012), which implies that many more were actually infected, since most infected individuals do not show symptoms and are never diagnosed. After a number of years of active transmission, case numbers declined and it looked like the disease might vanish from circulation after 2011, in which there were only two cases reported in South Dakota.
+
+However, in 2012 there was another outbreak, with hundreds of cases in South Dakota (Wimberly et al. 2013). Because of these fluctuations in annual case counts, there is a need to predict the magnitude and locations of WNV in advance to support proactive mosquito control and disease prevention activities. Thus, a key scientific question is whether there are there any environmental or entomological indicators that could tell us, in advance, how much WNV transmission is likely to occur in the current year.
+
+Multiple studies conducted in South Dakota have confirmed that vector mosquitoes and human WNV cases are sensitive to fluctuations in environmental variables, particularly temperature (Chuang et al. 2011, 2012a, 2012b; Hess et al. 2018; Wimberly et al. 2008, 2014). Our research has shown that relatively simple statistical models, relying on weather and mosquito infection data, can be used to predict the risk of infection on a district-week basis (Davis et al. 2017, 2018). For more background, you will want to consult relevant journal articles, which are listed at the end of this document. 
+
+
+## ArboMAP modeling
+
+## Applicability to other vector-borne diseases
+However, ArboMAP can be adapted to work with any data sets that meet the following conditions:
+  
+* There are multiple years of infection data from years in which the pathogen can be considered endemic. Introductory years in which the pathogen is probably rapidly exploiting naive populations are likely not representative of transmission dynamics in subsequent years, and should be removed from the dataset.
+* The pathogen has distinct transmission and quiescent seasons, with an initial growth phase at the beginning of the transmission season when the pathogen is beginning to spread after a period with minimal to no transmission. In the current version, ArboMAP assumes that the transmission season occurs during a single calendar year and ceases during the boreal winter. In settings where a transmission season crosses the December-January boundary, the code will require modification.
+* There is reason to believe that incidence responds to measurable environmental indices, typically including temperature and some measure of moisture in the environment (e.g. precipitation or humidity)
+* Cases of disease are assigned to districts (e.g., counties) and cases are not too rare - the best situation is where every modeled district has had at least one case over the period of study.
+* Some measure of pathogen in the environment is available; e.g. here we use the rate at which pools of mosquitoes test positive for the virus.
+
+ArboMAP is designed to facilitate statewide forecasting of West Nile virus risk at the county level, and this guide is primarily focused on this implementation. 
+# Set-up guides
+## Prepackaged tutorial data
+
+ArboMAP comes packaged with example 1) mosquito (including spatial strata), 2) weather data, and 3) human data. 
+
+The weather data are real, but the human and mosquito data were generated randomly according to model estimates from our WNV study in South Dakota. **While the data appear similar to real human and mosquito data, they are _synthetic_ and _should not be used_ for any actual scientific study**. They are included merely to make sure that all software is installed and settings are correct; you will probably want to run the system first with these synthetic data before trying your own data.
+
+1) ArboMAP uses data on mosquito infection rates as predictors in the model. We assume that such data are acquired through mosquito surveillance programs implemented at the state, county, and or municipal level, and that users of ArboMAP will have access to these data. For example, during the initial implementation of ArboMAP in SD, we accessed the data through a web-based data portal to which which participants around the state had uploaded their mosquito infection data. Information is required about the county where each mosquito pool was collected, the date that it was collected, and whether it tested positive or negative for WNV.
+
+2) You will need weather data so that relationships between disease and environment can be modeled. To forecast WNV in the United States, ArboMAP uses the gridMET dataset, which provide daily gridded data on meteorological variables generated through fusion of the NLDAS and PRISM datasets. We provide a web-based application that can be used to download these data for free from Google Earth Engine (GEE). GEE is a cloud-based platform for processing satellite remote sensing images and other geospatial datasets. The application allows users to select a state and time range, automatically processes the meteorological data, and provides daily, county-level summaries in a comma-delimited text format that can be imported into ArboMAP.
+
+3) Finally, you will need outcome data, usually human cases. As with the mosquito data, we assume that the users of ArboMAP will have access to these data. ArboMAP models the current year based on all previous years, and does not rely on case counts in the current year because these cases are typically reported with time lags of weeks to months. The county of residence (or transmission) and a date (typically the onset of symptoms) are required for each case. 
+
+
+## Set-up: Initial install
+
+### Software
+#### R
+
+R (**[www.r-project.org](https://www.r-project.org/)**) is a statistical programming language that runs all of our analyses and produces reports and documentation, including this document. It is free and has a wide variety of packages built by users all around the world to do essentially any statistical analysis you can imagine.
+
+It is easiest to download R from CRAN (**[cloud.r-project.org](https://cloud.r-project.org/)**). For Windows user, please click on the link for \"Download R for Windows.\" Choose \"base,\" then \"Download R for Windows.\" Run this file and install R on your system. Use the default settings for the installer.
+
+```{r echo=FALSE, out.width='80%'}
+knitr::include_graphics('pictures for setup document/Download R1.png')
+```
+
+```{r echo=FALSE, out.width='80%'}
+knitr::include_graphics('pictures for setup document/Download R2.png')
+```
+
+For Mac user, please click on the lick \"Download R for macOS.\" Choose latest released R. Use the default settings for the installer.
+
+```{r echo=FALSE, out.width='80%'}
+knitr::include_graphics('pictures for setup document/Download R3.png')
+```
+
+### RStudio
+
+RStudio (**[www.rstudio.com](https://www.rstudio.com/)**) is a user-friendly GUI for the statistical programming language R that greatly simplifies a number of tasks for the programmer. Navigate to the site, click on Download, and choose the RStudio Desktop (Open Source License; the free version). Run the appropriate installer for your system. 
+
+## Set-up: Annual update at start of WNV season
+
+## How-to: Weekly reports
+
+
+
+# Report interpretation
+## Absolute risk
+## Relative risk
+## Current and multi-year forecasting charts
+## <>
+
+# Relevant scientific papers
