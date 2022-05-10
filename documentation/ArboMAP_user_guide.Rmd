@@ -6,15 +6,39 @@ date: "Updated May XX, 2022 for Version 4.0"
 output: 
   pdf_document:
     toc: true
-    toc_depth: 3
+    toc_depth: 2
+    fig_caption: yes
 ---
+
+```{r libraries_common, include=FALSE}
+if (!require("pacman")) install.packages("pacman", repos="http://cran.us.r-project.org"); library(pacman)
+pacman::p_load(dplyr, readr, knitr, rmarkdown)
+#Must use recent version of readr
+if (packageVersion("readr") < 2.1){
+  install.packages("readr", repos="http://cran.us.r-project.org")
+}
+
+field_fips_accepted <- c("fips", "FIPS", "fips_code", "FIPS_CODE")
+field_names_accepted <- c("county", "district", "parish", "Parish")
+
+```
   
 # Introduction
 
 ## ArboMAP forecasting system overview
 
+The Arbovirus Monitoring and Prediction (ArboMAP) system produces a weekly, county-level forecast of human West Nile virus (WNV) cases using environmental data combined with entomological data (Figure \ref{fig:overview}).
+
+The transmission of mosquito-borne diseases, such as WNV, is influenced by environmental conditions that affect many aspects of the disease transmission system. ArboMAP uses an ensemble of different mathematical models that each are predicting if a county will report at least one case in a given CDC/MMWR epiweek ('positive county-week'). Results presented are an average of the models with ranges as appropriate. As part of the process, mosquito infection rate is also modeled based on the mosquito pool data, and is included in the default modeling. ArboMAP uses generalized additive models (GAMs) with smooths for seasonality, and also lagged weather data, which allows it to model the time-delayed effects of weather conditions. A forecast report appendix, if generated, will expand all the results to show each individual model.
+
+```{r overview, echo=FALSE, fig.align='center', out.width='50%', fig.cap="\\label{fig:overview}Overview of the data, modeling, and output flows of the ArboMAP system. Three different sources of data are given to the system to produce forecasts: human surveillance data, mosquito pool test results (entomological), and weather/environmental data. Weather data can be obtained through the ArboMAP Google Earth Engine (GEE) app/script."}
+knitr::include_graphics(file.path("figures", "arbomap_data_model.jpg"))
+```
+
+
+
 ## WNV history and modeling
-West Nile virus (WNV) in South Dakota is our example in this document. WNV circulates primarily among mosquitoes and birds, but occasionally spills over into human or other hosts. In humans, the majority (~80%) of infections show no symptoms and are not diagnosed except perhaps accidentally during blood donation. Some small proportion of individuals will develop symptoms such as headache, fever, and rash, but in about one out of every 100 infected individuals, the disease becomes neuroinvasive and can cause debilitating illness and death.
+West Nile virus (WNV) in South Dakota is the example in this document. WNV circulates primarily among mosquitoes and birds, but occasionally spills over into human or other hosts. In humans, the majority (~80%) of infections show no symptoms and are not diagnosed except perhaps accidentally during blood donation. Some small proportion of individuals will develop symptoms such as headache, fever, and rash, but in about one out of every 100 infected individuals, the disease becomes neuroinvasive and can cause debilitating illness and death.
 
 WNV was first introduced to the U.S. in 1999 on the east coast, after which it spread in a westward-moving wave across the country. The early years produced thousands of cases as WNV invaded new regions. Birds were immunologically naive, so the virus decimated entire avian populations and spilled over into humans in an outbreak that lasted several years in some states.
 
@@ -24,8 +48,75 @@ However, in 2012 there was another outbreak, with hundreds of cases in South Dak
 
 Multiple studies conducted in South Dakota have confirmed that vector mosquitoes and human WNV cases are sensitive to fluctuations in environmental variables, particularly temperature (Chuang et al. 2011, 2012a, 2012b; Hess et al. 2018; Wimberly et al. 2008, 2014). Our research has shown that relatively simple statistical models, relying on weather and mosquito infection data, can be used to predict the risk of infection on a district-week basis (Davis et al. 2017, 2018). For more background, you will want to consult relevant journal articles, which are listed at the end of this document. 
 
-
 ## ArboMAP modeling
+
+ArboMAP uses an ensemble of different mathematical models that each are predicting if a county will report at least one case in a given week ('positive county-week'). It uses "big additive models" run with the `bam()` function from the mgcv library. Predictor variables include weather variables with effects modeled as distributed lags, and mosquito infection rates modeled using one of several techniques. There are a variety of other modeling options:
+
+* Models can be based on 1) untransformed weather data, or 2) weather anomalies, calculated as the difference between each daily value and its long-term daily expectation, combined with a cyclical seasonal trend. 
+
+* Distributed lags can be 1) a single, fixed set of distributed lags, or 2) seasonally varying so that the lag functions can change over the course of the WNV season.
+
+* Smoothed functions can be modeled using 1) cubic splines, or 2) thin-plate splines.
+
+Models to be used in an ArboMAP run are specified in a text file - in the demo, "models.txt" in the `data_models` folder of the RStudio project. Each line in this file contains two comma-separated strings, with NO space between the fields. The first contains a code name for the model and the second contains the specification of the R model formula. In the file provided with ArboMAP, the naming convention describes whether cubic (cub) or thin-plate (tp) splines are used. Then, the distributed lags are either fixed (fx) or seasonally-varying (sv). Then, we either use anomalized (anom) or non-anomalized (nonanom) environmental data.
+
+The table below lists the models that are found in the demo `models.txt` file. Standard models will have a text description, but all models run should appear in the table along with their formula. 
+
+The following fields may be present: 
+
+* `any_cases` : positive county-week
+* `arbo_ID` : internal field for identifying counties
+* `mir_stat` : the mosquito infection rate statistic
+* `s(lag, by=var...)` : fixed smooth term for the environmental variable over the distributed lag period
+* `te(lag, doymat, by=var...)` : seasonally-varying smooth term for the environmental variable over the distributed lag period
+* `var1` : variable for parameter `predictor_var1`, observed value
+* `var2` : variable for parameter `predictor_var2`, observed value
+* `var1_anom` : variable for parameter `predictor_var1`, anomalized value
+* `var2_anom` : variable for parameter `predictor_var2`, anomalized value
+* `s(doy,...)` : smooth term for day of year, for seasonality
+
+```{r formula_table, echo=FALSE, include=TRUE, results='asis'}
+
+models_raw <- readr::read_csv(file.path("..", "data_models", "models.txt"), 
+                              col_names = FALSE, show_col_types = FALSE, 
+                              quote = "\"")
+#create named list from tbl
+model_formulas <- models_raw %>% 
+  dplyr::pull(2, name = 1)
+#just the model names for later use
+model_names <- names(model_formulas)
+
+#Named list of short model descriptions / better names
+# includes full set in demo 
+model_desc_names <- c(
+  "cub-fx-nonanom" = "Non-anomalized weather with fixed cubic splines",
+  "cub-fx-anom" = "Anomalized weather with fixed cubic splines",
+  "cub-sv-nonanom" = "Non-anomalized weather with seasonally-varying cubic splines",
+  "cub-sv-anom" = "Non-anomalized weather with seasonally-varying cubic splines",
+  "tp-fx-nonanom" = "Non-anomalized weather with fixed thin plate splines",
+  "tp-fx-anom" = "Anomalized weather with fixed thin plate splines",
+  "tp-sv-nonanom" = "Non-anomalized weather with seasonally-varying thin plate splines",
+  "tp-sv-anom" = "Anomalized weather with seasonally-varying thin plate splines")
+
+#get named list info on models and combine into a single tibble
+full_mods <- model_formulas %>% 
+  tibble::enframe(name = "model", value = "formula") %>% 
+  dplyr::left_join(model_desc_names %>% 
+                     tibble::enframe(name = "model", value = "desc"),
+                   by = "model") %>% 
+  dplyr::select(model, desc, formula)
+
+#model display short name, descriptive name, & math formula
+knitr::kable(full_mods,
+               col.names = c("Model", "Description", "Formula"))
+
+```
+
+In general, it is expected that models based on thin-plate splines will be more stable and perform better than models based on cubic splines. However, this may not always be the case, and fitting models based on thin-plate splines typically takes longer. Models based on weather anomalies tended to outperform those based on transformed weather variables, though again this is not necessarily always the case. Models with seasonally-varying coefficients can be more effective when environmental sensitivities are different early in the season (when virus amplification is occurring in bird populations) versus later in the season (when infected mosquitoes are biting humans). However, the seasonally varying models are more complex, take more time to fit, and may be more likely to overfit to the training dataset.
+
+Other important modeling choices include determining which meteorological variables to use as predictors, and which type of mosquito index to use. Based on previous research, the best results seem to be obtained by combining temperature with a variable related to moisture (vapor pressure deficit, relative humidity, or precipitation). It is also necessary to choose a technique for modeling the mosquito infection data to generate entomological risk indices. In most situations, the mosquito infection growth rate (MIGR) is the best model of entomological risk, particularly in the early part of the WNV season. In situations where the mosquito infection rates does not exhibit unimodal growth in the early season, the mosquito infection intercept (MII) or the area under the mosquito infection growth curve (AUC) can be used as alternatives. For MIGR and MII, there is the also the option of implementing a spatially stratified version where multiple can be use in different parts of the state.
+
+The report generated by ArboMAP provides fit statistics for each model formula included in the run. Only one set of meteorological variables and one mosquito infection model can be selected for each run. Therefore, multiple runs must be made to compare different options for these settings. A suggested strategy is to start with multiple runs that include all the model formulas combined with environmental variables and mosquito infection models. Then, a smaller subset of the best-fitting models can be selected to use for routine forecasting.
 
 ## Applicability to other vector-borne diseases
 However, ArboMAP can be adapted to work with any data sets that meet the following conditions:
@@ -37,53 +128,268 @@ However, ArboMAP can be adapted to work with any data sets that meet the followi
 * Some measure of pathogen in the environment is available; e.g. here we use the rate at which pools of mosquitoes test positive for the virus.
 
 ArboMAP is designed to facilitate statewide forecasting of West Nile virus risk at the county level, and this guide is primarily focused on this implementation. 
-# Set-up guides
+
+\newpage
+# Set-up and how-to guides
+
+ArboMAP system set up and updates for weekly reports has three phases (Figure \ref{fig:setup}).  
+
+1) An initial install to set up the software, location-specific data, and basic parameters. This will only need to be done once. 
+
+2) An annual update prior to the start of the new WNV transmission season. Previous year human data and off-season weather data will need to be updated, as well as applying any relevant software updates. 
+
+3) Immediately before running a new weekly report, only the latest mosquito pool data (if available) and weather data need to be updated. 
+
+```{r setup, echo=FALSE, fig.align='center', out.width='100%', fig.cap="\\label{fig:setup}Three phases of ArboMAP set-up and maintence for running weekly reports: 1) Initial install, 2) Pre-season update, 3) Weekly report preparation."}
+knitr::include_graphics(file.path("figures", "arbomap_setup.jpg"))
+```
+
 ## Prepackaged tutorial data
 
-ArboMAP comes packaged with example 1) mosquito (including spatial strata), 2) weather data, and 3) human data. 
+ArboMAP comes packaged with example 1) human data, 2) mosquito (including optional spatial strata), and 3) weather data. 
 
-The weather data are real, but the human and mosquito data were generated randomly according to model estimates from our WNV study in South Dakota. **While the data appear similar to real human and mosquito data, they are _synthetic_ and _should not be used_ for any actual scientific study**. They are included merely to make sure that all software is installed and settings are correct; you will probably want to run the system first with these synthetic data before trying your own data.
+The weather data are real, but the human and mosquito data were generated randomly according to model estimates from our WNV study in South Dakota. **While the data appear similar to real human and mosquito data, they are _synthetic_ and _should not be used_ for any actual scientific study**. They are included merely to make sure that all software is installed and settings are correct; the user should try to run the system first with these synthetic data before trying new data.
 
-1) ArboMAP uses data on mosquito infection rates as predictors in the model. We assume that such data are acquired through mosquito surveillance programs implemented at the state, county, and or municipal level, and that users of ArboMAP will have access to these data. For example, during the initial implementation of ArboMAP in SD, we accessed the data through a web-based data portal to which which participants around the state had uploaded their mosquito infection data. Information is required about the county where each mosquito pool was collected, the date that it was collected, and whether it tested positive or negative for WNV.
+## ArboMAP data requirements & parameters
 
-2) You will need weather data so that relationships between disease and environment can be modeled. To forecast WNV in the United States, ArboMAP uses the gridMET dataset, which provide daily gridded data on meteorological variables generated through fusion of the NLDAS and PRISM datasets. We provide a web-based application that can be used to download these data for free from Google Earth Engine (GEE). GEE is a cloud-based platform for processing satellite remote sensing images and other geospatial datasets. The application allows users to select a state and time range, automatically processes the meteorological data, and provides daily, county-level summaries in a comma-delimited text format that can be imported into ArboMAP.
+ArboMAP uses three sources of data: human case, mosquito pool, and weather data. Each data format is described in the following sections, along with a detailed explanation of the report parameters. 
 
-3) Finally, you will need outcome data, usually human cases. As with the mosquito data, we assume that the users of ArboMAP will have access to these data. ArboMAP models the current year based on all previous years, and does not rely on case counts in the current year because these cases are typically reported with time lags of weeks to months. The county of residence (or transmission) and a date (typically the onset of symptoms) are required for each case. 
+To link these datasets together and with the spatial data (county maps), there must be an identifier that is common to these datasets. ArboMAP can use EITHER the name of the county OR the FIPS code for the county. Currently these must be consistent across the first three dataset (i.e. all use name or all use FIPS codes, it does not support a mix of ID types). 
+
+FIPS is the default ID type, if it is available in human, mosquito, and weather data. If weather data has been downloaded using the ArboMAP GEE script version 2.2 or later, then FIPS codes will be included. The field names allowed are: `r knitr::combine_words(field_fips_accepted, and = " or ")`. 
+
+Otherwise, it will use county names to link the datasets. There is an internal function to attempt to standardize capitalization and punctuation, however it may not succeed in all situations. The field names allowed are: `r knitr::combine_words(field_names_accepted, and = " or ")`. 
+
+The spatial data are downloaded TIGER census shapefiles, which have a standard format and ID matching happens internally within ArboMAP. 
+
+**Important information regarding dates** 
+Correct reading of dates is notoriously difficult in the data processing field. Starting in version 4.0, ArbmoMAP will first attempt to read dates as the version 3 standard of "MM/DD/YYYY" (pattern: "%m/%d/%Y"). Should that fail (results in NA as not processable), it will try to apply non-ambiguous date formats (e.g. YYYY-MM-DD). 
+
+The date field must be present in both the human and mosquito pool data. The column must be named "date". For human data this represents the onset date of symptoms (or whatever is used as the date of the case), and mosquito data this should be the date the mosquito pool was collected. For the weather data, there must be a "year" field and a "doy" (day of year, 1 - 366) field, which are included in the ArboMAP GEE output. 
+
+ArboMAP internally converts everything to CDC/MMWR epiweeks as the standard for the weekly report. 
+
+### Human case data
+
+Human case data is the outcome variable that ArboMAP is using to model and predict positive county-weeks. The availability of these data drives WNV modeling - the system can only train the model of years where there are human data and at minimum, also weather data. 
+
+**Do not include any human case data from the year you are modeling.** WNV cases are generally reported with large time lags of weeks to months. This would greatly underestimate the actual case counts in near-real time views, and would greatly negatively affect the modeling and forecasting accuracy. 
+
+For example, if predictions are being made for 2018, the model should be based on all human case data up to December 2017. If any human case data for 2018 is included - for example, if it is know that there were a handful of cases already in mid-July 2018 and update the human case data file during the season - then the model will assume that human case data for 2018 are complete. This is almost certainly incorrect, since some cases are only reported weeks or months after diagnosis, and human case counts during the season will therefore underestimate the actual disease burden.
+
+ArboMAP expects a single comma-separated value (CSV) file (Figure \ref{fig:human_file}), in the `data_human` folder, with these fields:
+
+* County ID field: This will either be the county FIPS code, or the county name. See the paragraphs at the beginning of the "ArboMAP data requirements & parameters" section. The FIPS code field names can be `r knitr::combine_words(field_fips_accepted, and = " or ")`, and the name field names can be `r knitr::combine_words(field_names_accepted, and = " or ")`. 
+
+* `date`: the onset date of the symptoms of the case. This can be in the ArboMAP version 3 standard format of "MM/DD/YYYY" (pattern: "%m/%d/%Y"), or in non-ambiguous formats such as YYYY-MM-DD. 
+
+Other fields can be present (though please avoid having partial data in any additional ID field, as this may lead to unexpected results). 
+
+```{r human_file, echo=FALSE, fig.align='center', out.width='60%', fig.cap="\\label{fig:human_file}Demo human case data, also showing an intentional typo in a county name ('0' in greg0ry) which will be flagged and reported in the forecast report."}
+knitr::include_graphics(file.path("figures", "file_human_withtypo.jpg"))
+```
 
 
+### Mosquito pool data
+
+ArboMAP uses data on mosquito pool WNV test results to model mosquito infection rates as predictors in the model. This data is often acquired through mosquito surveillance programs implemented at the state, county, and or municipal level. The three pieces of information that are required are: the county where each mosquito pool was collected, the date that it was collected, and whether it tested positive or negative for WNV. Negative pool information (i.e. pools that test negative) are critical and must be included. 
+
+ArboMAP expects a single comma-separated value (CSV) file ((Figure \ref{fig:mosq_file})), in the `data_mosquito` folder, with these fields:
+
+* County ID field: This will either be the county FIPS code, or the county name. See the paragraphs at the beginning of the "ArboMAP data requirements & parameters" section. The FIPS code field names can be `r knitr::combine_words(field_fips_accepted, and = " or ")`, and the name field names can be `r knitr::combine_words(field_names_accepted, and = " or ")`. 
+
+* `col_date`: the date of collection of the mosquito pool. This can be in the ArboMAP version 3 standard format of "MM/DD/YYYY" (pattern: "%m/%d/%Y"), or in non-ambiguous formats such as YYYY-MM-DD. 
+* `wnv_result`: A value of 1 for a positive test and 0 for a negative test. 
+
+Other fields can be present (though please avoid having partial data in any additional ID field, as this may lead to unexpected results). The demo file contains fields for "pool size" and "species", as these are often included in mosquito data results, but are not currently used in ArboMAP. 
+
+```{r mosq_file, echo=FALSE, fig.align='center', out.width='60%', fig.cap="\\label{fig:mosq_file}Demo mosquito pool data showing example mandatory fields, district for ID here, col\\_date, wnv\\_result."}
+knitr::include_graphics(file.path("figures", "file_mosquito.jpg"))
+```
+
+### Mosquito stratification
+
+Optional: Only if a stratified mosquito model is used, then a spatial stratification file must be provided. An example stratification file for South Dakota is provided with the demonstration dataset. 
+  
+If used, ArboMAP expects a single comma-separated value (CSV) file, in the `data_strata` folder, with these fields:
+
+* County ID field: This will either be the county FIPS code, or the county name. See the paragraphs at the beginning of the "ArboMAP data requirements & parameters" section. The FIPS code field names can be `r knitr::combine_words(field_fips_accepted, and = " or ")`, and the name field names can be `r knitr::combine_words(field_names_accepted, and = " or ")`. 
+
+* `strata`: a unique code for each stratum, may be numerical or string (text). 
+
+This file is not needed or used for non-stratified mosquito models. 
+
+### Environmental data
+
+Weather data is necessary to model the relationships between disease and the environment. To forecast WNV in the United States, ArboMAP uses the gridMET dataset, which provide daily gridded data on meteorological variables generated through fusion of the NLDAS and PRISM datasets. ArboMAP system includes a Google Earth Engine (GEE) script or app to download these data. The GEE application takes a state and a time range and automatically processes the meteorological data, providing daily, county-level summaries in a comma-delimited text format that can be imported into ArboMAP.
+
+For details on how to run the GEE script or app, please see the "How-to: Google Earth Engine (GEE) to gather weather data" section. 
+
+As weather data involves large amounts of data that are updated frequently, instead of a single file, ArboMAP is built to collate multiple files into one dataset from the `data_weather` folder (Figure \ref{fig:weather_folder}). Date ranges may overlap, as the code will automatically take the last updated value (most recent file) for any particular day. As gridMET data are updated from the early preliminary data that are initially relseased, it is a good idea to include 'extra' recent history in the weekly updates. No day should be missing, however. ArboMAP will attempt to fill in the best that it can, but it will report any missing dates in the forecast report, and the GEE script should be run to gather data for these dates. 
+  
+```{r weather_folder, echo=FALSE, fig.align='center', out.width='50%', fig.cap="\\label{fig:weather_folder}Multiple files are allowed in the data\\_weather folder, with overlapping dates. ArboMAP will collate all files using the most recent data for any particular day."}
+knitr::include_graphics(file.path("figures", "files_weather.jpg"))
+```
+
+While GEE is very useful for a number of reasons, ArboMAP can use environmental data from any source as long as the csv files follow the format below (Figure \ref{fig:weather_file}). 
+
+* County ID field: This will either be the county FIPS code, or the county name. See the paragraphs at the beginning of the "ArboMAP data requirements & parameters" section. The FIPS code field names can be `r knitr::combine_words(field_fips_accepted, and = " or ")`, and the name field names can be `r knitr::combine_words(field_names_accepted, and = " or ")`. 
+
+* `doy`: indicates the day of the year (1-366) of the measurement. 
+
+* `year`: the year of the measurement.
+
+* The remaining columns are measurements of the environmental conditions. If the measurements are not daily, they will need to be resampled to that temporal resolution. The column name MUST match the two predictor names given in the parameters (see the Parameters section for more details). Additional columns are allowed, and are not used. 
+
+```{r weather_file, echo=FALSE, fig.align='center', out.width='60%', fig.cap="\\label{fig:weather_file}Live gridMET weather data downloaded from ArboMAP Google Earth Engine script."}
+knitr::include_graphics(file.path("figures", "file_weather_gee.jpg"))
+```
+
+
+### Models
+
+Models to be used in an ArboMAP run are specified in a text file - in the demo, "models.txt" in the `data_models` folder of the RStudio project. Each line in this file contains two comma-separated strings, with NO space between the fields. The first contains a short name for the model and the second contains the specification of the R model formula. 
+
+For more details on the models in the demo, see the "ArboMAP modeling" section under the Introduction. 
+
+### Spatial
+
+ArboMAP uses spatial data to link the data and forecasts to their county to display in the maps. The demo comes pre-packaged with the census spatial data for South Dakota, however ArboMAP has the ability to create this for any state (given an internet connection).
+
+In the parameters, for the spatial data file location, enter the command `create` to download the census spatial data once and create a file in data_spatial folder. Use `always_download` to download census spatial data each time.
+
+After creation (if `create` is used), the file will exist in the `data_spatial` folder and will be named like "sd_counties.RDS", where "sd" is replaced with the state code. 
+
+Note for advanced users: This is being downloaded via the tigris package using the following command: `tigris::counties(state = params$state_code, cb = TRUE)`, where the "state_code" is one of the parameters set by the user (see the Parameters section). 
+
+### Parameters
+
+ArboMAP uses input parameters to control the specific configuration for a forecast report. The defaults are set within the header of the `ArboMAP_forecast.Rmd` file, however, the user can change them for every run on the fly. When running the forecast from the run scripts (see the "How-to: Weekly reports" section), a browser will pop up an interactive interface to change parameters (Figure \ref{fig:params_shiny}).
+
+
+```{r params_shiny, echo=FALSE, fig.align='center', out.width='33%', fig.show='hold', fig.cap="\\label{fig:params_shiny}Parameter interface from run scripts."}
+knitr::include_graphics(c(file.path("figures", "parameters_1_basic.jpg"), 
+                          file.path("figures", "parameters_2_files.jpg"),
+                          file.path("figures", "parameters_3_years_end.jpg")))
+```
+
+The parameters, listed in order of appearance, with both code names and long descriptors:
+
+* `state_name`: The name of the state being modeled. This will be included in the title of the report generated by ArboMAP.
+* `state_code`: The two-letter state abbreviation. This will be used in the creation of spatial data, if necessary. 
+* `forecast_date`: The requested date of the forecast. ArboMAP is based on weekly forecasts, using CDC/MMWR epiweeks, so the system will convert the requested forecast date into the epiweek it falls into. The date itself will appear in the title of the report.  
+* `predictor_var1` and `predictor_var2` are the names of the two meteorological variables chosen as predictors. These should match the name of the appropriate columns in the weather data. In the demo data, there are `tmeanc` for mean temperature in Celsius and `vpd` for vapor pressure deficit. 
+* `mosquito_model` is a code for the type of mosquito infection rate model to be used: 
+    * simpleratio = percent positive mosquito pools
+    * AUC = area under the mosquito infection growth curve 
+    * MIGR = Mosquito infection growth rate
+    * MII = Mosquito infection intercept (constant term from the mosquito infection growth rate equation) 
+    * stratifiedMIGR = spatially stratified version of MIGR 
+    * stratifiedMII = spatially stratified version of MII.
+
+
+
+* `human_file` is the name of the file that contains human case data.
+* `mosquito_file` contains the mosquito testing data.
+* `stratification_file` specifies the allocation of counties to strata for the spatially stratified version of the mosquito infection rate model.
+* `min_human_year` is the earliest year of available human case data.
+* `max_human_year` is the most recent year of available human case data (usually the year before the current forecast year).
+* `min_mosquito_year` is the earliest year of available mosquito infection data.
+* `max_mosquito_year` is the most recent year of available mosquito infection data (should be the current year during which the the forecast is being made).
+* `min_weather_year` is the earliest year of available weather data.
+* `max_weather_year` is the most recent year of available weather data (should be the current year during which the forecast is being made).
+* `min_desired_year` is the earliest year to include when fitting the model (typically the first year when human data and either mosquito or weather data are available).
+* `max_desired_year` is the most recent year to include when fitting the model (typically the current year when generating forecasts).
+  * `case_trim_alpha` tells ArboMAP to discard the earliest/latest alpha% of the human cases in all years. This prevents bad data (e.g. infections reported in December but actually contracted in July) from causing numerical difficulties in the analysis.
+* `compyear1` and `compyear2` indicate which two years in the past  to compare the current year to in some of the charts generated by ArboMAP.
+
+
+
+## How-to: Google Earth Engine (GEE) to gather weather data
+
+
+
+\newpage
 ## Set-up: Initial install
 
-### Software
-#### R
+### R
 
-R (**[www.r-project.org](https://www.r-project.org/)**) is a statistical programming language that runs all of our analyses and produces reports and documentation, including this document. It is free and has a wide variety of packages built by users all around the world to do essentially any statistical analysis you can imagine.
+R (**[www.r-project.org](https://www.r-project.org/)**) is a statistical programming language that runs all of our analyses and produces reports and documentation, including this document. It is free and has a wide variety of packages built by users all around the world to do to do many different statistical analyses with graphing and display options.
 
-It is easiest to download R from CRAN (**[cloud.r-project.org](https://cloud.r-project.org/)**). For Windows user, please click on the link for \"Download R for Windows.\" Choose \"base,\" then \"Download R for Windows.\" Run this file and install R on your system. Use the default settings for the installer.
+It is easiest to download R from the Comprehensive R Archive Network (CRAN): **[cloud.r-project.org](https://cloud.r-project.org/)**. For Windows user, please click on the link for "Download R for Windows." Choose "base," then "Download R for Windows." Run this file and install R on your system. Use the default settings for the installer.
 
-```{r echo=FALSE, out.width='80%'}
-knitr::include_graphics('pictures for setup document/Download R1.png')
+```{r echo=FALSE, fig.align='center', out.width='80%'}
+knitr::include_graphics(file.path("figures", "r_download.png"))
 ```
 
-```{r echo=FALSE, out.width='80%'}
-knitr::include_graphics('pictures for setup document/Download R2.png')
+```{r echo=FALSE, fig.align='center', out.width='80%'}
+knitr::include_graphics(file.path("figures", "r_download_windows.png"))
 ```
 
-For Mac user, please click on the lick \"Download R for macOS.\" Choose latest released R. Use the default settings for the installer.
-
-```{r echo=FALSE, out.width='80%'}
-knitr::include_graphics('pictures for setup document/Download R3.png')
-```
+For Mac user, please click on the link "Download R for macOS." Choose latest released R. Use the default settings for the installer.
 
 ### RStudio
 
-RStudio (**[www.rstudio.com](https://www.rstudio.com/)**) is a user-friendly GUI for the statistical programming language R that greatly simplifies a number of tasks for the programmer. Navigate to the site, click on Download, and choose the RStudio Desktop (Open Source License; the free version). Run the appropriate installer for your system. 
+RStudio (**[www.rstudio.com](https://www.rstudio.com/)**) is a user-friendly GUI for the statistical programming language R that greatly simplifies a number of tasks for the programmer. Navigate to the site, click on "Download", and choose the "RStudio Desktop" option (Open Source License; the free version). Run the appropriate installer for your system. 
 
+### R packages
+
+This is an OPTIONAL step. This will happen automatically the very first time you run a forecast, but if you wanted to reduce the amount of time that would take, this is a good preparatory step. 
+
+An R package is a collection of functions, data, and documentation that extends the capabilities of base R. Many packages are used in our code for forecasting, and will need to be installed. 
+
+In the RStudio console, run the command below and that will install a good number of the packages that we use in the `tidyverse` set of packages, plus others used for data processing and report generation. 
+
+```{r, eval = FALSE}
+install.packages(c("tidyverse", "tidyselect", "glue", "zoo", "mgcv", "splines", 
+                   "parallel", "pROC", "tigris", "sf", "gridExtra", "viridis", 
+                   "ggrepel", "ggpubr", "knitr", "rmarkdown", "shiny"))
+```
+
+Note to advanced users: If a pdf report is being generated, and your computer does not have a LaTeX installation, it will automatically download and install TinyTeX. If R can detect a LaTeX installation, it will skip this step, and the user should verify that their Sweave options in RStudio are set appropriately. 
+
+### ArboMAP
+
+Please download the latest ArboMAP project ('Source code') from EcoGRAPH lab's github repository (**[https://github.com/EcoGRAPH/ArboMAP/releases(https://github.com/EcoGRAPH/ArboMAP/releases)**) and extract or unzip the contents. 
+
+ArboMAP comes packaged with example 1) human data, 2) mosquito (including spatial strata), and 3) weather data. 
+
+The weather data are real, but the human and mosquito data were generated randomly according to model estimates from an EcoGRAPH WNV study in South Dakota. **While the data appear similar to real human and mosquito data, they are _synthetic_ and _should not be used_ for any actual scientific study**. They are included to make sure that all software is installed and settings are correct. The user should test run the system first with these data before changing to other data sources. 
+
+Adapting ArboMAP to a different data set and location will involve:
+
+* Changing the human, mosquito pool, and weather data sets.
+* Modifying the parameters to the appropriate settings. 
+
+See "ArboMAP data requirements & parameters" section above for details on data requirements & formatting, and a description of all parameters. 
+
+### Google Earth Engine
+
+Environmental data will be obtained from Google Earth Engine (GEE). GEE is a cloud-based platform for hosting satellite imagery. GEE also provides tools to process these remote sensing images and other geospatial datasets. Instead of downloading the raw satellite files and processing them on the user's own computer, which requires significant internet bandwidth and processing power, these steps are done in the cloud. At the end, only the summarized output will be downloaded. 
+
+There are two options to gather environmental data in GEE for ArboMAP. The first does not require a Google Earth Engine account, but is limited to short periods (months, not years) of data at a time (https://dawneko.users.earthengine.app/view/arbomap-gridmet). The second one, which allows for longer time periods, does require an account, which can be set-up using the following instructions:
+
+1. Request a GEE account: sign up at https://earthengine.google.com/.
+If the user does not already have a Google Account, it will prompt to make one. The Google account will also contain a Google Drive account, which is where the GEE data will be downloaded to. 
+
+2a. Copy the GEE code into a new script and save in the user's account. The code can be found in the .js file in the "code_GEE" subfolder of the ArboMAP project download. 
+
+2b. The GEE code may alternatively be found by following the "Access the Code Editor version" link from the ArboMAP GRIDMET GEE app (https://dawneko.users.earthengine.app/view/arbomap-gridmet). It can be run from this fixed link, or copied into a new script owned by the user (as in step 2a). 
+
+Details on how to run the GEE options will be described later in the ArboMAP data section. 
+
+
+
+
+\newpage
 ## Set-up: Annual update at start of WNV season
 
+
+\newpage
 ## How-to: Weekly reports
 
 
-
+\newpage
 # Report interpretation
 ## Absolute risk
 ## Relative risk
