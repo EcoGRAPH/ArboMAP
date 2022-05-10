@@ -152,7 +152,11 @@ The weather data are real, but the human and mosquito data were generated random
 
 ## ArboMAP data requirements & parameters
 
-ArboMAP uses three sources of data: human case, mosquito pool, and weather data. Each data format is described in the following sections, along with a detailed explanation of the report parameters. 
+ArboMAP uses three main sources of data: human case, mosquito pool, and weather data. Each data format is described in the following sections, along with a detailed explanation of the report parameters. Each data source has its own folder within the ArboMAP project (Figure \ref{fig:data_folders}).
+
+```{r data_folders, echo=FALSE, fig.align='center', out.height='25%', fig.cap="\\label{fig:data_folders}The data folders within the ArboMAP project, highlighted inside of the red box."}
+knitr::include_graphics(file.path("figures", "arbomap_folders_data.jpg"))
+```
 
 To link these datasets together and with the spatial data (county maps), there must be an identifier that is common to these datasets. ArboMAP can use EITHER the name of the county OR the FIPS code for the county. Currently these must be consistent across the first three dataset (i.e. all use name or all use FIPS codes, it does not support a mix of ID types). 
 
@@ -225,7 +229,7 @@ Weather data is necessary to model the relationships between disease and the env
 
 For details on how to run the GEE script or app, please see the "How-to: Google Earth Engine (GEE) to gather weather data" section. 
 
-As weather data involves large amounts of data that are updated frequently, instead of a single file, ArboMAP is built to collate multiple files into one dataset from the `data_weather` folder (Figure \ref{fig:weather_folder}). Date ranges may overlap, as the code will automatically take the last updated value (most recent file) for any particular day. As gridMET data are updated from the early preliminary data that are initially relseased, it is a good idea to include 'extra' recent history in the weekly updates. No day should be missing, however. ArboMAP will attempt to fill in the best that it can, but it will report any missing dates in the forecast report, and the GEE script should be run to gather data for these dates. 
+As weather data involves large amounts of data that are updated frequently, instead of a single file, ArboMAP is built to collate multiple files into one dataset from the `data_weather` folder (Figure \ref{fig:weather_folder}). Date ranges may overlap, as the code will automatically take the last updated value (most recent file) for any particular day. As gridMET data are updated from the early preliminary data that are initially released, it is a good idea to include 'extra' recent history in the weekly updates. No day should be missing, however. ArboMAP will attempt to fill in the best that it can, but it will report any missing dates in the forecast report, and the GEE script should be run to gather data for these dates. 
   
 ```{r weather_folder, echo=FALSE, fig.align='center', out.width='50%', fig.cap="\\label{fig:weather_folder}Multiple files are allowed in the data\\_weather folder, with overlapping dates. ArboMAP will collate all files using the most recent data for any particular day."}
 knitr::include_graphics(file.path("figures", "files_weather.jpg"))
@@ -264,10 +268,10 @@ Note for advanced users: This is being downloaded via the tigris package using t
 
 ### Parameters
 
-ArboMAP uses input parameters to control the specific configuration for a forecast report. The defaults are set within the header of the `ArboMAP_forecast.Rmd` file, however, the user can change them for every run on the fly. When running the forecast from the run scripts (see the "How-to: Weekly reports" section), a browser will pop up an interactive interface to change parameters (Figure \ref{fig:params_shiny}).
+ArboMAP uses input parameters to control the specific configuration for a forecast report. The defaults are set within the header of the `ArboMAP_forecast.Rmd` file, however, the user can change them for every run on the fly. When running the forecast from the run scripts (see the "How-to: Weekly reports" section), a browser will pop up an interactive interface to change parameters (Figure \ref{fig:params_shiny}). Not all parameters will need to be changed when running weekly reports, usually only the forecast date will be changed week to week. 
 
 
-```{r params_shiny, echo=FALSE, fig.align='center', out.width='33%', fig.show='hold', fig.cap="\\label{fig:params_shiny}Parameter interface from run scripts."}
+```{r params_shiny, echo=FALSE, fig.align='center', out.width='30%', fig.show='hold', fig.cap="\\label{fig:params_shiny}Parameter interface from run scripts."}
 knitr::include_graphics(c(file.path("figures", "parameters_1_basic.jpg"), 
                           file.path("figures", "parameters_2_files.jpg"),
                           file.path("figures", "parameters_3_years_end.jpg")))
@@ -277,7 +281,7 @@ The parameters, listed in order of appearance, with both code names and long des
 
 * `state_name`: The name of the state being modeled. This will be included in the title of the report generated by ArboMAP.
 * `state_code`: The two-letter state abbreviation. This will be used in the creation of spatial data, if necessary. 
-* `forecast_date`: The requested date of the forecast. ArboMAP is based on weekly forecasts, using CDC/MMWR epiweeks, so the system will convert the requested forecast date into the epiweek it falls into. The date itself will appear in the title of the report.  
+* `forecast_date`: The requested date of the forecast. ArboMAP is based on weekly forecasts, using CDC/MMWR epiweeks, so the system will convert the requested forecast date into the epiweek it falls into. The date itself will appear in the title of the report. This will be updated each time the report is run.
 * `predictor_var1` and `predictor_var2` are the names of the two meteorological variables chosen as predictors. These should match the name of the appropriate columns in the weather data. In the demo data, there are `tmeanc` for mean temperature in Celsius and `vpd` for vapor pressure deficit. 
 * `mosquito_model` is a code for the type of mosquito infection rate model to be used: 
     * simpleratio = percent positive mosquito pools
@@ -286,27 +290,79 @@ The parameters, listed in order of appearance, with both code names and long des
     * MII = Mosquito infection intercept (constant term from the mosquito infection growth rate equation) 
     * stratifiedMIGR = spatially stratified version of MIGR 
     * stratifiedMII = spatially stratified version of MII.
+* `mosquito_doy_start`: Include mosquito data per year starting at this day of year. The mosquito infection rate modeling is very sensitive to early mosquito pool results, which is why a cut-off is used. Sensitivity analyses indicate that a start day of year of 140 is a reasonable cut-off for a high modeling accuracy.
+* `mosquito_doy_end`: The ending day of year (per year) to include mosquito data for modeling. 
+* `file_human`: The path and file that contains all human case data. 
+* `file_mosquito`: The path and file that contains all mosquito pool WNV testing data. 
+* `file_strata`: Optional path and file for dividing the counties into different strata for mosquito modeling. Only used with stratified mosquito models. 
+* `file_county_sf`: Spatial data, either file location or command. Use \"create\" to download the census spatial data once and create a file in data_spatial folder. Use \"always_download\" to download census spatial data each time.
+* `file_models`: Modelling formulas file, comma separated (with NO space between) text (txt) file.
+* `folder_weather`: Name of folder where weather/environmental data are located.
+* `year_human_start`: Start year of human data to use. As modelling cannot happen without outcome data (human cases) this will also be the start year of modelling.
+* `year_human_end`: End year of human data to use. Unless you are running some kind of special tests or reports, this should be the year before the current/forecast year. See the "Human case data" section under "ArboMAP data requirements & parameters" for a discussion on this.
+* `year_mosquito_start`: Start year of mosquito data to use.
+* `year_mosquito_end`: End year of mosquito data to use.
+* `year_weather_start`: Start year of weather/environmental data to use. Will want to have at least lag length number of days before the start of modelling (year_human_start), so generally at least the year before that. However, more can be included and the additional data will be in the calculation of historical means. 
+* `year_weather_end`: End year of weather/environmental data to use. This should usually be the same year as the forecast year. 
+* `year_compare_vis1` and `year_compare_vis2`: Two years to highlight as a comparison year in certain graphs
+* `create_appendix`: Check the box to create a detailed appendix that will create output PER model, rather than the model averages. (Note for advanced users: this is TRUE or FALSE in the Rmd file.) 
+* `lag_length`: Number of days of weather data to include in lags. ArboMAP will use the previous number of days, e.g. 121 days, of environmental data on each date to include in the smoothed term in the models. 
+* `case_trim_alpha`: Remove temporal outliers from human cases. This removed the earliest & latest case_trim_alpha % of human cases in all years. This prevents the outliers, which may be cases with incorrect onset dates, from causing numerical difficulties in the analysis.
 
-
-
-* `human_file` is the name of the file that contains human case data.
-* `mosquito_file` contains the mosquito testing data.
-* `stratification_file` specifies the allocation of counties to strata for the spatially stratified version of the mosquito infection rate model.
-* `min_human_year` is the earliest year of available human case data.
-* `max_human_year` is the most recent year of available human case data (usually the year before the current forecast year).
-* `min_mosquito_year` is the earliest year of available mosquito infection data.
-* `max_mosquito_year` is the most recent year of available mosquito infection data (should be the current year during which the the forecast is being made).
-* `min_weather_year` is the earliest year of available weather data.
-* `max_weather_year` is the most recent year of available weather data (should be the current year during which the forecast is being made).
-* `min_desired_year` is the earliest year to include when fitting the model (typically the first year when human data and either mosquito or weather data are available).
-* `max_desired_year` is the most recent year to include when fitting the model (typically the current year when generating forecasts).
-  * `case_trim_alpha` tells ArboMAP to discard the earliest/latest alpha% of the human cases in all years. This prevents bad data (e.g. infections reported in December but actually contracted in July) from causing numerical difficulties in the analysis.
-* `compyear1` and `compyear2` indicate which two years in the past  to compare the current year to in some of the charts generated by ArboMAP.
-
-
-
+\newpage
 ## How-to: Google Earth Engine (GEE) to gather weather data
 
+ArboMAP system includes a Google Earth Engine (GEE) script and app to download weather data. ArboMAP uses the gridMET dataset, which provide daily gridded data on meteorological variables generated through fusion of the NLDAS and PRISM datasets. The GEE script/app takes a state and a time range and automatically processes the meteorological data, providing daily, county-level summaries in a comma-delimited text format that can be imported into ArboMAP.
+
+The GEE script will be used to set up historical data during the initial install, and then the script or app can be used to annually add the off-season data, and finally weekly for the near-real time updates. 
+
+There are two main ways to interface with the ArboMAP GEE code: 
+
+1) as a javascript script through the GEE Code Editor website, or 
+2) as an app through a website (which is running the same code in the background).
+
+Either one allows the user to select a state and a date range to automatically processes the meteorological data, providing daily, county-level summaries in a comma-delimited text format. 
+
+The Code Editor method allows for longer date ranges (multiple years), requires a free GEE account, and the data is downloaded to the user's Google Drive when it is ready. It is the recommended way for the initial data set up for a new project. 
+
+The application is designed for users without a GEE account, can handle requests up to several months, and downloads directly from the browser to the user's computer. It can easily be used for the annual off-season or weekly updates. 
+  
+### Code Editor version  
+
+There will be a .js file in the `code_GEE` folder of the ArboMAP project. This will be the latest released version of the ArboMAP GEE code. 
+
+_Set-up_  
+
+1) Navigate to **<https://code.earthengine.google.com>**.
+2) In the “New Script” center section of the page, copy and paste the text of the script.
+3) Click on "Save", and name it the same as the .js file.
+
+Alternatively, from the app (<https://dawneko.users.earthengine.app/view/arbomap-gridmet>), follow the link "Access to Code Editor version (must have Google Earth Engine account)" near the bottom of the left-hand pane. This will bring the user to a snapshot of the code, which can be copied into a new file owned by the user, or used as is.
+
+_To run_
+
+1) Click on the "Run" button in the top-middle pane (Step 1 in Figure \ref{fig:gee_code}). This will bring up the user interface in a panel on the left-side. 
+2) Under the "Downloader" section, select the state from the drop down list (first part of Step 2 in Figure \ref{fig:gee_code}). 
+3) Change the download start and end dates as necessary (second part of Step 2 in Figure \ref{fig:gee_code}). As gridMET data are updated from the early preliminary data that are initially released, it is a good idea to include 'extra' recent history in the weekly updates. The default end date is the date of latest available data, and the default start date is a month prior. 
+4) In the "Task" pane, click on the blue button labeled "RUN" to kick off the processing (Step 3 in Figure \ref{fig:gee_code}). The file will be saved to the user's Google drive when finished.  
+
+
+```{r gee_code, echo=FALSE, fig.align='center', out.width='80%', fig.cap="\\label{fig:gee_code}Code Editor interface for the ArboMAP Google Earth Engine script to download gridMET weather data. The primary steps are labeled with key items marked."}
+knitr::include_graphics(file.path("figures", "gee_codeeditor.jpg"))
+```
+
+As weather data involves large amounts of data that are updated frequently, instead of a single file, ArboMAP is built to collate multiple files into one dataset from the `data_weather` folder (Figure \ref{fig:weather_folder}). Date ranges may overlap, as the code will automatically take the last updated value (most recent file) for any particular day. No day should be missing, however. ArboMAP will attempt to fill in the best that it can, but it will report any missing dates in the forecast report, and the GEE script should be run to gather data for these dates.
+
+### App
+
+1) Navigate to **<https://dawneko.users.earthengine.app/view/arbomap-gridmet>**.
+2) Under the "Downloader" section, select the state from the drop down list (Step 1 in Figure \ref{fig:gee_app})
+3) Change the download start and end dates as necessary (second part of Step 2 in Figure \ref{fig:gee_code}). As gridMET data are updated from the early preliminary data that are initially released, it is a good idea to include 'extra' recent history in the weekly updates. The default end date is the date of latest available data, and the default start date is a month prior.
+4) In the small window that pops-up on the map, click the download link, which will download the file directly from the browser to your computer (Step 3 in Figure \ref{fig:gee_app}).
+
+```{r gee_app, echo=FALSE, fig.align='center', out.width='80%', fig.cap="\\label{fig:gee_app}ArboMAP Google Earth Engine app to download gridMET weather data. The primary steps are labeled with key items marked."}
+knitr::include_graphics(file.path("figures", "gee_app.jpg"))
+```
 
 
 \newpage
@@ -314,9 +370,9 @@ The parameters, listed in order of appearance, with both code names and long des
 
 ### R
 
-R (**[www.r-project.org](https://www.r-project.org/)**) is a statistical programming language that runs all of our analyses and produces reports and documentation, including this document. It is free and has a wide variety of packages built by users all around the world to do to do many different statistical analyses with graphing and display options.
+R (**<https://www.r-project.org>**) is a statistical programming language that runs all of our analyses and produces reports and documentation, including this document. It is free and has a wide variety of packages built by users all around the world to do to do many different statistical analyses with graphing and display options.
 
-It is easiest to download R from the Comprehensive R Archive Network (CRAN): **[cloud.r-project.org](https://cloud.r-project.org/)**. For Windows user, please click on the link for "Download R for Windows." Choose "base," then "Download R for Windows." Run this file and install R on your system. Use the default settings for the installer.
+It is easiest to download R from the Comprehensive R Archive Network (CRAN): **<https://cloud.r-project.org>**. For Windows user, please click on the link for "Download R for Windows." Choose "base," then "Download R for Windows." Run this file and install R on your system. Use the default settings for the installer.
 
 ```{r echo=FALSE, fig.align='center', out.width='80%'}
 knitr::include_graphics(file.path("figures", "r_download.png"))
@@ -330,7 +386,7 @@ For Mac user, please click on the link "Download R for macOS." Choose latest rel
 
 ### RStudio
 
-RStudio (**[www.rstudio.com](https://www.rstudio.com/)**) is a user-friendly GUI for the statistical programming language R that greatly simplifies a number of tasks for the programmer. Navigate to the site, click on "Download", and choose the "RStudio Desktop" option (Open Source License; the free version). Run the appropriate installer for your system. 
+RStudio (**<https://www.rstudio.com>**) is a user-friendly GUI for the statistical programming language R that greatly simplifies a number of tasks for the programmer. Navigate to the site, click on "Download", and choose the "RStudio Desktop" option (Open Source License; the free version). Run the appropriate installer for your system. 
 
 ### R packages
 
@@ -350,7 +406,7 @@ Note to advanced users: If a pdf report is being generated, and your computer do
 
 ### ArboMAP
 
-Please download the latest ArboMAP project ('Source code') from EcoGRAPH lab's github repository (**[https://github.com/EcoGRAPH/ArboMAP/releases(https://github.com/EcoGRAPH/ArboMAP/releases)**) and extract or unzip the contents. 
+Please download the latest ArboMAP project ('Source code') from EcoGRAPH lab's github repository (**<https://github.com/EcoGRAPH/ArboMAP/releases>**) and extract or unzip the contents. 
 
 ArboMAP comes packaged with example 1) human data, 2) mosquito (including spatial strata), and 3) weather data. 
 
@@ -367,22 +423,47 @@ See "ArboMAP data requirements & parameters" section above for details on data r
 
 Environmental data will be obtained from Google Earth Engine (GEE). GEE is a cloud-based platform for hosting satellite imagery. GEE also provides tools to process these remote sensing images and other geospatial datasets. Instead of downloading the raw satellite files and processing them on the user's own computer, which requires significant internet bandwidth and processing power, these steps are done in the cloud. At the end, only the summarized output will be downloaded. 
 
-There are two options to gather environmental data in GEE for ArboMAP. The first does not require a Google Earth Engine account, but is limited to short periods (months, not years) of data at a time (https://dawneko.users.earthengine.app/view/arbomap-gridmet). The second one, which allows for longer time periods, does require an account, which can be set-up using the following instructions:
+There are two options to gather environmental data in GEE for ArboMAP. The first does not require a Google Earth Engine account, but is limited to short periods (months, not years) of data at a time (<https://dawneko.users.earthengine.app/view/arbomap-gridmet>). The second one, which allows for longer time periods, does require an account, which can be set-up using the following instructions:
 
-1. Request a GEE account: sign up at https://earthengine.google.com/.
+1. Request a GEE account: sign up at **<https://earthengine.google.com>**.
 If the user does not already have a Google Account, it will prompt to make one. The Google account will also contain a Google Drive account, which is where the GEE data will be downloaded to. 
 
 2a. Copy the GEE code into a new script and save in the user's account. The code can be found in the .js file in the "code_GEE" subfolder of the ArboMAP project download. 
 
-2b. The GEE code may alternatively be found by following the "Access the Code Editor version" link from the ArboMAP GRIDMET GEE app (https://dawneko.users.earthengine.app/view/arbomap-gridmet). It can be run from this fixed link, or copied into a new script owned by the user (as in step 2a). 
+2b. The GEE code may alternatively be found by following the "Access the Code Editor version" link from the ArboMAP gridMET GEE app **<https://dawneko.users.earthengine.app/view/arbomap-gridmet>**. It can be run from this fixed link, or copied into a new script owned by the user (as in step 2a). 
 
-Details on how to run the GEE options will be described later in the ArboMAP data section. 
-
-
-
+Details on how to use GEE are found in the "How-to: Google Earth Engine (GEE) to gather weather data" section. 
 
 \newpage
 ## Set-up: Annual update at start of WNV season
+
+When preparing to start running weekly reports for the new WNV season, there are three main steps that are needed annually: 1) updating software, 2) updating data, and 3) updating parameters. 
+
+### Annual software update
+
+When pdf reports are created, ArboMAP is using tinytex in the background. TeX Live is updated annual at the beginning of April, so ArboMAP must also be updated. 
+
+1) Click on the `ArboMAP.Rproj` file to open the project in RStudio. 
+2) In RStudio, in the Files pane, click on `annual_midApril_tex_update.R` (Figure \ref{fig:annual_file}). 
+```{r annual_file, echo=FALSE, fig.align='center', out.height='25%', fig.cap="\\label{fig:annual_file}RStudio Files pane showing the annual TeX update script circled."}
+knitr::include_graphics(file.path("figures", "files_rstudio_annualtex.jpg"))
+```
+3) In the Source pane that opens up, make sure the cursor is at the start of line 1, and hit "Run" (Figure \ref{fig:annual_tex}). 
+```{r annual_tex, echo=FALSE, fig.align='center', out.width='60%', fig.cap="\\label{fig:annual_tex}Annual TeX update script as seen in RStudio Source pane."}
+knitr::include_graphics(file.path("figures", "annual_tex.jpg"))
+```
+
+### Annual data update
+
+#### Human data
+
+<<>>Get human data previous year, add to human csv file (one file)
+
+#### Weather data
+
+<<>>
+Run GEE app (or script) to gather weather data from the end of last forecast season (or whenever weather data was last updated) through current. 
+
 
 
 \newpage
