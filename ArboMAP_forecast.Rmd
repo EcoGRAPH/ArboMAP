@@ -51,7 +51,7 @@ params:
     label: "Start year of human data to use and this will also be the start year of modelling"
     value: 2004
   year_human_end: 
-    label: "End year of human data to use"
+    label: "End year of human data to use. This will normally be the year before the current/forecast year."
     value: 2017
   year_mosquito_start: 
     label: "Start year of mosquito data to use"
