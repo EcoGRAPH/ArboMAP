@@ -60,10 +60,10 @@ params:
     label: "End year of mosquito data to use"
     value: 2018
   year_weather_start: 
-    label: "Start year of weather/environmental data to use"
+    label: "Start year of weather/environmental data to use. This should be at least the year before the start of human data."
     value: 2000
   year_weather_end: 
-    label: "End year of weather/environmental data to use"
+    label: "End year of weather/environmental data to use. This is normally the same year as the current/forecast year."
     value: 2018
   year_compare_vis1: 
     label: "Year to highlight as a comparison year in certain graphs"
