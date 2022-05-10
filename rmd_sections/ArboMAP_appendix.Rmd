@@ -686,7 +686,7 @@ appx_data_env_doy <- data_env %>%
 
 # this year data - state-wide
 appx_data_env_fc_yr <- data_env %>% 
-  dplyr::filter(year_epi == epiyear_request) %>% 
+  dplyr::filter(year == epiyear_request) %>% 
   #summarize to state using medians
   dplyr::group_by(doy) %>% 
   dplyr::summarise(            
@@ -715,7 +715,7 @@ var2_anom_med_name <- paste0(var2_anom_name, "_med")
 
 if (nrow(appx_data_env_fc_yr) > 0){
   appx_data_env_colors <- appx_data_env_fc_yr %>% 
-    dplyr::left_join(appx_data_env_doy %>% 
+    dplyr::right_join(appx_data_env_doy %>% 
                        dplyr::select(doy, ends_with("_med")),
                      by = "doy") %>% 
     #line segments are drawn x to xend, y to yend

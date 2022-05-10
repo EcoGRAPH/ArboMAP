@@ -819,7 +819,7 @@ data_mosquito <- data_mosquito %>%
 data_env_raw <- data_env_raw %>% 
   #filter year range from parameter input
   #already has year field from GEE, however
-  # for consistency, this ALSO will be epi year
+  # will ALSO have epi year
   dplyr::mutate(date_obs = as.Date(paste(year, doy, sep = "-"),
                                    "%Y-%j"),
                 #epi year and week
@@ -1233,7 +1233,7 @@ if (dev_write_output){
 
 data_env <- data_env_raw %>% 
   #trim env vars to just predictor vars (removing extra env data)
-  dplyr::select(arbo_ID, date_obs, year_epi, week_epi, date_epi, doy,
+  dplyr::select(arbo_ID, date_obs, year, year_epi, week_epi, date_epi, doy,
                 file_time, 
                 params$predictor_var1, params$predictor_var2) %>% 
   # Group by county and date, 
@@ -1261,9 +1261,10 @@ rm(data_env_raw)
 #min/max years of data actually PRESENT in the input data 
 # (within the user-supplied range of years to use in modeling)
 # If set up normally, these should align, but it is not necessarily true
-env_exists_yr_min <- min(data_env$year_epi, na.rm = TRUE)
-env_exists_yr_max <- max(data_env$year_epi, na.rm = TRUE)
-env_exists_yr_list <- data_env$year_epi %>% unique() %>% sort()
+# Note use of CALENDAR year 
+env_exists_yr_min <- min(data_env$year, na.rm = TRUE)
+env_exists_yr_max <- max(data_env$year, na.rm = TRUE)
+env_exists_yr_list <- data_env$year %>% unique() %>% sort()
 #are there years between requested start/end years that no data were observed for? 
 #   pretty sure that the modeling will fail, but just for diagnostics
 #    potentially possible that gap filling will attempt to fill entire years [DMN]
@@ -3365,8 +3366,10 @@ data_env_doy <- data_env %>%
                                         na.rm = TRUE))
 
 # this year data - state-wide
-data_env_fc_yr <- data_env %>% 
-  dplyr::filter(year_epi == epiyear_request) %>% 
+data_env_fc_yr <- data_env %>%
+  # graphs are by calendar year
+  #note calendar year to prevent end of year values from ending up in 'this' year
+  dplyr::filter(year == epiyear_request) %>% 
   #summarize to state using medians
   dplyr::group_by(doy) %>% 
   dplyr::summarise(            
@@ -3401,7 +3404,8 @@ if (nrow(data_env_fc_yr) > 0){
 
   # calculate flag field for the different colors to data
   data_env_colors <- data_env_fc_yr %>% 
-    dplyr::left_join(data_env_doy %>% 
+    #right join to get historical medians even when there is no observed data for the current year
+    dplyr::right_join(data_env_doy %>% 
                        dplyr::select(doy, ends_with("_med")),
                      by = "doy") %>% 
     #line segments are drawn x to xend, y to yend
@@ -3543,10 +3547,10 @@ if (nrow(data_env_fc_yr) > 0){
 
 # # [DEV] Original style graphs
 # #some manipulation to get all line series in one long dataset for ggplot2
-# data_env_plotlines <- data_env_fc_yr %>% 
-#   dplyr::left_join(data_env_doy %>% 
+# data_env_plotlines <- data_env_fc_yr %>%
+#   dplyr::left_join(data_env_doy %>%
 #                      dplyr::select(doy, ends_with("_med")),
-#                    by = "doy") %>% 
+#                    by = "doy") %>%
 #   #make long
 #   tidyr::pivot_longer(cols = c(contains("_med")),
 #                       names_to = "env_var",
@@ -3568,21 +3572,21 @@ if (nrow(data_env_fc_yr) > 0){
 # env2_labels <- c("Historical median", "Year median")
 # names(env2_labels) <- c(paste0(params$predictor_var2, "_med"), paste0(params$predictor_var2, "_med_yr"))
 # 
-# #plot  
-# p_env_var1 <- ggplot() + 
+# #plot
+# p_env_var1 <- ggplot() +
 #   # min/max ribbon using wide data
-#   geom_ribbon(data = data_env_doy, 
-#               aes(x = doy, 
-#                   ymin = !!rlang::sym(paste0(params$predictor_var1, "_min")), 
+#   geom_ribbon(data = data_env_doy,
+#               aes(x = doy,
+#                   ymin = !!rlang::sym(paste0(params$predictor_var1, "_min")),
 #                   ymax = !!rlang::sym(paste0(params$predictor_var1, "_max")),
 #                   fill = "minmax")) +
 #   #series
-#   geom_line(data = data_env_plotlines %>% 
+#   geom_line(data = data_env_plotlines %>%
 #               #filter to this variable
 #               dplyr::filter(grepl(params$predictor_var1, env_var)),
-#             aes(x = doy, 
+#             aes(x = doy,
 #                 y = value,
-#                 color = env_var, 
+#                 color = env_var,
 #                 size = env_var)) +
 #   #vertical line at the doy of requested date #linetype inside of aes to trigger legend
 #   geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
@@ -3590,7 +3594,7 @@ if (nrow(data_env_fc_yr) > 0){
 #   scale_fill_manual("",
 #                     values = c("minmax" = "grey80"),
 #                     labels = "Range over all years") +
-#   scale_color_manual("", 
+#   scale_color_manual("",
 #                      values = env1_colors,
 #                      labels = env1_labels) +
 #   scale_size_manual("",
@@ -3599,28 +3603,28 @@ if (nrow(data_env_fc_yr) > 0){
 #   scale_linetype_manual("",
 #                         values = c("forecast_doy" = "dashed"),
 #                         labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
-#   xlab("Day of the year") + 
+#   xlab("Day of the year") +
 #   ylab(params$predictor_var1) +
-#   ggtitle(paste("Environmental data for", params$predictor_var1, 
+#   ggtitle(paste("Environmental data for", params$predictor_var1,
 #                 "in", max(data_env$year_epi, na.rm=TRUE))) +
 #   theme_arbo_chart +
 #   theme(legend.position = "none") #shown in second graph
 # 
 # 
-# p_env_var2 <- ggplot() + 
+# p_env_var2 <- ggplot() +
 #   # min/max ribbon using wide data
-#   geom_ribbon(data = data_env_doy, 
-#               aes(x = doy, 
-#                   ymin = !!rlang::sym(paste0(params$predictor_var2, "_min")), 
+#   geom_ribbon(data = data_env_doy,
+#               aes(x = doy,
+#                   ymin = !!rlang::sym(paste0(params$predictor_var2, "_min")),
 #                   ymax = !!rlang::sym(paste0(params$predictor_var2, "_max")),
 #                   fill = "minmax")) +
 #   #series
-#   geom_line(data = data_env_plotlines %>% 
+#   geom_line(data = data_env_plotlines %>%
 #               #filter to this variable
 #               dplyr::filter(grepl(params$predictor_var2, env_var)),
-#             aes(x = doy, 
+#             aes(x = doy,
 #                 y = value,
-#                 color = env_var, 
+#                 color = env_var,
 #                 size = env_var)) +
 #   #vertical line at the doy of requested date #linetype inside of aes to trigger legend
 #   geom_vline(aes(xintercept = doy_dt_epiwk_req, linetype = "forecast_doy"), color = "grey50") +
@@ -3628,7 +3632,7 @@ if (nrow(data_env_fc_yr) > 0){
 #   scale_fill_manual("",
 #                     values = c("minmax" = "grey80"),
 #                     labels = "Range over all years") +
-#   scale_color_manual("", 
+#   scale_color_manual("",
 #                      values = env2_colors,
 #                      labels = env2_labels) +
 #   scale_size_manual("",
@@ -3637,9 +3641,9 @@ if (nrow(data_env_fc_yr) > 0){
 #   scale_linetype_manual("",
 #                         values = c("forecast_doy" = "dashed"),
 #                         labels = paste0("Day of year of requested\nforecast date: ", doy_dt_epiwk_req)) +
-#   xlab("Day of the year") + 
+#   xlab("Day of the year") +
 #   ylab(params$predictor_var2) +
-#   ggtitle(paste("Environmental data for", params$predictor_var2, 
+#   ggtitle(paste("Environmental data for", params$predictor_var2,
 #                 "in", max(data_env$year_epi, na.rm=TRUE))) +
 #   theme_arbo_chart +
 #   theme(legend.position = "bottom")
