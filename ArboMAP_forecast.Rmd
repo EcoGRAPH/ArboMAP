@@ -577,8 +577,8 @@ standarize_fips <- function(my_tbl, fips_vector = field_fips_accepted){
   # if length 2, then county code but read as number and county has leading 0
   #    -> pad 0 in front to 3, and add state code
   
-  #grab state code from shp, as string
-  state_code <- data_sf$STATEFP %>% unique() %>% as.character()
+  #grab state fips code from shp, as string
+  state_fips <- data_sf$STATEFP %>% unique() %>% as.character()
 
   #attempt to handle possible read-ins and formats of fips codes in user data
   arbo_tbl <- arbo_tbl %>% 
@@ -586,8 +586,8 @@ standarize_fips <- function(my_tbl, fips_vector = field_fips_accepted){
                   arbo_ID = dplyr::case_when(
                     stringr::str_length(arbo_ID) == 4 ~ stringr::str_pad(arbo_ID, width = 5, 
                                                                          side = "left", pad = "0"),
-                    stringr::str_length(arbo_ID) == 3 ~ paste0(.env$state_code, arbo_ID),
-                    stringr::str_length(arbo_ID) == 2 ~ paste0(.env$state_code,
+                    stringr::str_length(arbo_ID) == 3 ~ paste0(.env$state_fips, arbo_ID),
+                    stringr::str_length(arbo_ID) == 2 ~ paste0(.env$state_fips,
                                                                stringr::str_pad(arbo_ID, width = 3, 
                                                                           side = "left", pad = "0")),
                     TRUE ~ arbo_ID))
