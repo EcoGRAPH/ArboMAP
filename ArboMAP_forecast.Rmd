@@ -57,7 +57,7 @@ params:
     label: "Start year of mosquito data to use"
     value: 2012
   year_mosquito_end: 
-    label: "End year of mosquito data to use"
+    label: "End year of mosquito data to use. This is normally the same year as the current/forecast year, or the last year of available mosquito information."
     value: 2018
   year_weather_start: 
     label: "Start year of weather/environmental data to use. This should be at least the year before the start of human data."
