@@ -1,0 +1,62 @@
+---
+output: pdf_document
+header-includes:
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancypagestyle{plain}{\pagestyle{fancy}}
+- \usepackage{float}
+- \floatplacement{figure}{H}
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+field_fips_accepted <- c("fips", "FIPS", "fips_code", "FIPS_CODE")
+field_names_accepted <- c("county", "district", "parish", "Parish")
+#formatting with backticks (can't be done within inline r chunk)
+fields_fips <- knitr::combine_words(field_fips_accepted, and = " or ", before="`", after="`")
+fields_names <- knitr::combine_words(field_names_accepted, and = " or ", before="`", after="`")
+
+#prevent figures from floating, using float and floatplacement from header-includes in YAML header
+knitr::opts_chunk$set(fig.pos= "H")
+
+```
+
+
+\newpage
+\fancyhead[L]{}
+\fancyhead[C]{ArboMAP Quick Start: Weekly Forecasts}
+\fancyhead[R]{}
+
+\fancyfoot[L]{Updated `r format(Sys.time(), '%B %d, %Y')` for Version 4.0}
+\fancyfoot[C]{}
+\fancyfoot[R]{}
+<!-- To get line above footer. Default is 0pt -->
+\renewcommand{\footrulewidth}{0.4pt}
+
+
+1. Update mosquito data - the latest mosquito pool data with positive or negative WNV test results will need to be appended to the mosquito CSV data file, in the `data_mosquito` folder, with these fields: 
+    * County ID field: This will either be the county FIPS code (`r fields_fips`) or the county name (`r fields_names`).
+    * `col_date`: the date of collection of the mosquito pool (MM/DD/YYYY or in non-ambiguous formats such as YYYY-MM-DD). 
+    * `wnv_result`: A value of 1 for a positive test and 0 for a negative test. 
+2. Update weather data via GEE app:
+    1. Go to <https://dawneko.users.earthengine.app/view/arbomap-gridmet>.
+    2. Pick your state and accept the default download start and end dates, unless you need additional data not covered by these dates.
+    3. Click the download link in the popup window on the map. Save or move the file to the `data_weather` folder.  
+    
+    ```{r app, echo=FALSE, fig.align='center', out.width='60%', fig.cap="ArboMAP Google Earth Engine app to download gridMET weather data."}
+    knitr::include_graphics(file.path("figures", "gee_app_trim.jpg"))
+    ```
+
+3. Run the forecast:
+    1. In the ArboMAP folder, click on `ArboMAP.Rproj` file. This will open the ArboMAP project in RStudio. 
+    2. In the File pane of RStudio, click on the appropriate run script: `ArboMAP_run_forecast_pdf.R` for a pdf report or `ArboMAP_run_forecast_html.R` for an html file. 
+    3. In the Source pane that opens, make sure the cursor is on line 1 and hit the 'Run" button. 
+    
+    ```{r run-pdf, echo=FALSE, fig.align='center', out.width='80%', fig.cap="Source pane for the pdf run script."}
+    knitr::include_graphics(file.path("figures", "run_pdf.jpg"))
+    ```
+
+4. This will pop open a browser window for a interactive interface for the parameters:  
+    1. Change the forecast date to today's date (or date of interest).
+    2. Any other changes (e.g. from annual updates that were not changed in the default settings). 
+5. Click on 'Save' to kick off the report in RStudio. After it finishes running, it will pop open the file to view. It will automatically add today's date to the filename, rename the file if desired. 
