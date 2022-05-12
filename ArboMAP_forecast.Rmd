@@ -45,7 +45,7 @@ params:
     value: !r file.path("data_models", "models.txt") 
     input: file
   folder_weather: 
-    label: "Name of folder where weather/environmental data are located" 
+    label: "Folder where weather/environmental data files are located" 
     value: "data_weather"
   year_human_start: 
     label: "Start year of human data to use and this will also be the start year of modelling"
@@ -63,7 +63,7 @@ params:
     label: "Start year of weather/environmental data to use. This should be at least the year before the start of human data."
     value: 2000
   year_weather_end: 
-    label: "End year of weather/environmental data to use. This is normally the same year as the current/forecast year."
+    label: "End year of weather/environmental data to use. This is normally the same year as the current forecast year."
     value: 2018
   year_compare_vis1: 
     label: "Year to highlight as a comparison year in certain graphs"
