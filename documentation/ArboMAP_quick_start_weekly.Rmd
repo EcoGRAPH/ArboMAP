@@ -34,8 +34,8 @@ knitr::opts_chunk$set(fig.pos= "H")
 \renewcommand{\footrulewidth}{0.4pt}
 
 
-1. Update mosquito data - the latest mosquito pool data with positive or negative WNV test results will need to be appended to the mosquito CSV data file, in the `data_mosquito` folder, with these fields: 
-    * County ID field: This will either be the county FIPS code (`r fields_fips`) or the county name (`r fields_names`).
+1. Update mosquito data: The latest mosquito pool data with positive or negative WNV test results will need to be added to the mosquito CSV data file, in the `data_mosquito` folder, with these fields: 
+    * County identification field: This will either be the county FIPS code (`r fields_fips`) or the county name (`r fields_names`).
     * `col_date`: the date of collection of the mosquito pool (MM/DD/YYYY or in non-ambiguous formats such as YYYY-MM-DD). 
     * `wnv_result`: A value of 1 for a positive test and 0 for a negative test. 
 2. Update weather data via GEE app:
@@ -52,7 +52,7 @@ knitr::opts_chunk$set(fig.pos= "H")
     2. In the File pane of RStudio, click on the appropriate run script: `ArboMAP_run_forecast_pdf.R` for a pdf report or `ArboMAP_run_forecast_html.R` for an html file. 
     3. In the Source pane that opens, make sure the cursor is on line 1 and hit the 'Run" button. 
     
-    ```{r run-pdf, echo=FALSE, fig.align='center', out.width='80%', fig.cap="Source pane for the pdf run script."}
+    ```{r run-pdf, echo=FALSE, fig.align='center', out.width='80%', fig.cap="RStudio source pane showing the pdf run script."}
     knitr::include_graphics(file.path("figures", "run_pdf.jpg"))
     ```
 

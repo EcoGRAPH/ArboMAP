@@ -33,9 +33,9 @@ knitr::opts_chunk$set(fig.pos= "H")
 <!-- To get line above footer. Default is 0pt -->
 \renewcommand{\footrulewidth}{0.4pt}
 
-1. Annual TeX Live update (to create pdfs):
+1. Annual TeX Live update (released beginning of April, every year, used to create pdfs):
     1. Click on the `ArboMAP.Rproj` file to open the project in RStudio.
-    2. In RStudio, in the Files pane, click on `annual_midApril_tex_update.R`
+    2. In RStudio, in the Files pane, click on `annual_midApril_tex_update.R`. 
     3. In the Source pane that opens up, make sure the cursor is at the start of line 1, and hit "Run". 
 
 ```{r annual-tex, echo=FALSE, fig.align='center', out.width='50%', fig.cap="Annual TeX update script as seen in RStudio Source pane."}
@@ -43,8 +43,8 @@ knitr::include_graphics(file.path("figures", "annual_tex.jpg"))
 ```
 
 2. Update human data: At the beginning of a new season, i.e. a new forecast year, the previous year's human case data will need to be added to the single CSV file, in the `data_human` folder, with these required fields:
-    * County ID field: This will either be the county FIPS code (`r fields_fips`) or the county name (`r fields_names`).
-    * `date`: the onset date of the symptoms of the case (MM/DD/YYYY or in non-ambiguous formats such as YYYY-MM-DD) 
+    * County identification field: Either the county FIPS code (`r fields_fips`) or the county name (`r fields_names`), as matched to what is used in mosquito data. 
+    * `date`: the onset date of the symptoms of the case ("MM/DD/YYYY" or in non-ambiguous formats such as YYYY-MM-DD) 
 3. Update off-season weather data via GEE app: 
     1. Go to <https://dawneko.users.earthengine.app/view/arbomap-gridmet>.
     2. Pick your state, and edit the start date to a week or so before the last updated previous data. 
