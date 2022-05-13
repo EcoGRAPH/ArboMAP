@@ -1,14 +1,14 @@
 # Arbovirus Modeling and Prediction to Forecast Mosquito-Borne Disease Outbreaks (ArboMAP)
 
-ArboMAP is a set of software to be used in the RStudio environment to model and predict vector-borne diseases, especially arboviruses transmitted by mosquitoes. 
+ArboMAP is a set of software to be used in the RStudio environment to model and predict vector-borne diseases, especially arboviruses transmitted by mosquitoes. In this demo project, ArboMAP is being used for forecasting West Nile virus. 
 
-**`ArboMAP_user_guide.pdf`** contains detailed information on installation, data requirements, use of ArboMAP, and how to interpret the forecast reports. New users should read through this documentation. 
+**`documentation/ArboMAP_user_guide.pdf`** contains detailed information on installation, data requirements, use of ArboMAP, and how to interpret the forecast reports. New users should read through this documentation. There are also two short quick start guides for the annual update and how to run the weekly reports in the `documentation` folder. 
 
 **`ArboMAP.Rproj`** should be opened to bring up the project in RStudio. The forecasts will be generated from scripts (or the rmd directly) from RStudio: 
 
 **`ArboMAP_run_forecast_pdf.R`** will create a pdf forecast report and **`ArboMAP_run_forecast_html.R`** will create an html report. Both of these scripts are calling the `ArboMAP_forecast.Rmd` file with additional settings. 
 
-**`code_GEE/arbomap_gridmet_gee_v2_2.js`** contains code for the Google Earth Engine javascript for gathering weather data. Detailed instructions and other options are given in the user guide.   
+**`code_GEE/arbomap_gridmet_gee_v[#].js`** contains code for the Google Earth Engine javascript for gathering weather data. Detailed instructions and other options are given in the user guide.   
 
 The various directories contain either example input data or example outputs from ArboMAP.
 
@@ -33,6 +33,7 @@ v4.0
 - Significant changes to user interfaces and input parameters. 
 - Overhaul of the internal code, switching to mostly tidyverse data processing and presentation R packages. 
 - Fixed environmental data processing to always use the latest updated value for any particular day when there are overlaps between data files. 
+- Updated GEE code to code_GEE/arbomap_gridmet_gee_v2_2.js. 
 - Minor bug fixes and addition of copious developer and code comments for future developers. 
 
 v3.1
