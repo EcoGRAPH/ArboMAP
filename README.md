@@ -2,23 +2,20 @@
 
 ArboMAP is a set of software to be used in the RStudio environment to model and predict vector-borne diseases, especially arboviruses transmitted by mosquitoes. 
 
-**ArboMAP_User_Guide.pdf** contains information on installation and use of ArboMAP. New users should begin by reading through the file completely.  
+**`ArboMAP_user_guide.pdf`** contains detailed information on installation, data requirements, use of ArboMAP, and how to interpret the forecast reports. New users should read through this documentation. 
 
-**ArboMAP_Main_Code.Rmd** contains code for generating weekly forecasting reports.
+**`ArboMAP.Rproj`** should be opened to bring up the project in RStudio. The forecasts will be generated from scripts (or the rmd directly) from RStudio: 
 
-**GRIDMET_downloader_v2_1.js** contains code for the Google Earth Engine application for environmental data access.  
+**`ArboMAP_run_forecast_pdf.R`** will create a pdf forecast report and **`ArboMAP_run_forecast_html.R`** will create an html report. Both of these scripts are calling the `ArboMAP_forecast.Rmd` file with additional settings. 
 
-**ArboMAP.Rproj** is an RStudio project that can be used to run the code and will allow the programs to find all the necessary data.
+**`code_GEE/arbomap_gridmet_gee_v2_2.js`** contains code for the Google Earth Engine javascript for gathering weather data. Detailed instructions and other options are given in the user guide.   
 
 The various directories contain either example input data or example outputs from ArboMAP.
 
-**Important Note:** the human and mosquito data that come packaged with ArboMAP are synthetic data, created by
-first fitting the model on West Nile virus in South Dakota, and then generating human cases and
-mosquito pools according to that model. Hence, while they are consistent with the overall trends
-of actual data, they are not the actual data, and must not be used as a basis for scientific inference. Rather,
-they are provided so that the user can see an example of the code working well with realistic data.
+**Important Note:** The human and mosquito data that come packaged with ArboMAP are ***synthetic data***, created by
+first fitting the model on West Nile virus in South Dakota, and then generating human cases and mosquito pools according to that model. Hence, while they are consistent with the overall trends of actual data, they are not the actual data, and must not be used as a basis for scientific inference. Rather, they are provided so that the user can see an example of the code working well with realistic data.
 
-ArboMAP was developed by the [EcoGRAPH](http://ecograph.net) research group at the University of Oklahoma with support from NASA. We are happy to answer your questions, and we would appreciate feedback on how these tools could be improved. Please contact mcwimberly@ou.edu for questions about the arbovirus modeling project.
+ArboMAP was developed by the [Ecological and Geospatial Research and Application in Planetary Health (EcoGRAPH) Research Group](http://ecograph.net) at the University of Oklahoma with support from NASA. We are happy to answer your questions, and we would appreciate feedback on how these tools could be improved. Please contact <mailto:mcwimberly@ou.edu> for questions about the arbovirus modeling project.
 
 Copyright (C) 2019, J. Davis and M. Wimberly
 
@@ -26,9 +23,17 @@ This program is free software: you can redistribute it and/or modify it under th
 published by the Free Software Foundation, version 3. This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU General Public License for more details. You should have received a copy of the GNU General Public License along with
-this program. If not, see <http://www.gnu.org/licenses/>.
+this program. If not, see <http://www.gnu.org/licenses>.
 
 **Version information:**
+
+v4.0
+
+- Massive rewrite of the report output and format, including figures and narrative, based on feedback from public health partners. 
+- Significant changes to user interfaces and input parameters. 
+- Overhaul of the internal code, switching to mostly tidyverse data processing and presentation R packages. 
+- Fixed environmental data processing to always use the latest updated value for any particular day when there are overlaps between data files. 
+- Minor bug fixes and addition of copious developer and code comments for future developers. 
 
 v3.1
 
