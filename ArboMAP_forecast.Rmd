@@ -991,22 +991,20 @@ mosq_exists_yr_list <- data_mosquito$year_epi %>% unique() %>% sort()
 mosq_yrs_missing <- setdiff(params$year_mosquito_start:params$year_mosquito_end,
                              mosq_exists_yr_list)
 
-#max/latest year diagnostics and statistics for report text and debugging
-# note this is being done after mosquito_year_end filtering
-#  so not latest in data file, but latest in dataset for this forecast
-data_mosq_maxyr <- data_mosquito %>% 
-  dplyr::filter(year_epi == mosq_exists_yr_max)
-#number rows of data in max year
-dx_mosq_nrow_maxyr <- nrow(data_mosq_maxyr)
-#number of counties in max year
-dx_mosq_counties_maxyr <- data_mosq_maxyr %>% 
+#forecast year diagnostics and statistics for report text and debugging
+data_mosq_fcyr <- data_mosquito %>% 
+  dplyr::filter(year_epi == epiyear_request)
+#number rows of data in year
+dx_mosq_nrow_fcyr <- nrow(data_mosq_fcyr)
+#number of counties in year
+dx_mosq_counties_fcyr <- data_mosq_fcyr %>% 
     dplyr::pull(arbo_ID) %>% unique() %>% length()
-#number of wnv positive pools in max year
-mosq_pos_num_maxyr <- data_mosq_maxyr %>% 
+#number of wnv positive pools in year
+mosq_pos_num_fcyr <- data_mosq_fcyr %>% 
   dplyr::filter(wnv_result == 1) %>% 
   nrow()
 #percent of pools positive in max year
-mosq_pos_perc_maxyr <- mosq_pos_num_maxyr / dx_mosq_nrow_maxyr * 100 %>% 
+mosq_pos_perc_fcyr <- mosq_pos_num_fcyr / dx_mosq_nrow_fcyr * 100 %>% 
   round(3)
 ```
 
@@ -2875,13 +2873,17 @@ mosq_2wks_dts_str <- paste0(format(mosq_2wks_dts[1], "%m/%d/%Y"),
 mosq_2wks_dat_dts <- c(min(data_mosq_2wk$date_obs, na.rm = TRUE),
                        max(data_mosq_2wk$date_obs, na.rm = TRUE))
 
-mosq_2wks_dat_dts_str <- paste0(format(mosq_2wks_dat_dts[1], "%m/%d/%Y"),
+#handle when no data in 2wk period: min/max will be Inf/-Inf
+mosq_2wks_d1 <- format(mosq_2wks_dat_dts[1], "%m/%d/%Y")
+mosq_2wks_d2 <- format(mosq_2wks_dat_dts[2], "%m/%d/%Y")
+
+mosq_2wks_dat_dts_str <- paste0(if_else(mosq_2wks_d1 == Inf, "NA", mosq_2wks_d1),
                                 " through ",
-                                format(mosq_2wks_dat_dts[2], "%m/%d/%Y"))
+                                if_else(mosq_2wks_d2 == -Inf, "NA", mosq_2wks_d2))
 
 ```
 
-After data processing, the mosquito pool data contained a total of `r dx_mosq_nrow_2clean` rows, containing data from years: `r knitr::combine_words(human_exists_yr_list)`. Overall during this time frame, a total of `r length(dx_mosq_counties)` counties reported mosquito data. 
+After data processing, the mosquito pool data contained a total of `r dx_mosq_nrow_2clean` rows, containing data from years: `r knitr::combine_words(mosq_exists_yr_list)`. Overall during this time frame, a total of `r length(dx_mosq_counties)` counties reported mosquito data. 
 
 `r if(nrow(dx_mosq_unmatched) > 0){paste0("The mosquito data entries that were unmatched to spatial data during processing are in the table below. Please check for misspellings in the original file.")}`
 ```{r mosq_unmatched, echo=FALSE, include=TRUE}
@@ -2894,14 +2896,14 @@ if(nrow(dx_mosq_unmatched) > 0){
 
 Parameters were set to include mosquito data from `r params$year_mosquito_start` through `r params$year_mosquito_end`.
 `r if(length(mosq_yrs_missing) == 0){paste0("Data from all years were found in the data file.")}`
-`r if(length(mosq_yrs_missing)>0){paste0("The following years were not found in the dataset:", mosq_yrs_missing %>% sort() %>% knitr::combine_words(), ".")}` 
+`r if(length(mosq_yrs_missing)>0){paste0("The following years were not found in the dataset: ", mosq_yrs_missing %>% sort() %>% knitr::combine_words(), ".")}` 
 Note that even if there were no positive pools in a given year, if there were any pools tested then the data will be useful; zero infection rates do predict low-risk years and should be used.
 
 Parameters were set to include mosquito data from day of year `r params$mosquito_doy_start` through `r params$mosquito_doy_end`. The mosquito infection rate modeling is very sensitive to early mosquito pool results, which is why a cut-off is used. Sensitivity analyses indicate that a start day of year of 140 is a reasonable cut-off for a high modeling accuracy. 
 
 Modeling was done from `r year_modeling_start` through `r year_modeling_end`. Years without mosquito data during these years are assumed to have average mosquito infection rates. This allows us to estimate relationships with environmental data even when mosquito data are not available. There were `r length(yrs_mir_imputed)` years where mosquito infection rates were imputed. `r if(length(yrs_mir_imputed)>0){paste0("These years are: ", yrs_mir_imputed %>% sort() %>% knitr::combine_words(), ".")}` In modeling years where sufficient mosquito data were present, the mosquito infection statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. 
 
-In the forecast year to date, there were `r dx_mosq_nrow_maxyr` pools reported from `r dx_mosq_counties_maxyr` counties. Of these pools, `r mosq_pos_num_maxyr` (`r round_any(mosq_pos_perc_maxyr, 1)`%) were reported WNV positive. 
+In the forecast year to date, there were `r dx_mosq_nrow_fcyr` pools reported from `r dx_mosq_counties_fcyr` counties. Of these pools, `r mosq_pos_num_fcyr` (`r round_any(mosq_pos_perc_fcyr, 1)`%) were reported WNV positive. 
 
 Pool statistics for the past two weeks are also included. If pool data exists for the forecast epiweek, then the two weeks will be the forecast week and the week prior. If data does not exist yet for the requested forecast epiweek, then the weeks shown will be the two epiweeks prior to the forecast week. In this report, the two weeks are `r mosq_2wks_dts_str` (epiweeks `r lubridate::epiweek(mosq_2wks_dts[1])` & `r lubridate::epiweek(mosq_2wks_dts[2])`) with mosquito data existing between `r mosq_2wks_dat_dts_str`.
 
