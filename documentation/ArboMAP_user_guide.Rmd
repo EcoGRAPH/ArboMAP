@@ -366,6 +366,16 @@ The parameters, listed in order of appearance, with both code names and long des
 
 ArboMAP system includes Google Earth Engine (GEE) tools to download weather data. ArboMAP uses the gridMET dataset  (<https://www.climatologylab.org/gridmet.html> via <https://developers.google.com/earth-engine/datasets/catalog/IDAHO_EPSCOR_GRIDMET>), which provides daily gridded data on meteorological variables generated through fusion of the NLDAS and PRISM datasets. The GEE tool (script or app) takes a state and a time range and automatically processes the meteorological data, providing daily, county-level summaries in a comma-separated value format that can be imported into ArboMAP.
 
+The weather variables that are collected or calculated are:
+
+* `tminc`: minimum temperature (Celsius)
+* `tmeanc`: calculated average daily temperature (Celsius); used as a predictor variable
+* `tmaxc`: maximum daily temperature (Celsius)
+* `pr`: daily total precipitation (mm)
+* `rmean`: calculated mean relative humidity (%)
+* `vpd`: mean vapor pressure deficit (kPa); used as a predictor variable
+* `vs`: wind velocity at 10m (m/s).
+
 There are two main ways to interface with the ArboMAP GEE code: 
 
 1) as a javascript script through the GEE Code Editor website, or 
@@ -761,11 +771,11 @@ An easy way to check on the significance of the smooth term is if a horizontal l
 
 All models with smooths will have 1-D graphs (e.g. Figure \@ref(fig:par1d)). Seasonally-varying models will also have 2-D graphs (components with `doymat` in standard models), however a subset of y-values have been pulled out to plot as lines (e.g. Figure \@ref(fig:par2d)). 
 
-```{r par1d, echo=FALSE, fig.align='center', out.width='80%', fig.cap="Example 1-D partial effect graph for the smoothed term for the anomalized version of vapor pressure deficit for a particular model. The lag is the number of days of lag (to accomodate the delay in effect from environmental conditions to transmission risk), up to the maximum specified in the parameters (121 here)."}
+```{r par1d, echo=FALSE, fig.align='center', out.width='70%', fig.cap="Example 1-D partial effect graph for the smoothed term for the anomalized version of vapor pressure deficit for a particular model. The lag is the number of days of lag (to accomodate the delay in effect from environmental conditions to transmission risk), up to the maximum specified in the parameters (121 here)."}
 knitr::include_graphics(file.path("figures", "rpt_appx_dep_fxs-14.png"))
 ```
 
-```{r par2d, echo=FALSE, fig.align='center', out.width='80%', fig.cap="Example 2-D partial effect graph for seasonally-varying mean temperature (observed values) with three sample doys pulled out to graph as lines. The lag is the number of days of lag (to accomodate the delay in effect from environmental conditions to transmission risk), up to the maximum specified in the parameters (121 here)."}
+```{r par2d, echo=FALSE, fig.align='center', out.width='70%', fig.cap="Example 2-D partial effect graph for seasonally-varying mean temperature (observed values) with three sample doys pulled out to graph as lines. The lag is the number of days of lag (to accomodate the delay in effect from environmental conditions to transmission risk), up to the maximum specified in the parameters (121 here)."}
 knitr::include_graphics(file.path("figures", "rpt_appx_dep_fxs-16.png"))
 ```
 
