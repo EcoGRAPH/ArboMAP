@@ -3292,7 +3292,9 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
     # plot themes and display
     scale_color_viridis("Stratum",
                         option = "turbo",
-                        discrete = TRUE) +
+                        discrete = TRUE,
+                        #limit spectrum b/c dark red/purple looks like black
+                        begin = 0.1, end = 0.9) +
     scale_x_continuous(breaks = seq(from = params$year_mosquito_start,
                                     to = params$year_mosquito_end,
                                     by = 1)) +
