@@ -664,6 +664,9 @@ standarize_names <- function(my_tbl, names_vector = field_names_accepted){
 if (confirm_id_fields(field_fips_accepted)){
   # use fips as arbo_ID
   
+  id_as_fips <- TRUE
+  id_as_names <- FALSE
+  
   data_human <- standarize_fips(data_human)
   data_mosquito <- standarize_fips(data_mosquito)
   data_env_raw <- standarize_fips(data_env_raw)
@@ -679,6 +682,9 @@ if (confirm_id_fields(field_fips_accepted)){
   
 } else if (confirm_id_fields(field_names_accepted)){
   # use county names as arbo_ID
+  
+  id_as_fips <- FALSE
+  id_as_names <- TRUE
   
   data_human <- standarize_names(data_human)
   data_mosquito <- standarize_names(data_mosquito)
