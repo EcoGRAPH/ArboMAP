@@ -706,6 +706,18 @@ id_crosswalk <- data_sf %>%
   sf::st_drop_geometry() %>% 
   dplyr::select(NAME, arbo_ID)
 
+#If county highlights (dev), then set up proper IDs here
+if (highlight_flag){
+  
+  #using names, need to crosswalk from user given name to simplename arbo_ID
+  # user given names MUST match shapefile standard name (NAME)
+  if (id_as_names){
+    highlight_ids <- id_crosswalk$arbo_ID[match(highlight, id_crosswalk$NAME)]
+  } else {
+    #if using fips, use as is
+    highlight_ids <- highlight
+  }
+}
 
 ```
 
