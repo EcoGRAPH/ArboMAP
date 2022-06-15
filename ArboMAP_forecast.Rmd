@@ -2223,6 +2223,78 @@ p_abs_risk <- ggplot2::ggplot() +
 
 plot(p_abs_risk)
 
+#If highlight counties, then add special secondary map and table
+if (highlight_flag){
+  
+  #if no mask, create highlight layer + to p_abs_risk
+  if (!highlight_mask){
+    
+    sf_highlight <- sf_abs_risk %>% 
+      #ONLY include highlighted counties
+      dplyr::filter(arbo_ID %in% highlight_ids)
+    
+    p_abs_risk_high <- p_abs_risk + 
+      geom_sf(data = sf_highlight,
+              aes(color = "Highlighted counties"), 
+              size = 1,
+              #let the pred_ave colors through
+              fill = NA) +
+      scale_color_manual("", 
+                         values = c("Highlighted counties" = "red"))
+    
+  }
+  
+  #if mask, recreate (not easily edited)
+  
+  if (highlight_mask){
+    
+    sf_highlight <- sf_abs_risk %>% 
+      #strip out all values (not counties) except for 'highlighted'
+      dplyr::mutate(pred_ave = if_else(arbo_ID %in% highlight_ids,
+                                       pred_ave,
+                                       NA_real_))
+    p_abs_risk_high <- ggplot2::ggplot() +
+      ggplot2::geom_sf(data = sf_highlight,
+                       aes(fill = pred_ave,
+                           #fake alpha to get NA legend entry
+                           alpha = "Not included")) +
+      viridis::scale_fill_viridis("", 
+                                  #limits always 0 - 1
+                                  limits = c(0, 1),
+                                  breaks = c(0, 1),
+                                  labels = c("0: Less likely\nto report any cases", 
+                                             "1: More likely\nto report at least one case"),
+                                  na.value = color_risk_na) +
+      #fake scale for NA legend entry
+      scale_alpha_manual("", values = 1) +
+      ggtitle("Absolute risk in forecast week") +
+      theme_arbo_map +
+      theme(plot.title = element_text(size = 11)) +
+      #override legend for alpha to get nice
+      guides(alpha = guide_legend("", override.aes = list(fill = color_risk_na),
+                                  #reorder legends for that color ramp is first
+                                  order = 2)) +
+      guides(fill = guide_colorbar(order = 1))    
+  }
+  
+  #plot whatever the highlighted plot version is
+  plot(p_abs_risk_high)
+
+  #either case, add table with highlighted county(ies) and values
+  
+  knitr::kable(preds_mod_ave_fc_wk %>% 
+                 dplyr::filter(arbo_ID %in% highlight_ids) %>% 
+                 #join with crosswalk to get pretty names
+                 dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
+                 dplyr::select(NAME, pred_ave),
+               col.names = c("County", "Absolute Risk"),
+               digits = 2,
+               align = c("l", "c"),
+               caption = "Absolute risk for highlighted counties")
+  
+  
+} # end if highlight_flag
+
 ```
 <!-- \vspace{-5truemm} -->
 
