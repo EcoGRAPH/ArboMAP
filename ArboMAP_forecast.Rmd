@@ -220,6 +220,11 @@ depending on fields in datasets. One or the other, not a mix -->
 ##EVALUATION
 #model_evaluation: TRUE/FALSE output model evaluation statistics
 
+##REPORT
+#highlight: list of counties to 'highlight' in report output. 
+# Needs to match names OR fips as in shapefile (depending on ID field used for arbo_ID)
+#highlight_mask: T/F, whether to highlight (red outline, FALSE, default) or mask out rest of state (TRUE)
+
 #NOTE: If not using dev parameter, do NOT include in list or instead set to NULL
 #     The test checks if the value is NULL. Not NA or "" or things like that. 
 # dev_settings itself is set to an empty list in default params above
@@ -327,6 +332,25 @@ if (!is.null(params$dev_settings$model_evaluation)){
   #default is to not save extra files, 
   # only currently used in research comparing many models
   model_evaluation <- FALSE
+}
+
+##REPORT
+if (!is.null(params$dev_settings$highlight)){
+  #use param given
+  highlight <- params$dev_settings$highlight
+  #set flag to true
+  highlight_flag <- TRUE
+} else {
+  #default is empty list (NULL)
+  highlight <- c()
+  highlight_flag <- FALSE
+}
+if (!is.null(params$dev_settings$highlight_mask)){
+  #use param given
+  highlight_mask <- params$dev_settings$highlight_mask
+} else {
+  #default is FALSE
+  highlight_mask <- FALSE
 }
 
 ## OTHER
