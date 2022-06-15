@@ -131,8 +131,12 @@ pacman::p_load(
   knitr, rmarkdown, shiny)
 
 #Must use recent version of readr
-if (packageVersion("readr") < 2.1){
+if (packageVersion("readr") < "2.1"){
   install.packages("readr", repos="http://cran.us.r-project.org")
+}
+#Must use recent version of Rcpp
+if (packageVersion("Rcpp") < "1.0.7"){
+  install.packages("Rcpp", repos="http://cran.us.r-project.org")
 }
 
 # IF the user is trying to create a pdf, 
