@@ -3000,14 +3000,14 @@ knitr::kable(data_mosq_yr2wk %>%
                            "Pools reported YTD", "Pools positive YTD"),
              digits = 2,
              align = c("l", "c", "c", "c", "c"),
-             caption = "Total reported and WNV positive mosquito pools: Past two weeks, and year to forecast week (YTD)")
+             caption = "Total reported and WNV mosquito pools: Counties with positive pools in year to forecast week (YTD) or reported any (positive or negative) pools in past two weeks")
              # #don't let split over multiple pages 
              # # ... does make it float, but paragraph regarding pred pos pools now comes before table, which is not helpful here. 
              # longtable = FALSE, booktabs = TRUE, format = "latex")
 
 ```
 
-The next graph shows the percentage of predicted positive pools by year comparing the forecast year (in `r colorize("red", "red")`) to the requested comparison years (shades of blue) and all other years (gray). If there is sufficient data in the forecast year, the observed pools rates are shown as black dots, binned into six different time points. 
+The next graph shows the percentage of predicted positive pools by year comparing the forecast year (in `r colorize("red", "red")`) to the requested comparison years (shades of blue) and all other years (gray). If there is sufficient data in the forecast year, the observed pools rates are shown as black dots, binned into a variable number of different time points (up to six) depending on how much data is available. 
 
 ```{r mosquito_pools_posrate, out.width="100%", echo=FALSE, include=TRUE}
 
