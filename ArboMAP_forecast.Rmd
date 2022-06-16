@@ -2982,7 +2982,11 @@ data_mosq_yr2wk <- data_mosquito %>%
                      dplyr::group_by(arbo_ID) %>% 
                      dplyr::summarise(pools_count = n(),
                                       pools_pos = sum(wnv_result)),
-                   by = "arbo_ID")
+                   by = "arbo_ID") %>% 
+  #filter out ones with none in past 2 weeks, and no pos YTD
+  # so filter that pools_count has a value OR pools_pos_yr > 0
+  dplyr::filter(!is.na(pools_count) | pools_pos_yr > 0)
+
 
 # replace NA with a dash
 opts <- options(knitr.kable.NA = "-")
