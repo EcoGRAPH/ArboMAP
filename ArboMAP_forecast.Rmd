@@ -466,7 +466,7 @@ dx_env_nrow_0load <- nrow(data_env_raw) #note PRE de-duplication
 
 ```
 
-```{r figure_dimensions_sizes, echo=FALSE, include=FALSE, cache=FALSE}
+```{r map_dimensions_sizes, echo=FALSE, include=FALSE, cache=FALSE}
 
 #Because this can be run for any state, 
 # different states have different dimensions 
@@ -516,18 +516,6 @@ if (sf_taller &
            ref_map_height > units::as_units(max_height_landscape)){
   ref_map_height <- max_height_landscape
   ref_map_width <- ref_map_height / sf_asp_ratio
-}
-
-
-#The mosquito positive pool rate graph can either be:
-# one singular graph (nonstratified)
-# OR a faceted graph (stratified)
-
-if (mosquito_model_clean %in% mosq_nonstrat_models){
-  poolpos_height <- 2.5
-} else {
-  #default Rmarkdown height
-  poolpos_height <- 5
 }
 
 ```
@@ -3108,7 +3096,11 @@ data_mosq_yr2wk <- data_mosquito %>%
                      dplyr::group_by(arbo_ID) %>% 
                      dplyr::summarise(pools_count = n(),
                                       pools_pos = sum(wnv_result)),
-                   by = "arbo_ID")
+                   by = "arbo_ID") %>% 
+  #filter out ones with none in past 2 weeks, and no pos YTD
+  # so filter that pools_count has a value OR pools_pos_yr > 0
+  dplyr::filter(!is.na(pools_count) | pools_pos_yr > 0)
+
 
 # replace NA with a dash
 opts <- options(knitr.kable.NA = "-")
@@ -3131,6 +3123,27 @@ knitr::kable(data_mosq_yr2wk %>%
 
 ```
 
+
+```{r pospool_setup, echo=FALSE, include=TRUE}
+#The mosquito positive pool rate graph can either be:
+# one singular graph (nonstratified)
+# OR a faceted graph (stratified)
+
+if (mosquito_model_clean %in% mosq_nonstrat_models){
+  poolpos_height <- 2.5
+} else {
+  #default Rmarkdown height
+  poolpos_height <- 5
+}
+
+#must be set up before use in narrative
+#Will be dynamic number of bins, up to mosq_bins_max. 
+# Should have at least mosq_min_col_per_bin collection dates of data per bin
+mosq_bins_max <- 6
+mosq_min_col_per_bin <- 3
+
+```
+
 The next graph shows the percentage of predicted positive pools by year comparing the forecast year (in `r colorize("red", "red")`) to the requested comparison years (shades of blue) and all other years (gray). If there is sufficient data in the forecast year, the observed pools rates are shown as black dots, binned into a variable number of different time points (up to `r mosq_bins_max`) depending on how much data is available. 
 
 ```{r mosquito_pools_posrate, out.width="100%", fig.height = poolpos_height, echo=FALSE, include=TRUE}
@@ -3145,11 +3158,6 @@ The next graph shows the percentage of predicted positive pools by year comparin
 # creates doy-based predictions using MIR regression object [V3] [DMN]
 # single graph for non-stratified mosquito models
 # graph per stratum for stratified mosquito models
-
-#Will be dynamic number of bins, up to mosq_bins_max. 
-# Should have at least mosq_min_col_per_bin collection dates of data per bin
-mosq_bins_max <- 6
-mosq_min_col_per_bin <- 3
 
 mosq_pool_colors <- c("endyear" = "red",
                       "comp1" = "blue",
