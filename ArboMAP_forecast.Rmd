@@ -3022,7 +3022,10 @@ The next graph shows the percentage of predicted positive pools by year comparin
 # single graph for non-stratified mosquito models
 # graph per stratum for stratified mosquito models
 
-mosq_bins <- 6
+#Will be dynamic number of bins, up to mosq_bins_max. 
+# Should have at least mosq_min_col_per_bin collection dates of data per bin
+mosq_bins_max <- 6
+mosq_min_col_per_bin <- 3
 
 mosq_pool_colors <- c("endyear" = "red",
                       "comp1" = "blue",
@@ -3066,19 +3069,29 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
       #all other years
       TRUE ~ "hx_filter"))
   
-  #if there are enough values in endyear ([V3] > 20), 
+  #if there are enough values in endyear (doy-filtered) 
   data_mosq_endyr <- data_mosquito %>% 
     dplyr::filter(year_epi == params$year_mosquito_end)
+  mosq_col_dts_count <- data_mosq_endyr$doy %>% unique() %>% length()
+  
+  #dynamic mosq bins
+  #Will be dynamic number of bins, up to mosq_bins_max. 
+  # Should have at least mosq_min_col_per_bin collection dates of data per bin
+  mosq_bins = min(floor(mosq_col_dts_count / mosq_min_col_per_bin), mosq_bins_max)
+  
   # then we will also add dots along the line
-  if (nrow(data_mosq_endyr) > 20){
-    
+  # [V3] used rows > 20, but rather non-rigorous 
+  # edge case discovered when only 1 collection date
+  # So changed to dynamic bin numbers, and 0 means too few data points [DMN]
+  if (mosq_bins > 0){
+
     #note, using data_mosquito, showing actual positive sample rate
-    end_year_dot <- data_mosq_endyr %>% 
+    end_year_dot <- data_mosq_endyr %>%
       #make 6 [V3] groups
-      dplyr::mutate(doy_grp = ggplot2::cut_interval(doy, n = mosq_bins)) %>% 
-      #summarize by these dot groups 
+      dplyr::mutate(doy_grp = ggplot2::cut_interval(doy, n = mosq_bins)) %>%
+      #summarize by these dot groups
       # grouping observations nearby in time together [DMN]
-      dplyr::group_by(doy_grp) %>% 
+      dplyr::group_by(doy_grp) %>%
       dplyr::summarise(pos_mean = mean(wnv_result, na.rm = TRUE),
                        doy_mean = mean(doy, na.rm = TRUE),
                        .groups = "drop")
@@ -3184,14 +3197,21 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
       dplyr::filter(strata == this_strata,
                     year_epi == params$year_mosquito_end)
     
-    # #if there are enough values in endyear ([V3] > 20), 
+    #dynamic mosq bins, up to mosq_bins_max. 
+    # Should have at least mosq_min_col_per_bin collection dates of data per bin
+    this_mosq_col_dts_count <- this_data_mosq_endyr$doy %>% unique() %>% length()
+    this_mosq_bins = min(floor(this_mosq_col_dts_count / mosq_min_col_per_bin), mosq_bins_max)
+  
     # then we will also add dots along the line
-    if (nrow(this_data_mosq_endyr) > 20){
+    # [V3] used rows > 20, but rather non-rigorous 
+    # edge case discovered when only 1 collection date
+    # So changed to dynamic bin numbers, and 0 means too few data points [DMN]
+    if (this_mosq_bins > 0){
       
       #note, using data_mosquito, showing actual positive sample rate
       this_end_year_dot <- this_data_mosq_endyr %>%
         #make 6 [V3] groups
-        dplyr::mutate(doy_grp = ggplot2::cut_interval(doy, n = 6)) %>%
+        dplyr::mutate(doy_grp = ggplot2::cut_interval(doy, n = this_mosq_bins)) %>%
         #summarize by these dot groups
         # grouping observations nearby in time together [DMN]
         dplyr::group_by(doy_grp) %>%
