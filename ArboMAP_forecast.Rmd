@@ -2383,42 +2383,120 @@ This **relative risk** map may be used in conjunction with the **absolute risk**
 <!-- \vspace{-5truemm} -->
 ```{r relative_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="90%"}
 
-#plot
-p_rel_risk <- ggplot2::ggplot() +
-  #by rank percentile
-  ggplot2::geom_sf(data = sf_rel_risk,
-                   aes(fill = rank_perc,
-                       #fake alpha to get NA legend entry
-                       alpha = "Not able to model")) +
-  viridis::scale_fill_viridis("", #"Risk\n", #\n for extra vertical space
-                              #limits always 0 - 100
-                              limits = c(0, 100),
-                              #using [V3] breaks
-                              breaks = c(0, lower_risk, 50, higher_risk, 100),
-                              labels = c("0",
-                                         paste(lower_risk, ": Lower than average risk"),
-                                         "50: Average risk",
-                                         paste(higher_risk, ": Higher than average risk"),
-                                         "100"),
-                              na.value = color_risk_na) +
-  #fake scale for NA legend entry
-  scale_alpha_manual("", values = 1) +
-  ggtitle("Risk in forecast week relative to the same epiweek in previous years") +
-  theme_arbo_map +
-  theme(plot.title = element_text(size = 11)) +
-  #override legend for alpha to get nice
-  guides(alpha = guide_legend("", override.aes = list(fill = color_risk_na),
-                              #reorder legends for that color ramp is first
-                              order = 2)) +
-  guides(fill = guide_colorbar(order = 1))
-  
-plot(p_rel_risk)
+# Map
+#
 
+#no highlight
+if (!highlight_flag){
+  p_rel_risk <- ggplot2::ggplot() +
+    #by rank percentile
+    ggplot2::geom_sf(data = sf_rel_risk,
+                     aes(fill = rank_perc,
+                         #fake alpha to get NA legend entry
+                         alpha = "Not able to model")) +
+    viridis::scale_fill_viridis("", #"Risk\n", #\n for extra vertical space
+                                #limits always 0 - 100
+                                limits = c(0, 100),
+                                #using [V3] breaks
+                                breaks = c(0, lower_risk, 50, higher_risk, 100),
+                                labels = c("0",
+                                           paste(lower_risk, ": Lower than average risk"),
+                                           "50: Average risk",
+                                           paste(higher_risk, ": Higher than average risk"),
+                                           "100"),
+                                na.value = color_risk_na) +
+    #fake scale for NA legend entry
+    scale_alpha_manual("", values = 1) +
+    ggtitle("Risk in forecast week relative to the same epiweek in previous years") +
+    theme_arbo_map +
+    theme(plot.title = element_text(size = 11)) +
+    #override legend for alpha to get nice
+    guides(alpha = guide_legend("", override.aes = list(fill = color_risk_na),
+                                #reorder legends for that color ramp is first
+                                order = 2)) +
+    guides(fill = guide_colorbar(order = 1))
+  
+  plot(p_rel_risk)
+}
+
+#If highlight counties, create an altered map
+if (highlight_flag){
+  
+  #if no mask, create highlight layer + to p_rel_risk
+  if (!highlight_mask){
+    
+    sf_highlight <- sf_rel_risk %>%
+      #ONLY include highlighted counties
+      dplyr::filter(arbo_ID %in% highlight_ids)
+    
+    p_rel_risk_high <- p_rel_risk +
+      geom_sf(data = sf_highlight,
+              aes(color = "Highlighted counties"),
+              size = 1,
+              #let the original colors through
+              fill = NA) +
+      scale_color_manual("",
+                         values = c("Highlighted counties" = "red"))
+    
+  }
+  
+  #if mask, recreate (not easily edited)
+  
+  if (highlight_mask){
+    
+    sf_highlight <- sf_rel_risk %>%
+      #strip out all values (not counties) except for 'highlighted'
+      dplyr::mutate(rank_perc = if_else(arbo_ID %in% highlight_ids,
+                                        rank_perc,
+                                        NA_real_))
+    p_rel_risk_high <- ggplot2::ggplot() +
+      #by rank percentile
+      ggplot2::geom_sf(data = sf_highlight,
+                       aes(fill = rank_perc,
+                           #fake alpha to get NA legend entry
+                           alpha = "Not included")) +
+      viridis::scale_fill_viridis("", 
+                                  #limits always 0 - 100
+                                  limits = c(0, 100),
+                                  #using [V3] breaks
+                                  breaks = c(0, lower_risk, 50, higher_risk, 100),
+                                  labels = c("0",
+                                             paste(lower_risk, ": Lower than average risk"),
+                                             "50: Average risk",
+                                             paste(higher_risk, ": Higher than average risk"),
+                                             "100"),
+                                  na.value = color_risk_na) +
+      #fake scale for NA legend entry
+      scale_alpha_manual("", values = 1) +
+      ggtitle("Risk in forecast week relative to the same epiweek in previous years") +
+      theme_arbo_map +
+      theme(plot.title = element_text(size = 11)) +
+      #override legend for alpha to get nice
+      guides(alpha = guide_legend("", override.aes = list(fill = color_risk_na),
+                                  #reorder legends for that color ramp is first
+                                  order = 2)) +
+      guides(fill = guide_colorbar(order = 1)) 
+    
+  }
+  
+  #plot whatever the highlighted plot version is
+  plot(p_rel_risk_high)
+  
+  
+} # end if highlight_flag
+
+
+## Tables
+#
+# Potentally displayed whether or not there are highlighted counties:
 #Table of counties with higher than average risk
+
 # only IF there are counties
-if (rel_risk %>% 
-    dplyr::filter(rank_perc >= higher_risk) %>% 
-    nrow() > 0) {
+rr_high_flag <- rel_risk %>% 
+  dplyr::filter(rank_perc >= higher_risk) %>% 
+  nrow() > 0
+
+if (rr_high_flag) {
   knitr::kable(rel_risk %>% 
                  dplyr::filter(rank_perc >= higher_risk) %>% 
                  #join with crosswalk to get pretty names
@@ -2429,6 +2507,26 @@ if (rel_risk %>%
                align = c("l", "c"),
                caption = "Counties with higher than average risk")
 }
+
+
+# If highlight counties, optional extra table
+
+if (highlight_flag){
+  
+  rr_high_highlight <- rel_risk %>% 
+    dplyr::filter(arbo_ID %in% highlight_ids) %>% 
+    #join with crosswalk to get pretty names
+    dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
+    dplyr::select(NAME, rank_perc)
+  
+  knitr::kable(rr_high_highlight,
+               col.names = c("County", "Relative risk percentile"),
+               digits = 0,
+               align = c("l", "c"),
+               caption = "Relative risk of highlighted counties")
+}
+
+
 
 ```
 
