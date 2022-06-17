@@ -147,9 +147,8 @@ if (knitr::is_latex_output() &
   install.packages("tinytex", repos="http://cran.us.r-project.org")
   tinytex::install_tinytex()
 }
-# If warning about new TeX, may need to run:
-# tinytex::reinstall_tinytex()
-# but I don't have a test for this [DEV]
+# [DEV] If warning about new TeX, need to run: tinytex::reinstall_tinytex()
+# a test for this does not exist, but annual update script should take care of it
 
 # [DEV] This may not play well if they are using xelatex or lualatex instead
 # however, they need to set that in YAML headers too, so shouldn't be a problem here
