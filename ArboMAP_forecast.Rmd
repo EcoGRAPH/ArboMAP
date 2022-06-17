@@ -2198,6 +2198,10 @@ preds_mod_ave_fc_wk <- preds_mod_ave %>%
 sf_abs_risk <- data_sf %>% 
   dplyr::left_join(preds_mod_ave_fc_wk, by = "arbo_ID")
 
+
+# If no highlight, proceed as normal
+if (!highlight_flag){
+
 p_abs_risk <- ggplot2::ggplot() +
   ggplot2::geom_sf(data = sf_abs_risk,
                    aes(fill = pred_ave,
@@ -2224,8 +2228,9 @@ p_abs_risk <- ggplot2::ggplot() +
 
 plot(p_abs_risk)
 
-#If highlight counties, then add special secondary map and table
-if (highlight_flag){
+} else if (highlight_flag){
+  #if highlight counties, then add special map instead and table
+
   
   #if no mask, create highlight layer + to p_abs_risk
   if (!highlight_mask){
@@ -2238,7 +2243,7 @@ if (highlight_flag){
       geom_sf(data = sf_highlight,
               aes(color = "Highlighted counties"), 
               size = 1,
-              #let the pred_ave colors through
+              #let the original colors through
               fill = NA) +
       scale_color_manual("", 
                          values = c("Highlighted counties" = "red"))
