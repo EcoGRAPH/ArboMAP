@@ -83,7 +83,7 @@ params:
   dev_settings: 
     label: "Developer settings, leave as \"!r list()\""
     value: !r list()
-
+    
 title: "West Nile Virus Forecast Report for `r params$forecast_date`  \n`r params$state_name`"
 subtitle: "DEMO for Arbovirus Modeling and Prediction (ArboMAP): Synthetic Data  \nNot for Epidemiological Use"
 author: "Dawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly    \n(mcwimberly@ou.edu)   \nGeography and Environmental Sustainability, University of Oklahoma"
@@ -94,7 +94,6 @@ header-includes:
 - \newcommand{\elandscape}{\end{landscape}}
 - \usepackage{fancyhdr}
 - \pagestyle{fancy}
-- \usepackage{booktabs}
 output: 
   pdf_document:
     toc: TRUE
@@ -107,6 +106,10 @@ output:
 
 ```{r knitr_setup, include=FALSE}
 options(warn=-1)
+
+# replace NA with a dash in kable tables
+opts <- options(knitr.kable.NA = "-")
+
 ```
 
 
@@ -173,6 +176,16 @@ colorize <- function(x, color) {
 }
 #`r colorize("some words in red", "red")`
 #https://bookdown.org/yihui/rmarkdown-cookbook/font-color.html
+
+# [DEV] Notes on latex packages
+# Used for rotating page to landscape (wide time series graph, optional for ref map)
+# - \usepackage{pdflscape}
+# - \newcommand{\blandscape}{\begin{landscape}}
+# - \newcommand{\elandscape}{\end{landscape}}
+
+# For nice headers and page formatting
+# - \usepackage{fancyhdr}
+# - \pagestyle{fancy}
 
 ```
 
