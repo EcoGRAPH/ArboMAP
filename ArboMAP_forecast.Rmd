@@ -2110,7 +2110,7 @@ if (model_evaluation | dev_write_output){
 \fancyhead[L]{`r params$state_name`}
 \fancyhead[C]{}
 \fancyfoot[R]{\thepage}
-\fancyfoot[L]{Compiled on `r format(Sys.time(), '%B %d, %Y')`}
+\fancyfoot[L]{Compiled on `r format(Sys.time(), '%B %d, %Y')` with version 4.2}
 <!-- \fancyfoot[C]{} -->
 \fancyfoot[C]{FOR DEMONSTRATION ONLY}
 
