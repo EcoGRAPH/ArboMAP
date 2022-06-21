@@ -2941,7 +2941,7 @@ After data processing, the human case data contained a total of `r dx_human_nrow
 `r if(length(human_yrs_missing) == 0){paste0("Data from all years were found in the data file.")}`
 `r if(length(human_yrs_missing) > 0){paste0("The following years were not found in the dataset:", human_yrs_missing %>% sort() %>% knitr::combine_words(), ".", " Confirm that these years were zero-case years, and not data missing from the dataset.")}` 
 
-`r if(nrow(dx_human_unmatched) > 0){paste0("The human case data entries that were unmatched to spatial data during processing are in the table below. Please check for mispellings in the original file.")}`
+`r if(nrow(dx_human_unmatched) > 0){paste0("The human case data entries that were unmatched to spatial data during processing are in the table below. Please check for mispellings in the original file. Internal IDs for county names will show in lower case with other formatting applied for attempted matching.")}`
 ```{r human_unmatched, echo=FALSE, include=TRUE}
 if(nrow(dx_human_unmatched) > 0){
   knitr::kable(dx_human_unmatched,
@@ -2971,7 +2971,8 @@ h_county <- data_human %>%
                    .groups = "drop") %>% 
   #add in zero counties (notice RIGHT join)
   dplyr::right_join(data_sf %>% 
-                      sf::st_drop_geometry(),
+                      sf::st_drop_geometry() %>% 
+                      dplyr::select(arbo_ID),
                     by = "arbo_ID") %>% 
   #and add zeros for case counts (would be NA from right join)
   dplyr::mutate(case_count = dplyr::if_else(is.na(case_count), 0L, case_count))
@@ -2990,7 +2991,51 @@ p_map_human <- ggplot() +
   ggtitle("Historical cumulative human cases") +
   theme_arbo_map
 
+
+#no highlight
+if (!highlight_flag){
+  
 plot(p_map_human)
+
+} else if (highlight_flag){
+  
+  #If highlight counties, create an altered map & table
+  # only non-masking highlight here, even if mask
+  
+  sf_highlight <- sf_human %>%
+    #ONLY include highlighted counties
+    dplyr::filter(arbo_ID %in% highlight_ids)
+  
+  p_map_human_hl <- p_map_human +
+    geom_sf(data = sf_highlight,
+            aes(color = "Highlighted counties"),
+            size = 1,
+            #let the original colors through
+            fill = NA) +
+    scale_color_manual("",
+                       values = c("Highlighted counties" = "blue")) +
+    #make sure original color bar is at top
+    guides(fill = guide_colorbar(order = 1))
+  
+  plot(p_map_human_hl)
+  
+  h_county_hl <- h_county %>%
+    #get only highlight counties
+    dplyr::filter(arbo_ID %in% highlight_ids) 
+  
+  knitr::kable(h_county_hl %>% 
+                 #join with crosswalk to get pretty names
+                 dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
+                 #select columns for table
+                 dplyr::select(NAME, case_count) %>% 
+                 dplyr::arrange(NAME),
+               col.names = c("County", "Cases"),
+               digits = 1,
+               align = c("l", "c"),
+               caption = "Cumulative human cases for highlighted counties")
+  
+} #end if highlight
+
 
 #[DEV] Considered previous year map, but small case counts could be 
 # a privacy concern so omitted [DMN]
