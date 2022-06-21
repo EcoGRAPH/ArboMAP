@@ -3229,13 +3229,42 @@ p_map_mosq2wk <- ggplot() +
           subtitle = paste0("Date range: ", mosq_2wks_dts_str)) +
   theme_arbo_map
 
+
+#no highlight
+if (!highlight_flag){
+  
 plot(p_map_mosq2wk)
+
+} else if (highlight_flag){
+  
+  #If highlight counties, create an altered map & table
+  # only non-masking highlight here, even if mask
+  
+  sf_highlight <- sf_mosq2wk %>%
+    #ONLY include highlighted counties
+    dplyr::filter(arbo_ID %in% highlight_ids)
+  
+  p_map_mosq2wk_hl <- p_map_mosq2wk +
+    geom_sf(data = sf_highlight,
+            aes(color = "Highlighted counties"),
+            size = 1,
+            #let the original colors through
+            fill = NA) +
+    scale_color_manual("",
+                       values = c("Highlighted counties" = "blue")) +
+    #make sure original color bar is at top
+    guides(fill = guide_legend(order = 1))
+  
+  plot(p_map_mosq2wk_hl)
+  
+} #end if highlight
+
 
 ## 2. Table of positive pools
 # attempting YEAR & 2 weeks
 # join yr and wk
 # need to keep rows in EITHER, so full join
-data_mosq_yr2wk <- data_mosquito %>% 
+data_mosq_yr2wk_full <- data_mosquito %>% 
   #filter to forecast epiyear and up to this forecast week
   filter(year_epi == epiyear_request &
            week_epi <= epiweek_request) %>% 
@@ -3251,9 +3280,6 @@ data_mosq_yr2wk <- data_mosquito %>%
                                       pools_pos = sum(wnv_result)) %>% 
                      dplyr::mutate(pools_pos_perc = pools_pos / pools_count * 100),
                    by = "arbo_ID") %>% 
-  #filter out ones with none in past 2 weeks, and no pos YTD
-  # so filter that pools_count has a value OR pools_pos_yr > 0
-  dplyr::filter(!is.na(pools_count) | pools_pos_yr > 0) %>% 
   #make pretty % for table
   dplyr::mutate(pools_pos_perc_pretty = if_else(is.na(pools_pos_perc), 
                                                 NA_character_, 
@@ -3262,31 +3288,75 @@ data_mosq_yr2wk <- data_mosquito %>%
                 pools_pos_yr_perc_pretty = if_else(is.na(pools_pos_yr_perc),
                                                    NA_character_,
                                                    round(pools_pos_yr_perc, digits = 1) %>% 
-                                                    paste0("%")))
+                                                    paste0("%")),
+                pools_pos_comb = if_else(is.na(pools_pos), 
+                                         NA_character_,
+                                         paste0(pools_pos, " (", pools_pos_perc_pretty, ")")),
+                pools_pos_yr_comb = if_else(is.na(pools_pos_yr), 
+                                                  NA_character_,
+                                                  paste0(pools_pos_yr, " (", pools_pos_yr_perc_pretty, ")")))
 
 
-# replace NA with a dash
-opts <- options(knitr.kable.NA = "-")
+data_mosq_yr2wk <- data_mosq_yr2wk_full %>% 
+  #filter out ones with none in past 2 weeks, and no pos YTD
+  # so filter that pools_count has a value OR pools_pos_yr > 0
+  dplyr::filter(!is.na(pools_count) | pools_pos_yr > 0) %>%
+  #join with crosswalk to get pretty names
+  dplyr::left_join(id_crosswalk, by = "arbo_ID") %>%
+  #select columns for table
+  dplyr::select(NAME,
+                pools_count, pools_pos_comb,
+                pools_count_yr, pools_pos_yr_comb) %>%
+  dplyr::arrange(NAME)
+
+
 #conditionally appearing table if data exists
 if (nrow(data_mosq_yr2wk) > 0){
-  knitr::kable(data_mosq_yr2wk %>% 
-                 #join with crosswalk to get pretty names
-                 dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
-                 #make pretty %
-                 dplyr::select(NAME, 
-                               pools_count, pools_pos, pools_pos_perc_pretty,
-                               pools_count_yr, pools_pos_yr, pools_pos_yr_perc_pretty) %>% 
-                 dplyr::arrange(NAME),
-               col.names = c("County", 
-                             "Pools reported last 2 weeks", "Pools positive last 2 weeks", "Percent positive last 2 weeks", 
-                             "Pools reported YTD", "Pools positive YTD", "Percent positive YTD"),
+  
+  knitr::kable(data_mosq_yr2wk,
+               col.names = c("County",
+                             "Pools reported last 2 weeks", "Pools positive last 2 weeks (%)",
+                             "Pools reported YTD", "Pools positive YTD (%)"),
                digits = 1,
-               align = c("l", "c", "c", "c", "c", "c", "c"),
+               align = c("l", "c", "c", "c", "c"),
                caption = "Total reported and WNV mosquito pools: Counties with positive pools in year to forecast week (YTD) or reported any (positive or negative) pools in past two weeks")
-  # #don't let split over multiple pages 
-  # # ... does make it float, but paragraph regarding pred pos pools now comes before table, which is not helpful here. 
-  # longtable = FALSE, booktabs = TRUE, format = "latex")
+
+  #kableExtra::column_spec(column = 2:7, width = "1.7cm")
+
 }
+
+# #optional additional highlight table
+if (highlight_flag){
+
+  data_mosq_yr2wk_hl <- data_mosq_yr2wk_full %>%
+    #get only highlight counties
+    dplyr::filter(arbo_ID %in% highlight_ids) 
+  
+  #add NA entries for any highlight counties that do not have data for this year yet
+  hl_na_ids <- highlight_ids[!highlight_ids %in% data_mosq_yr2wk_hl$arbo_ID]
+    
+  data_mosq_yr2wk_hl <- data_mosq_yr2wk_hl %>% 
+    dplyr::bind_rows(tibble(arbo_ID = hl_na_ids))
+  
+  knitr::kable(data_mosq_yr2wk_hl %>%
+                 #join with crosswalk to get pretty names
+                 dplyr::left_join(id_crosswalk, by = "arbo_ID") %>%
+                 #select columns for table
+                 dplyr::select(NAME,
+                               pools_count, pools_pos_comb,
+                               pools_count_yr, pools_pos_yr_comb) %>%
+                 dplyr::arrange(NAME),
+               col.names = c("County",
+                             "Pools reported last 2 weeks", "Pools positive last 2 weeks (%)",
+                             "Pools reported YTD", "Pools positive YTD (%)"),
+               digits = 1,
+               align = c("l", "c", "c", "c", "c"),
+               caption = "Total reported and WNV mosquito pools for the past two weeks and year to date for highlighted counties")
+
+  #    kableExtra::column_spec(column = 2:7, width = "1.7cm")
+  
+
+} #end if highlight
 
 ```
 
@@ -4064,7 +4134,6 @@ param_table <- tibble::tibble(Parameter = names(params_main), Value = unlist(par
 knitr::kable(param_table, 
              caption = "Parameters used",
              row.names = FALSE)
-
 
 #dev settings, removing data objects & replacing with notifier
 params_dev <- params$dev_settings
