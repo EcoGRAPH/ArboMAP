@@ -461,14 +461,12 @@ For Mac users, please click on the link "Download R for macOS." Choose latest re
 
 ### RStudio
 
-RStudio (<https://www.rstudio.com>) is a user-friendly GUI for the statistical programming language R that greatly simplifies a number of tasks for the programmer. Navigate to the site, click on "Download", and choose the "RStudio Desktop" option (Open Source License; the free version). Run the appropriate installer for your system. 
+RStudio (<https://www.rstudio.com>) is a user-friendly GUI for the statistical programming language R that greatly simplifies a number of tasks for the programmer. Navigate to the site, click on "Download", and choose the "RStudio Desktop" option (free version). Run the appropriate installer for your system. 
 
 
 ### R packages {#pkgs}
 
-This is an OPTIONAL step. This will happen automatically the very first time you run a forecast, but if you wanted to reduce the amount of time that would take, this is a good preparatory step. 
-
-An R package is a collection of functions, data, and documentation that extends the capabilities of base R. Many packages are used in our code for forecasting, and will need to be installed. 
+This is an OPTIONAL step. This will happen automatically the very first time you run a forecast, but if you wanted to reduce the amount of time that would take, this is a good preparatory step. An R package is a collection of functions, data, and documentation that extends the capabilities of base R. Many packages are used in the code for forecasting, and will need to be installed. 
 
 In the RStudio console, run the command below and that will install a good number of the packages that are used from the `tidyverse` set of packages, plus others used for data processing and report generation. 
 
@@ -478,7 +476,7 @@ install.packages(c("tidyverse", "tidyselect", "glue", "zoo", "mgcv", "splines",
                    "ggrepel", "ggpubr", "knitr", "rmarkdown", "shiny"))
 ```
 
-Note to advanced users: If a pdf report is being generated, and the computer does not have a LaTeX installation, it will automatically download and install TinyTeX. If R can detect a LaTeX installation, it will skip this step, and the user should verify that their Sweave options in RStudio are set appropriately. 
+Note to users who are trying to create pdf reports instead of html: If a pdf report is being generated, and the computer does not have a LaTeX installation, it will automatically attempt to download and install TinyTeX. If R can detect a LaTeX installation, it will skip this step, and the user should verify that their Sweave options in RStudio are set appropriately. TeX installations may not work properly if the user has restricted permissions on the computer. If you are on a Windows machine, the following options may be helpful. Option A: Run `tinytex:::install_prebuilt()` from the Console. Option B: Download `TinyTeX.zip` from <https://yihui.org/tinytex/TinyTeX.zip>, move it into the project folder (without unzipping), and run `tinytex:::install_prebuilt('TinyTeX.zip')` from the Console. 
 
 
 ### ArboMAP
@@ -506,7 +504,7 @@ There are two options to gather environmental data in GEE for ArboMAP. The app, 
 1) Request a GEE account: sign up at <https://earthengine.google.com>.
 If the user does not already have a Google Account, it will prompt to make one. The Google account will also contain a Google Drive account, which is where the GEE data will be downloaded to. 
 
-2) Copy the GEE code into a new script and save in the user's account. The code can be found in the `arbomap_gridmet_gee_v[version#].js` file in the `code_GEE` subfolder of the ArboMAP project download. 
+2) Copy the GEE code into a new script and save in the user's account. The code can be found in the `arbomap_gridmet_gee_v[#].js` file in the `code_GEE` subfolder of the ArboMAP project download. 
 
 The GEE code may alternatively be found by following the "Access the Code Editor version" link from the ArboMAP gridMET GEE app <https://dawneko.users.earthengine.app/view/arbomap-gridmet>. It can be run from this fixed link, or copied into a new script owned by the user (as in step 2a). 
 
@@ -520,9 +518,9 @@ Details on how to use GEE are found in the [How-to: Google Earth Engine (GEE) to
 When preparing to start running weekly reports for the new WNV season, there are three main steps that are needed annually: 1) updating software, 2) acquiring data, and 3) updating parameters. 
 
 
-### Annual software update
+### Optional annual software update
 
-When pdf reports are created, ArboMAP is using tinytex in the background. TeX Live is updated every year at the beginning of April, so ArboMAP must also be updated. 
+This is an optional step that is only required if reports are being generated as pdfs instead of html format. When pdfs are created, ArboMAP is using tinytex in the background. TeX Live is updated every year at the beginning of April, so ArboMAP must also be updated. 
 
 1) Click on the `ArboMAP.Rproj` file to open the project in RStudio. 
 
@@ -645,8 +643,8 @@ There are a few options for how to kick off a forecast report. The easiest ways 
 
 2) In the File pane of RStudio, click on the appropriate run script.
 
-  * `ArboMAP_run_forecast_pdf.R`: a pdf file of the forecast report will be created
   * `ArboMAP_run_forecast_html.R`: an html file of the forecast report will be created
+  * `ArboMAP_run_forecast_pdf.R`: a pdf file of the forecast report will be created. (PDF generation through TinyTeX must have been set up previously)
 
     ```{r run-scripts, echo=FALSE, fig.align='center', out.height='25%', fig.cap="Pre-built run scripts to create either html or pdf forecast reports. Clicking and running these will open an interactive user interface to adjust parameters."}
     knitr::include_graphics(file.path("figures", "run_scripts.jpg"))

@@ -49,7 +49,7 @@ knitr::opts_chunk$set(fig.pos= "H")
 
 3. Run the forecast:
     1. In the ArboMAP folder, click on `ArboMAP.Rproj` file. This will open the ArboMAP project in RStudio. 
-    2. In the File pane of RStudio, click on the appropriate run script: `ArboMAP_run_forecast_pdf.R` for a pdf report or `ArboMAP_run_forecast_html.R` for an html file. 
+    2. In the File pane of RStudio, click on the appropriate run script: `ArboMAP_run_forecast_html.R` for an html report, or if TeX is set up (see user guide), `ArboMAP_run_forecast_pdf.R` for a pdf report. 
     3. In the Source pane that opens, make sure the cursor is on line 1 and hit the 'Run" button. 
     
     ```{r run-pdf, echo=FALSE, fig.align='center', out.width='80%', fig.cap="RStudio source pane showing the pdf run script."}
