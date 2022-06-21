@@ -150,9 +150,8 @@ if (knitr::is_latex_output() &
   install.packages("tinytex", repos="http://cran.us.r-project.org")
   tinytex::install_tinytex()
 }
-# If warning about new TeX, may need to run:
-# tinytex::reinstall_tinytex()
-# but I don't have a test for this [DEV]
+# [DEV] If warning about new TeX, need to run: tinytex::reinstall_tinytex()
+# a test for this does not exist, but annual update script should take care of it
 
 # [DEV] This may not play well if they are using xelatex or lualatex instead
 # however, they need to set that in YAML headers too, so shouldn't be a problem here
@@ -236,6 +235,11 @@ depending on fields in datasets. One or the other, not a mix -->
 
 ##EVALUATION
 #model_evaluation: TRUE/FALSE output model evaluation statistics
+
+##REPORT
+#highlight: list of counties to 'highlight' in report output. 
+# Needs to match names OR fips as in shapefile (depending on ID field used for arbo_ID)
+#highlight_mask: T/F, whether to highlight (red outline, FALSE, default) or mask out rest of state (TRUE)
 
 #NOTE: If not using dev parameter, do NOT include in list or instead set to NULL
 #     The test checks if the value is NULL. Not NA or "" or things like that. 
@@ -344,6 +348,25 @@ if (!is.null(params$dev_settings$model_evaluation)){
   #default is to not save extra files, 
   # only currently used in research comparing many models
   model_evaluation <- FALSE
+}
+
+##REPORT
+if (!is.null(params$dev_settings$highlight)){
+  #use param given
+  highlight <- params$dev_settings$highlight
+  #set flag to true
+  highlight_flag <- TRUE
+} else {
+  #default is empty list (NULL)
+  highlight <- c()
+  highlight_flag <- FALSE
+}
+if (!is.null(params$dev_settings$highlight_mask)){
+  #use param given
+  highlight_mask <- params$dev_settings$highlight_mask
+} else {
+  #default is FALSE
+  highlight_mask <- FALSE
 }
 
 ## OTHER
@@ -655,6 +678,9 @@ standarize_names <- function(my_tbl, names_vector = field_names_accepted){
 if (confirm_id_fields(field_fips_accepted)){
   # use fips as arbo_ID
   
+  id_as_fips <- TRUE
+  id_as_names <- FALSE
+  
   data_human <- standarize_fips(data_human)
   data_mosquito <- standarize_fips(data_mosquito)
   data_env_raw <- standarize_fips(data_env_raw)
@@ -670,6 +696,9 @@ if (confirm_id_fields(field_fips_accepted)){
   
 } else if (confirm_id_fields(field_names_accepted)){
   # use county names as arbo_ID
+  
+  id_as_fips <- FALSE
+  id_as_names <- TRUE
   
   data_human <- standarize_names(data_human)
   data_mosquito <- standarize_names(data_mosquito)
@@ -692,6 +721,18 @@ id_crosswalk <- data_sf %>%
   dplyr::select(NAME, GEOID, arbo_ID) %>% 
   dplyr::rename(FIPS = GEOID)
 
+#If county highlights (dev), then set up proper IDs here
+if (highlight_flag){
+  
+  #using names, need to crosswalk from user given name to simplename arbo_ID
+  # user given names MUST match shapefile standard name (NAME)
+  if (id_as_names){
+    highlight_ids <- id_crosswalk$arbo_ID[match(highlight, id_crosswalk$NAME)]
+  } else {
+    #if using fips, use as is
+    highlight_ids <- highlight
+  }
+}
 
 ```
 
@@ -2177,6 +2218,7 @@ preds_mod_ave_fc_wk <- preds_mod_ave %>%
 sf_abs_risk <- data_sf %>% 
   dplyr::left_join(preds_mod_ave_fc_wk, by = "arbo_ID")
 
+
 p_abs_risk <- ggplot2::ggplot() +
   ggplot2::geom_sf(data = sf_abs_risk,
                    aes(fill = pred_ave,
@@ -2201,7 +2243,83 @@ p_abs_risk <- ggplot2::ggplot() +
   guides(fill = guide_colorbar(order = 1))
 
 
+# If no highlight, proceed as normal
+if (!highlight_flag){
+
 plot(p_abs_risk)
+
+} else if (highlight_flag){
+  #if highlight counties, then add special map instead and table
+
+  
+  #if no mask, create highlight layer + to p_abs_risk
+  if (!highlight_mask){
+    
+    sf_highlight <- sf_abs_risk %>% 
+      #ONLY include highlighted counties
+      dplyr::filter(arbo_ID %in% highlight_ids)
+    
+    p_abs_risk_high <- p_abs_risk + 
+      geom_sf(data = sf_highlight,
+              aes(color = "Highlighted counties"), 
+              size = 1,
+              #let the original colors through
+              fill = NA) +
+      scale_color_manual("", 
+                         values = c("Highlighted counties" = "red"))
+    
+  }
+  
+  #if mask, recreate (not easily edited)
+  
+  if (highlight_mask){
+    
+    sf_highlight <- sf_abs_risk %>% 
+      #strip out all values (not counties) except for 'highlighted'
+      dplyr::mutate(pred_ave = if_else(arbo_ID %in% highlight_ids,
+                                       pred_ave,
+                                       NA_real_))
+    p_abs_risk_high <- ggplot2::ggplot() +
+      ggplot2::geom_sf(data = sf_highlight,
+                       aes(fill = pred_ave,
+                           #fake alpha to get NA legend entry
+                           alpha = "Not included")) +
+      viridis::scale_fill_viridis("", 
+                                  #limits always 0 - 1
+                                  limits = c(0, 1),
+                                  breaks = c(0, 1),
+                                  labels = c("0: Less likely\nto report any cases", 
+                                             "1: More likely\nto report at least one case"),
+                                  na.value = color_risk_na) +
+      #fake scale for NA legend entry
+      scale_alpha_manual("", values = 1) +
+      ggtitle("Absolute risk in forecast week") +
+      theme_arbo_map +
+      theme(plot.title = element_text(size = 11)) +
+      #override legend for alpha to get nice
+      guides(alpha = guide_legend("", override.aes = list(fill = color_risk_na),
+                                  #reorder legends for that color ramp is first
+                                  order = 2)) +
+      guides(fill = guide_colorbar(order = 1))    
+  }
+  
+  #plot whatever the highlighted plot version is
+  plot(p_abs_risk_high)
+
+  #either case, add table with highlighted county(ies) and values
+  
+  knitr::kable(preds_mod_ave_fc_wk %>% 
+                 dplyr::filter(arbo_ID %in% highlight_ids) %>% 
+                 #join with crosswalk to get pretty names
+                 dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
+                 dplyr::select(NAME, pred_ave),
+               col.names = c("County", "Absolute Risk"),
+               digits = 2,
+               align = c("l", "c"),
+               caption = "Absolute risk for highlighted counties")
+  
+  
+} # end if highlight_flag
 
 ```
 <!-- \vspace{-5truemm} -->
@@ -2285,7 +2403,9 @@ This **relative risk** map may be used in conjunction with the **absolute risk**
 <!-- \vspace{-5truemm} -->
 ```{r relative_risk_map, echo=FALSE, include=TRUE, fig.align='center', out.width="90%"}
 
-#plot
+# Map
+#
+
 p_rel_risk <- ggplot2::ggplot() +
   #by rank percentile
   ggplot2::geom_sf(data = sf_rel_risk,
@@ -2313,14 +2433,90 @@ p_rel_risk <- ggplot2::ggplot() +
                               #reorder legends for that color ramp is first
                               order = 2)) +
   guides(fill = guide_colorbar(order = 1))
-  
-plot(p_rel_risk)
 
+#no highlight
+if (!highlight_flag){
+  
+  plot(p_rel_risk)
+
+}
+
+#If highlight counties, create an altered map
+if (highlight_flag){
+  
+  #if no mask, create highlight layer + to p_rel_risk
+  if (!highlight_mask){
+    
+    sf_highlight <- sf_rel_risk %>%
+      #ONLY include highlighted counties
+      dplyr::filter(arbo_ID %in% highlight_ids)
+    
+    p_rel_risk_high <- p_rel_risk +
+      geom_sf(data = sf_highlight,
+              aes(color = "Highlighted counties"),
+              size = 1,
+              #let the original colors through
+              fill = NA) +
+      scale_color_manual("",
+                         values = c("Highlighted counties" = "red"))
+    
+  }
+  
+  #if mask, recreate (not easily edited)
+  
+  if (highlight_mask){
+    
+    sf_highlight <- sf_rel_risk %>%
+      #strip out all values (not counties) except for 'highlighted'
+      dplyr::mutate(rank_perc = if_else(arbo_ID %in% highlight_ids,
+                                        rank_perc,
+                                        NA_real_))
+    p_rel_risk_high <- ggplot2::ggplot() +
+      #by rank percentile
+      ggplot2::geom_sf(data = sf_highlight,
+                       aes(fill = rank_perc,
+                           #fake alpha to get NA legend entry
+                           alpha = "Not included")) +
+      viridis::scale_fill_viridis("", 
+                                  #limits always 0 - 100
+                                  limits = c(0, 100),
+                                  #using [V3] breaks
+                                  breaks = c(0, lower_risk, 50, higher_risk, 100),
+                                  labels = c("0",
+                                             paste(lower_risk, ": Lower than average risk"),
+                                             "50: Average risk",
+                                             paste(higher_risk, ": Higher than average risk"),
+                                             "100"),
+                                  na.value = color_risk_na) +
+      #fake scale for NA legend entry
+      scale_alpha_manual("", values = 1) +
+      ggtitle("Risk in forecast week relative to the same epiweek in previous years") +
+      theme_arbo_map +
+      theme(plot.title = element_text(size = 11)) +
+      #override legend for alpha to get nice
+      guides(alpha = guide_legend("", override.aes = list(fill = color_risk_na),
+                                  #reorder legends for that color ramp is first
+                                  order = 2)) +
+      guides(fill = guide_colorbar(order = 1)) 
+    
+  }
+  
+  #plot whatever the highlighted plot version is
+  plot(p_rel_risk_high)
+  
+} # end if highlight_flag
+
+
+## Tables
+#
 #Table of counties with higher than average risk
+
 # only IF there are counties
-if (rel_risk %>% 
-    dplyr::filter(rank_perc >= higher_risk) %>% 
-    nrow() > 0) {
+rr_high_flag <- rel_risk %>% 
+  dplyr::filter(rank_perc >= higher_risk) %>% 
+  nrow() > 0
+
+if (rr_high_flag) {
   knitr::kable(rel_risk %>% 
                  dplyr::filter(rank_perc >= higher_risk) %>% 
                  #join with crosswalk to get pretty names
@@ -2331,6 +2527,26 @@ if (rel_risk %>%
                align = c("l", "c"),
                caption = "Counties with higher than average risk")
 }
+
+
+# If highlight counties, optional extra table
+
+if (highlight_flag){
+  
+  rr_high_highlight <- rel_risk %>% 
+    dplyr::filter(arbo_ID %in% highlight_ids) %>% 
+    #join with crosswalk to get pretty names
+    dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
+    dplyr::select(NAME, rank_perc)
+  
+  knitr::kable(rr_high_highlight,
+               col.names = c("County", "Relative risk percentile"),
+               digits = 0,
+               align = c("l", "c"),
+               caption = "Relative risk of highlighted counties")
+}
+
+
 
 ```
 
@@ -2740,7 +2956,7 @@ After data processing, the human case data contained a total of `r dx_human_nrow
 `r if(length(human_yrs_missing) == 0){paste0("Data from all years were found in the data file.")}`
 `r if(length(human_yrs_missing) > 0){paste0("The following years were not found in the dataset:", human_yrs_missing %>% sort() %>% knitr::combine_words(), ".", " Confirm that these years were zero-case years, and not data missing from the dataset.")}` 
 
-`r if(nrow(dx_human_unmatched) > 0){paste0("The human case data entries that were unmatched to spatial data during processing are in the table below. Please check for mispellings in the original file.")}`
+`r if(nrow(dx_human_unmatched) > 0){paste0("The human case data entries that were unmatched to spatial data during processing are in the table below. Please check for mispellings in the original file. Internal IDs for county names will show in lower case with other formatting applied for attempted matching.")}`
 ```{r human_unmatched, echo=FALSE, include=TRUE}
 if(nrow(dx_human_unmatched) > 0){
   knitr::kable(dx_human_unmatched,
@@ -2770,7 +2986,8 @@ h_county <- data_human %>%
                    .groups = "drop") %>% 
   #add in zero counties (notice RIGHT join)
   dplyr::right_join(data_sf %>% 
-                      sf::st_drop_geometry(),
+                      sf::st_drop_geometry() %>% 
+                      dplyr::select(arbo_ID),
                     by = "arbo_ID") %>% 
   #and add zeros for case counts (would be NA from right join)
   dplyr::mutate(case_count = dplyr::if_else(is.na(case_count), 0L, case_count))
@@ -2789,7 +3006,51 @@ p_map_human <- ggplot() +
   ggtitle("Historical cumulative human cases") +
   theme_arbo_map
 
+
+#no highlight
+if (!highlight_flag){
+  
 plot(p_map_human)
+
+} else if (highlight_flag){
+  
+  #If highlight counties, create an altered map & table
+  # only non-masking highlight here, even if mask
+  
+  sf_highlight <- sf_human %>%
+    #ONLY include highlighted counties
+    dplyr::filter(arbo_ID %in% highlight_ids)
+  
+  p_map_human_hl <- p_map_human +
+    geom_sf(data = sf_highlight,
+            aes(color = "Highlighted counties"),
+            size = 1,
+            #let the original colors through
+            fill = NA) +
+    scale_color_manual("",
+                       values = c("Highlighted counties" = "blue")) +
+    #make sure original color bar is at top
+    guides(fill = guide_colorbar(order = 1))
+  
+  plot(p_map_human_hl)
+  
+  h_county_hl <- h_county %>%
+    #get only highlight counties
+    dplyr::filter(arbo_ID %in% highlight_ids) 
+  
+  knitr::kable(h_county_hl %>% 
+                 #join with crosswalk to get pretty names
+                 dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
+                 #select columns for table
+                 dplyr::select(NAME, case_count) %>% 
+                 dplyr::arrange(NAME),
+               col.names = c("County", "Cases"),
+               digits = 1,
+               align = c("l", "c"),
+               caption = "Cumulative human cases for highlighted counties")
+  
+} #end if highlight
+
 
 #[DEV] Considered previous year map, but small case counts could be 
 # a privacy concern so omitted [DMN]
@@ -2983,13 +3244,42 @@ p_map_mosq2wk <- ggplot() +
           subtitle = paste0("Date range: ", mosq_2wks_dts_str)) +
   theme_arbo_map
 
+
+#no highlight
+if (!highlight_flag){
+  
 plot(p_map_mosq2wk)
+
+} else if (highlight_flag){
+  
+  #If highlight counties, create an altered map & table
+  # only non-masking highlight here, even if mask
+  
+  sf_highlight <- sf_mosq2wk %>%
+    #ONLY include highlighted counties
+    dplyr::filter(arbo_ID %in% highlight_ids)
+  
+  p_map_mosq2wk_hl <- p_map_mosq2wk +
+    geom_sf(data = sf_highlight,
+            aes(color = "Highlighted counties"),
+            size = 1,
+            #let the original colors through
+            fill = NA) +
+    scale_color_manual("",
+                       values = c("Highlighted counties" = "blue")) +
+    #make sure original color bar is at top
+    guides(fill = guide_legend(order = 1))
+  
+  plot(p_map_mosq2wk_hl)
+  
+} #end if highlight
+
 
 ## 2. Table of positive pools
 # attempting YEAR & 2 weeks
 # join yr and wk
 # need to keep rows in EITHER, so full join
-data_mosq_yr2wk <- data_mosquito %>% 
+data_mosq_yr2wk_full <- data_mosquito %>% 
   #filter to forecast epiyear and up to this forecast week
   filter(year_epi == epiyear_request &
            week_epi <= epiweek_request) %>% 
@@ -3005,9 +3295,6 @@ data_mosq_yr2wk <- data_mosquito %>%
                                       pools_pos = sum(wnv_result)) %>% 
                      dplyr::mutate(pools_pos_perc = pools_pos / pools_count * 100),
                    by = "arbo_ID") %>% 
-  #filter out ones with none in past 2 weeks, and no pos YTD
-  # so filter that pools_count has a value OR pools_pos_yr > 0
-  dplyr::filter(!is.na(pools_count) | pools_pos_yr > 0) %>% 
   #make pretty % for table
   dplyr::mutate(pools_pos_perc_pretty = if_else(is.na(pools_pos_perc), 
                                                 NA_character_, 
@@ -3016,31 +3303,75 @@ data_mosq_yr2wk <- data_mosquito %>%
                 pools_pos_yr_perc_pretty = if_else(is.na(pools_pos_yr_perc),
                                                    NA_character_,
                                                    round(pools_pos_yr_perc, digits = 1) %>% 
-                                                    paste0("%")))
+                                                    paste0("%")),
+                pools_pos_comb = if_else(is.na(pools_pos), 
+                                         NA_character_,
+                                         paste0(pools_pos, " (", pools_pos_perc_pretty, ")")),
+                pools_pos_yr_comb = if_else(is.na(pools_pos_yr), 
+                                                  NA_character_,
+                                                  paste0(pools_pos_yr, " (", pools_pos_yr_perc_pretty, ")")))
 
 
-# replace NA with a dash
-opts <- options(knitr.kable.NA = "-")
+data_mosq_yr2wk <- data_mosq_yr2wk_full %>% 
+  #filter out ones with none in past 2 weeks, and no pos YTD
+  # so filter that pools_count has a value OR pools_pos_yr > 0
+  dplyr::filter(!is.na(pools_count) | pools_pos_yr > 0) %>%
+  #join with crosswalk to get pretty names
+  dplyr::left_join(id_crosswalk, by = "arbo_ID") %>%
+  #select columns for table
+  dplyr::select(NAME,
+                pools_count, pools_pos_comb,
+                pools_count_yr, pools_pos_yr_comb) %>%
+  dplyr::arrange(NAME)
+
+
 #conditionally appearing table if data exists
 if (nrow(data_mosq_yr2wk) > 0){
-  knitr::kable(data_mosq_yr2wk %>% 
-                 #join with crosswalk to get pretty names
-                 dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
-                 #make pretty %
-                 dplyr::select(NAME, 
-                               pools_count, pools_pos, pools_pos_perc_pretty,
-                               pools_count_yr, pools_pos_yr, pools_pos_yr_perc_pretty) %>% 
-                 dplyr::arrange(NAME),
-               col.names = c("County", 
-                             "Pools reported last 2 weeks", "Pools positive last 2 weeks", "Percent positive last 2 weeks", 
-                             "Pools reported YTD", "Pools positive YTD", "Percent positive YTD"),
+  
+  knitr::kable(data_mosq_yr2wk,
+               col.names = c("County",
+                             "Pools reported last 2 weeks", "Pools positive last 2 weeks (%)",
+                             "Pools reported YTD", "Pools positive YTD (%)"),
                digits = 1,
-               align = c("l", "c", "c", "c", "c", "c", "c"),
+               align = c("l", "c", "c", "c", "c"),
                caption = "Total reported and WNV mosquito pools: Counties with positive pools in year to forecast week (YTD) or reported any (positive or negative) pools in past two weeks")
-  # #don't let split over multiple pages 
-  # # ... does make it float, but paragraph regarding pred pos pools now comes before table, which is not helpful here. 
-  # longtable = FALSE, booktabs = TRUE, format = "latex")
+
+  #kableExtra::column_spec(column = 2:7, width = "1.7cm")
+
 }
+
+# #optional additional highlight table
+if (highlight_flag){
+
+  data_mosq_yr2wk_hl <- data_mosq_yr2wk_full %>%
+    #get only highlight counties
+    dplyr::filter(arbo_ID %in% highlight_ids) 
+  
+  #add NA entries for any highlight counties that do not have data for this year yet
+  hl_na_ids <- highlight_ids[!highlight_ids %in% data_mosq_yr2wk_hl$arbo_ID]
+    
+  data_mosq_yr2wk_hl <- data_mosq_yr2wk_hl %>% 
+    dplyr::bind_rows(tibble(arbo_ID = hl_na_ids))
+  
+  knitr::kable(data_mosq_yr2wk_hl %>%
+                 #join with crosswalk to get pretty names
+                 dplyr::left_join(id_crosswalk, by = "arbo_ID") %>%
+                 #select columns for table
+                 dplyr::select(NAME,
+                               pools_count, pools_pos_comb,
+                               pools_count_yr, pools_pos_yr_comb) %>%
+                 dplyr::arrange(NAME),
+               col.names = c("County",
+                             "Pools reported last 2 weeks", "Pools positive last 2 weeks (%)",
+                             "Pools reported YTD", "Pools positive YTD (%)"),
+               digits = 1,
+               align = c("l", "c", "c", "c", "c"),
+               caption = "Total reported and WNV mosquito pools for the past two weeks and year to date for highlighted counties")
+
+  #    kableExtra::column_spec(column = 2:7, width = "1.7cm")
+  
+
+} #end if highlight
 
 ```
 
@@ -3819,7 +4150,6 @@ knitr::kable(param_table,
              caption = "Parameters used",
              row.names = FALSE)
 
-
 #dev settings, removing data objects & replacing with notifier
 params_dev <- params$dev_settings
 if (!is.null(params_dev$data_human)){params_dev$data_human <-"Override data given"} 
@@ -3831,8 +4161,8 @@ if (!is.null(params_dev$model_formulas)){params_dev$model_formulas <-"Override d
 if (!is.null(params_dev$models_cached)){params_dev$models_cached <-"Override data given"}
 
 #additional table IF developer parameters were used
-if (length(params_dev >= 1)){
-  param_dev_table <- tibble::tibble(Parameter = names(params_dev), Value = unlist(params_dev))
+if (length(params_dev) >= 1){
+  param_dev_table <- tibble::tibble(Parameter = names(unlist(params_dev)), Value = unlist(params_dev))
   knitr::kable(param_dev_table, 
                caption = "Advanced settings and parameters",
                row.names = FALSE)
