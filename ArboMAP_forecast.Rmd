@@ -1278,6 +1278,7 @@ data_env <- data_env_raw %>%
 
 #remove large and no longer needed raw dataset
 rm(data_env_raw)
+gc(verbose = FALSE)
 
 #Note: This does not check for missing days (IMPLICIT missing)
 # If adding, adapt code from function corral_environmental()
@@ -1805,6 +1806,7 @@ data_combined$doymat[,] <- data_combined$doy #[V3] uncertain what this does [DMN
 
 # clean up (often b/c of large data)
 rm(data_env_lag)
+rm(data_combined_prep)
 gc(verbose = FALSE)
 
 ## Post-combining ---------------------------------------------------
