@@ -2,7 +2,7 @@
 title: "ArboMAP User Guide"
 subtitle: "Arbovirus Modeling and Prediction: West Nile Virus Forecasting"
 author: "Dawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly    \n(mcwimberly@ou.edu)   \nEcological and Geospatial Reseearch and Applications in Planetary Health (EcoGRAPH)    \nGeography and Environmental Sustainability, University of Oklahoma"
-date: "Updated `r format(Sys.time(), '%B %d, %Y')` for Version 4.1"
+date: "Updated `r format(Sys.time(), '%B %d, %Y')` for Version 4.2"
 output: 
   bookdown::pdf_document2:
     toc: true
@@ -46,7 +46,7 @@ knitr::opts_chunk$set(fig.pos= "H")
 \fancyhead[C]{Arbovirus Modeling and Prediction (ArboMAP) User Guide}
 \fancyhead[R]{}
 
-\fancyfoot[L]{Updated `r format(Sys.time(), '%B %d, %Y')` for Version 4.0}
+\fancyfoot[L]{Updated `r format(Sys.time(), '%B %d, %Y')` for Version 4.2}
 \fancyfoot[C]{}
 \fancyfoot[R]{\thepage}
 <!-- To get line above footer. Default is 0pt -->
