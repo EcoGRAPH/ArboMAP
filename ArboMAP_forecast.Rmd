@@ -3153,7 +3153,7 @@ if (mosq_fcwk_exists) {
 #dates based on epiweeks 
 # FIRST day of first epiweek to LAST day of second epiweek
 mosq_2wks_dts <- c(make_date_yw(year = epiyear_request, week = mosq_2wks[1], weekday = 1),
-                   make_date_yw(year = epiyear_request, week = mosq_2wks[2], weekday = 1))
+                   make_date_yw(year = epiyear_request, week = mosq_2wks[2], weekday = 7))
 
 mosq_2wks_dts_str <- paste0(format(mosq_2wks_dts[1], "%m/%d/%Y"),
                             " through ",
