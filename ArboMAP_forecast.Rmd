@@ -131,7 +131,7 @@ pacman::p_load(
   #add'l data processing
   zoo, 
   #modeling & evaluation
-  mgcv, splines, parallel, pROC,
+  mgcv, pROC, #splines, parallel are used but are base packages
   #spatial, maps and graphs
   tigris, sf, ggplot2, gridExtra, 
   viridis, ggrepel, forcats, ggpubr,
