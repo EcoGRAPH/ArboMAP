@@ -81,9 +81,9 @@ params:
     label: "Remove temporal outliers from human cases"
     value: 0.02
   dev_settings: 
-    
     label: "Developer settings, leave as \"!r list()\""
     value: !r list()
+
 title: "West Nile Virus Forecast Report for `r params$forecast_date`  \n`r params$state_name`"
 subtitle: "DEMO for Arbovirus Modeling and Prediction (ArboMAP): Synthetic Data  \nNot for Epidemiological Use"
 author: "Dawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly    \n(mcwimberly@ou.edu)   \nGeography and Environmental Sustainability, University of Oklahoma"
@@ -203,10 +203,11 @@ No data checks or processing here. -->
 depending on fields in datasets. One or the other, not a mix -->
 <!--  data_human_processing_dx: Process the human data, create diagnostics/stats -->
 <!--  data_mosq_processing_dx: Process the mosquito data, create diagnostics/stats -->
-<!--  mosquito_infection_model: run selected mosquito model to generate mir_stat used in modeling -->
+<!--  mosquito_infection_model: run selected mosquito model to generate raw mir statistic -->
+<!--  mir_imputation: Imputation of any missing mir statistics from unknown/no data, mir_stat sused in modeling -->
 <!--  data_env_latest_history: processes the environment data
-1) gets latest updated value for a day, 
-2) creates historical doy means -->
+      1) gets latest updated value for a day, 
+      2) creates historical doy means -->
 <!--  data_env_anomalization: calculates anomalies of environmental data via gam -->
 <!--  data_combine: combine all data and format for passing off for regression -->
 <!--  forecast_modeling: create the forecast models -->
@@ -231,6 +232,9 @@ depending on fields in datasets. One or the other, not a mix -->
 # models_cached: must be named list of model objects, named from modeling file to pattern match (output of save_models)
 
 ##REGRESSION
+# mir_exactfit: T/F for how to handle missing MIR values in unknown years
+#             T - Original V3 with impute unknown MIR <- 0 and add exactfit
+#             F - using a MIR ~ total human cases linear model, no exactfit term. 
 # reg_function: "GAM" (hook for future possibility)
 
 ##SAVING (for extra research files)
@@ -311,6 +315,13 @@ if (!is.null(params$dev_settings$models_cached)){
 }
 
 ##REGRESSION
+if (!is.null(params$dev_settings$mir_exactfit)){
+  #use param given
+  mir_exactfit <- params$dev_settings$mir_exactfit
+} else {
+  #default is FALSE
+  mir_exactfit <- FALSE
+}
 if (!is.null(params$dev_settings$reg_function)){
   #use param given
   reg_function <- params$dev_settings$reg_function
@@ -1075,10 +1086,12 @@ mosq_pos_perc_fcyr <- mosq_pos_num_fcyr / dx_mosq_nrow_fcyr * 100 %>%
 # Calculates mir_stat (mosquito infection rate), based on mosquito model
 #   Creates mosq_mir : 
 #   dataset with 'year_epi' and 'mir_stat's, (and 'strata' for stratified models)
-#   mir_stat_raw : calculated via modelling
+#   mir_stat_raw : calculated via pool MIR modelling
 #   mir_stat_ctr : post centering of above raw value
-#   mir_stat : NOT created in this block, but in combining data code block below.
-#                   _ctr after imputation of any missing that are needed (used in modelling)
+#   mir_stat : NOT created in this block, but in mir imputation code block below.
+#             #if mir_impute, mir ~ total human cases, centered
+#             # else 
+
 
 # If match failure, default will be AUC
 # Note: If add a mosquito model, you MUST add it here
@@ -1281,17 +1294,236 @@ if (mosquito_model_clean %in% mosq_strat_models) {
 } #end if c("stratifiedMIGR", "stratifiedMII")
 
 
-# Center the MIR statistic 
-# [V3] Originally done in the plotting code. 
-#  Had been carried through to modeling in some mosquito models, but not all. 
-#  Decision with MCW to standardize to all mosq models, so done here. [DMN]
-mosq_mir <- mosq_mir %>% 
-  dplyr::mutate(mir_stat_ctr = mir_stat_raw - mean(.$mir_stat_raw, na.rm = TRUE))
+```
 
+
+```{r mir_imputation, echo=FALSE, include=FALSE, cache=FALSE} 
+
+# There are two choices for how to handle forecast modeling with missing mosquito data
+# 1. [V3] "Exactfit": MIR is imputed as 0 (average risk) and an exactfit binary term
+#     is added to the formula and modeling. mir_exactfit = TRUE 
+# 2. [V4.3+experiment] "MIR-human model": The known MIR values are modeled against total human cases
+#     (linear regression, by year). NO exactfit terms are used. mir_exactfit = FALSE. New default!
+
+#mir_full$mir_stat is the final MIR statistic, with imputation as necessary
+
+#create full table of year or year-strata needed, join with known. 
+if (mosquito_model_clean %in% mosq_nonstrat_models){
+  
+  #for NON-stratified mosq models
+      
+  #all years
+    mir_full <- tidyr::expand_grid(year_epi = year_modeling_start:year_modeling_end) %>% 
+      #join with existing/known MIR values
+      dplyr::left_join(mosq_mir, by = c("year_epi")) %>% 
+      #flag NAs as imputed
+      dplyr::mutate(mir_imputed = is.na(mir_stat_raw))
+
+
+  } else if (mosquito_model_clean %in% mosq_strat_models){
+  
+    #for stratified mosq models
+    
+    #all strata and all years
+    mir_full <- tidyr::expand_grid(strata = data_strata %>% 
+                                     dplyr::pull(strata) %>% 
+                                     unique() %>% sort(),
+                                   year_epi = year_modeling_start:year_modeling_end) %>% 
+      #join with existing/known MIR values
+      dplyr::left_join(mosq_mir, by = c("strata", "year_epi")) %>% 
+      #flag NAs as imputed
+      dplyr::mutate(mir_imputed = is.na(mir_stat_raw))
+      
+  } # end creating mir_full 
+
+
+
+if (mir_exactfit){
+  
+  # Center the MIR statistic 
+  # [V3] Originally done in the plotting code. 
+  #  Had been carried through to modeling in some mosquito models, but not all. 
+  #  Decision with MCW to standardize to all mosq models, so done here. [DMN]
+ mir_full <- mir_full %>% 
+    dplyr::mutate(mir_stat_ctr = mir_stat_raw - mean(.$mir_stat_raw, na.rm = TRUE),
+                  #and impute missing as 0, average risk
+                  mir_stat = dplyr::if_else(mir_imputed, 0, mir_stat_ctr))
+ 
+ # If mir_stat has been imputed, then doing exactfit
+ # but ONLY if within human years data 
+ # (otherwise doing an exactfit of ... 0)
+ # e.g. if there is no mosquito data yet for forecast year, this is NOT what we want
+ #   Add appropriate exactfit columns here
+ 
+ yrs_mir_imputed <- mir_full %>% 
+   dplyr::filter(mir_imputed == TRUE,
+                 year_epi >= params$year_human_start &
+                   year_epi <= params$year_human_end) %>% 
+   dplyr::pull(year_epi) %>% unique() %>% sort(decreasing = TRUE)
+ 
+ #loop over these years to add a column for each year
+ # that flags if it will be an exactfit
+ for (this_yr in yrs_mir_imputed){
+   
+   this_col_name <- paste0("exactfit_", this_yr)
+   
+   mir_full <- mir_full %>% 
+     #slight weirdness for dynamic field name on left-hand side (tidyverse)
+     #using glue {{}} with := assignment operator
+     #https://stackoverflow.com/questions/26003574/use-dynamic-name-for-new-column-variable-in-dplyr
+     #1 * logical returns 1 (true), 0 (false) [V3] 
+     #   Uncertain if this is necessary over T/F, kept as in [V3] [DMN]
+     dplyr::mutate({{this_col_name}} := 1 * (year_epi == this_yr))
+   
+ }
+ 
+ # # record years (or none) for text in report
+ # if (length(yrs_mir_imputed) == 0) {
+ #   yrs_mir_imputed_text <- "none"
+ # } else {
+ #   yrs_mir_imputed_text <- stringr::str_flatten(yrs_mir_imputed %>% sort(), 
+ #                                                collapse = ", ")
+ # }
+ 
+ 
+  #end mir exactfit
+} else {
+  
+  # MIR-human model to impute missing MIR values
+  
+  
+  if (mosquito_model_clean %in% mosq_nonstrat_models){
+    
+    #for NON-stratified mosq models
+    
+    #predictor: total human cases for year
+    human_total <- data_human %>% 
+      dplyr::group_by(year_epi) %>% 
+      dplyr::summarise(tot_cases = n(),
+                       .groups = "drop")
+    
+    # create model 
+    mosq_human <- mir_full %>% 
+      dplyr::left_join(human_total, 
+                       by = c("year_epi")) %>% 
+      as.data.frame()
+
+    mh_lm <- lm(mir_stat_raw ~ tot_cases,
+                data = mosq_human,
+                #drop when no human data known as in forecast year, or mir missing
+                na.action = na.omit)
+    
+    # predict and replace missing
+    #   NOT forecast year (no human cases)
+    mh_fill <- mosq_human %>% 
+      as_tibble() %>% 
+      dplyr::filter(!is.na(tot_cases)) %>% 
+      as.data.frame()
+    
+    mh_fill$pred <- predict(mh_lm, 
+                            newdata = mh_fill,
+                            type = "response")
+    
+    # ggplot(mh_fill) + geom_point(aes(x = pred, y = mir_stat_raw)) + 
+    #   coord_fixed(xlim = c(min(mh_fill$mir_stat_raw, na.rm = TRUE), max(mh_fill$mir_stat_raw, na.rm = TRUE))) + theme_bw()
+    
+    mir_test <- mir_full %>% 
+      dplyr::left_join(mh_fill %>% 
+                         as_tibble() %>% 
+                         dplyr::select(year_epi, pred),
+                       by = c("year_epi")) %>% 
+      #replace
+      dplyr::mutate(mir_stat_imp = dplyr::if_else(mir_imputed, 
+                                              pred,
+                                              mir_stat_raw)) %>% 
+      # center
+      dplyr::mutate(mir_stat_ctr = mir_stat_imp - mean(.$mir_stat_imp, na.rm = TRUE)) %>% 
+      # IF no mosquito data for forecast year
+      # since cannot model against human cases
+      # impute with 0 (average risk)
+      dplyr::mutate(mir_stat = if_else(is.na(mir_stat_ctr), 0, mir_stat_ctr))
+    
+    
+  } else if (mosquito_model_clean %in% mosq_strat_models){
+    
+    #for stratified mosq models
+    
+    #predictor: total human cases for year
+    human_total <- data_human %>% 
+      #add strata
+      dplyr::left_join(data_strata %>% 
+                         dplyr::select(arbo_ID, strata),
+                       by = "arbo_ID") %>% 
+      dplyr::group_by(year_epi, strata) %>% 
+      dplyr::summarise(tot_cases = n(),
+                       .groups = "drop")
+    
+    # create model 
+    mosq_human <- mir_full %>% 
+      dplyr::left_join(human_total, 
+                       by = c("strata", "year_epi")) %>% 
+      #make sure strata doesn't get made into a number in model
+      dplyr::mutate(strata = as.factor(strata)) %>% 
+      as.data.frame()
+
+    mh_lm <- lm(mir_stat_raw ~ tot_cases * strata,
+                data = mosq_human,
+                #drop when no human data known as in forecast year, or mir missing
+                na.action = na.omit)
+    
+    # predict and replace missing
+    #   NOT forecast year (no human cases)
+    mh_fill <- mosq_human %>% 
+      as_tibble() %>% 
+      dplyr::filter(!is.na(tot_cases)) %>% 
+      as.data.frame()
+    
+    mh_fill$pred <- predict(mh_lm, 
+                            newdata = mh_fill,
+                            type = "response")
+    
+    # ggplot(mh_fill) + geom_point(aes(x = pred, y = mir_stat_raw)) + 
+    #   coord_fixed(xlim = c(min(mh_fill$mir_stat_raw, na.rm = TRUE), max(mh_fill$mir_stat_raw, na.rm = TRUE))) + theme_bw()
+    
+    mir_full <- mir_full %>% 
+      dplyr::left_join(mh_fill %>% 
+                         as_tibble() %>% 
+                         #unfactor
+                         dplyr::mutate(strata = as.character(strata) %>% 
+                                         as(class(data_strata$strata))) %>% 
+                         dplyr::select(strata, year_epi, pred),
+                       by = c("strata", "year_epi")) %>% 
+      #replace
+      dplyr::mutate(mir_stat_imp = dplyr::if_else(mir_imputed, 
+                                              pred,
+                                              mir_stat_raw)) %>% 
+      # center
+      dplyr::mutate(mir_stat_ctr = mir_stat_imp - mean(.$mir_stat_imp, na.rm = TRUE)) %>% 
+      # IF no mosquito data for forecast year
+      # since cannot model against human cases
+      # impute with 0 (average risk)
+      dplyr::mutate(mir_stat = if_else(is.na(mir_stat_ctr), 0, mir_stat_ctr))
+    
+  }
+  
+  # For narrative
+  yrs_mir_imputed <- mir_full %>% 
+    dplyr::filter(mir_imputed == TRUE) %>% 
+    dplyr::pull(year_epi) %>% unique() %>% sort()
+  # # record years (or none) for text in report
+  # if (length(yrs_mir_imputed) == 0) {
+  #   yrs_mir_imputed_text <- "none"
+  # } else {
+  #   yrs_mir_imputed_text <- stringr::str_flatten(yrs_mir_imputed, 
+  #                                                collapse = ", ")
+  # }
+  
+  
+} # end MIR-human imputation
 
 # DEV output
 if (dev_write_output){
-  readr::write_csv(mosq_mir, file = file.path(out_folder, paste0(out_name_base, "_mir_stats.csv")))
+  readr::write_csv(mir_full, file = file.path(out_folder, paste0(out_name_base, "_mir_full.csv")))
 }
 
 ```
@@ -1571,101 +1803,20 @@ cases_perc_obs_hx <- 100 * (cases_before_fc_wk / state_cases_total) %>% round(2)
 
 
 ## Mosquito MIR -------------------------------------------------------
-# mosq_mir is name of dataset from mosquito modeling with mir_stat
-# mir_stat_ctr : field with mir_stat raw values that have been centered
-# mir_stat : created in this block, from _ctr, but also with imputation for needed missing entries
 
-# Create temporary frames of full data, add in mir known, flag for imputation
-#   separated out by stratification models, as that involves the strata column as well 
-# Using data_combined_prep (the to-be-complete combined data)
-# to create a data frame with all the years that we will need for modeling
+# mir_full is name of dataset from mosquito modeling with mir_stat
+# mir_stat : with imputation for missing entries
+#             (based on dev exact fit or default human case model)
 
-if (mosquito_model_clean %in% mosq_nonstrat_models){
-  
-  #for NON-stratified mosq models
-  
-  prep_mir_filler <- data_combined_prep %>% 
-    dplyr::select(year_epi) %>% 
-    #one entry for each year
-    dplyr::distinct() %>% 
-    #join with mosq_mir to get 'mir_stat_'s
-    dplyr::left_join(mosq_mir, by = c("year_epi")) %>% 
-    #add flag if MIR summary stat needs to be imputed (i.e. if that combination is missing)
-    # AND if the year in within the modeling year range 
-    dplyr::mutate(mir_impute = (is.na(mir_stat_ctr) & 
-                                  year_epi >= year_modeling_start &
-                                  year_epi <= year_modeling_end))
-  
-} else if (mosquito_model_clean %in% mosq_strat_models){
-  
-  #for stratified mosq models
-  
-  prep_mir_filler <- tidyr::expand_grid(strata = data_strata %>% 
-                                          dplyr::pull(strata) %>% 
-                                          unique() %>% sort(),
-                                        year_epi = data_combined_prep %>% 
-                                          dplyr::pull(year_epi) %>% 
-                                          #for consistency with data_combined_, 
-                                          #keep with reverse chronological
-                                          unique() %>% sort(decreasing = TRUE)) %>% 
-    #join with mosq_mir to get 'mir_stat_'s
-    dplyr::left_join(mosq_mir, by = c("strata", "year_epi")) %>% 
-    #add flag if MIR summary stat needs to be imputed (i.e. if that combination is missing)
-    # AND if the year in within the modeling year range 
-    dplyr::mutate(mir_impute = (is.na(mir_stat_ctr) & 
-                                  year_epi >= year_modeling_start &
-                                  year_epi <= year_modeling_end))
-}
-
-#replace NA mir_stat_ctr with zero (i.e. average risk, per comment from [V3])
-# creating final mir_stat variable to use in modelling
-prep_mir_filler <- dplyr::mutate(prep_mir_filler, 
-                                 mir_stat = dplyr::if_else(mir_impute, 
-                                                           0,
-                                                           mir_stat_ctr))
-
-# If mir_stat has been imputed, then doing exactfit
-# but ONLY if within human years data 
-# (otherwise doing an exactfit of ... 0)
-# e.g. if there is no mosquito data yet for forecast year, this is NOT what we want
-#   Add appropriate exactfit columns here
-
-yrs_mir_imputed <- prep_mir_filler %>% 
-  dplyr::filter(mir_impute == TRUE,
-                year_epi >= params$year_human_start &
-                  year_epi <= params$year_human_end) %>% 
-  dplyr::pull(year_epi) %>% unique() %>% sort(decreasing = TRUE)
-
-#loop over these years to add a column for each year
-# that flags if it will be an exactfit
-for (this_yr in yrs_mir_imputed){
-  
-  this_col_name <- paste0("exactfit_", this_yr)
-  
-  prep_mir_filler <- prep_mir_filler %>% 
-    #slight weirdness for dynamic field name on left-hand side (tidyverse)
-    #using glue {{}} with := assignment operator
-    #https://stackoverflow.com/questions/26003574/use-dynamic-name-for-new-column-variable-in-dplyr
-    #1 * logical returns 1 (true), 0 (false) [V3] 
-    #   Uncertain if this is necessary over T/F, kept as in [V3] [DMN]
-    dplyr::mutate({{this_col_name}} := 1 * (year_epi == this_yr))
-  
-}
-
-# record years (or none) for text in report
-if (length(yrs_mir_imputed) == 0) {
-  yrs_mir_imputed_text <- "none"
-} else {
-  yrs_mir_imputed_text <- stringr::str_flatten(yrs_mir_imputed, 
-                                               collapse = ", ")
-}
 
 # Now, add our final mir_stat to the combined data set
 if (mosquito_model_clean %in% mosq_nonstrat_models){
   
   data_combined_prep <- data_combined_prep %>% 
     #mir_stat same for every week and district within a year
-    dplyr::left_join(prep_mir_filler, by = "year_epi")
+    dplyr::left_join(mir_full %>% 
+                       dplyr::select(year_epi, mir_stat), 
+                     by = "year_epi")
   
 } else if (mosquito_model_clean %in% mosq_strat_models){
   
@@ -1675,9 +1826,12 @@ if (mosquito_model_clean %in% mosq_nonstrat_models){
                        select(arbo_ID, strata),
                      by = "arbo_ID") %>% 
     #mir_stat same for every week and district within a year
-    dplyr::left_join(prep_mir_filler, by = c("year_epi", "strata"))
+    dplyr::left_join(mir_full %>% 
+                       dplyr::select(year_epi, strata, mir_stat), 
+                     by = c("year_epi", "strata"))
   
 }
+
 
 if (dev_write_output){
   readr::write_csv(data_combined_prep, file = file.path(out_folder, paste0(out_name_base, "_data_combined_prep_humanmosq.csv")))
@@ -1908,17 +2062,20 @@ for (i in seq_along(model_names)){
   #get the formula
   this_formula_raw <- model_formulas[this_model]
   
-  #add any exact fits
-  exactfit_list <- colnames(data_combined)[grep(x = colnames(data_combined),
-                                                pattern = "exactfit_",
-                                                fixed = TRUE)]
-  if (length(exactfit_list) > 0) {
-    #create formula terms
-    exactfit_list <- paste(exactfit_list, collapse = " + ")
-    #update formula with new pieces
-    this_formula_raw <- paste(this_formula_raw, exactfit_list, sep= " + ")
-    
-  } #end exactfit additions
+  #if doing exact fits
+  if (mir_exactfit){
+    #add any exact fits
+    exactfit_list <- colnames(data_combined)[grep(x = colnames(data_combined),
+                                                  pattern = "exactfit_",
+                                                  fixed = TRUE)]
+    if (length(exactfit_list) > 0) {
+      #create formula terms
+      exactfit_list <- paste(exactfit_list, collapse = " + ")
+      #update formula with new pieces
+      this_formula_raw <- paste(this_formula_raw, exactfit_list, sep= " + ")
+      
+    } #end exactfit additions
+  }
   
   #final formula (includes any exact fits)
   this_formula <- as.formula(this_formula_raw)
@@ -3191,7 +3348,11 @@ Note that even if there were no positive pools in a given year, if there were an
 
 Parameters were set to include mosquito data from day of year `r params$mosquito_doy_start` through `r params$mosquito_doy_end`. The mosquito infection rate modeling is very sensitive to early mosquito pool results, which is why a cut-off is used. Sensitivity analyses indicate that a start day of year of 140 is a reasonable cut-off for a high modeling accuracy. 
 
-Modeling was done from `r year_modeling_start` through `r year_modeling_end`. Years without mosquito data during these years are assumed to have average mosquito infection rates. This allows us to estimate relationships with environmental data even when mosquito data are not available. There were `r length(yrs_mir_imputed)` years where mosquito infection rates were imputed. `r if(length(yrs_mir_imputed)>0){paste0("These years are: ", yrs_mir_imputed %>% sort() %>% knitr::combine_words(), ".")}` In modeling years where sufficient mosquito data were present, the mosquito infection statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. 
+Modeling was done from `r year_modeling_start` through `r year_modeling_end`. In modeling years where sufficient mosquito data were present, the mosquito infection statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. 
+
+There were `r length(yrs_mir_imputed)` years where mosquito infection rates were imputed. `r if(length(yrs_mir_imputed)>0){paste0("These years are: ", yrs_mir_imputed %>% sort() %>% knitr::combine_words(), ".")}` 
+
+`r if(mir_exactfit){"Years without mosquito data during these years are assumed to have average mosquito infection rates."}` `r if(!mir_exactfit){"Years without mosquito data during these years had mosquito infection rate statistic imputed based on a simple linear model with yearly total human case data."}` This allows us to estimate relationships with environmental data even when mosquito data are not available. 
 
 In the forecast year to date, there were `r dx_mosq_nrow_fcyr` pools reported from `r dx_mosq_counties_fcyr` counties. Of these pools, `r mosq_pos_num_fcyr` (`r round_any(mosq_pos_perc_fcyr, 1)`%) were reported WNV positive. 
 
@@ -3678,9 +3839,9 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
     # line at 0 (average risk of centered MIR stat)
     geom_abline(slope = 0, intercept = 0, linetype = 2) +
     #MIR stats
-    geom_line(data = mosq_mir,
+    geom_line(data = mir_full,
               aes(x = year_epi,
-                  y = mir_stat_ctr)) +
+                  y = mir_stat)) +
     # plot themes and display
     scale_x_continuous(breaks = seq(from = params$year_mosquito_start,
                                     to = params$year_mosquito_end,
@@ -3698,9 +3859,9 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
     # line at 0 (average risk of centered MIR stat)
     geom_abline(slope = 0, intercept = 0, linetype = 2) +
     #MIR stats
-    geom_line(data = mosq_mir,
+    geom_line(data = mir_full,
               aes(x = year_epi,
-                  y = mir_stat_ctr,
+                  y = mir_stat,
                   #strata
                   color = factor(strata)),
               size = 0.7) +
