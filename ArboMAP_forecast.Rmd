@@ -3592,10 +3592,11 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
                                  allow.new.levels = TRUE)
   
   #prep for graphing
-  mosq_doy_preds_ave <- mosq_doy_preds %>% 
-    dplyr::group_by(year_epi, dminus, doy) %>% 
-    dplyr::summarise(pred_ave = mean(pred, na.rm=TRUE),
-                     .groups = "drop") %>% 
+  mosq_doy_preds_set <- mosq_doy_preds %>% 
+    # DEV removed, unique rows so does nothing
+    # dplyr::group_by(year_epi, dminus, doy) %>% 
+    # dplyr::summarise(pred_ave = mean(pred, na.rm=TRUE),
+    #                  .groups = "drop") %>% 
     #flag param max year, param two comparison years for colored lines
     dplyr::mutate(mosq_col_grp = case_when(
       year_epi == params$year_mosquito_end ~ "endyear",
@@ -3638,17 +3639,17 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
   #plot, with possible dots
   p_mosq_pool_pos <- ggplot2::ggplot() +
     #historical (will be all gray)
-    geom_line(data = mosq_doy_preds_ave %>% 
+    geom_line(data = mosq_doy_preds_set %>% 
                 dplyr::filter(mosq_col_grp == "hx_filter"),
               aes(x = doy,
-                  y = pred_ave,
+                  y = pred,
                   group = factor(year_epi),
                   color = "historical")) +
     #colored years
-    geom_line(data = mosq_doy_preds_ave %>%
+    geom_line(data = mosq_doy_preds_set %>%
                 dplyr::filter(!mosq_col_grp == "hx_filter"),
               aes(x = doy,
-                  y = pred_ave,
+                  y = pred,
                   color = mosq_col_grp)) +
     #potential dots
     {if (nrow(end_year_dot) > 0){
@@ -3694,7 +3695,7 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
                                  allow.new.levels = TRUE)
 
   #prep for graphing
-  mosq_doy_preds_ave <- mosq_doy_preds %>%
+  mosq_doy_preds_set <- mosq_doy_preds %>%
         #split stratum and year back out
       dplyr::mutate(year_epi = stringr::str_split_fixed(stratum_year, "_", n = 2)[,2],
                     strata = stringr::str_split_fixed(stratum_year, "_", n = 2)[,1],
@@ -3703,10 +3704,10 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
                     #need to convert strata back to whatever data type as in data_strata
                     #    in example is dbl for '101'. But could conceivably be numeric or string
                     strata = as(strata, class(data_strata$strata))) %>%
-    # summarize by stratum, year & dminus
-    dplyr::group_by(strata, year_epi, dminus, doy) %>%
-    dplyr::summarise(pred_ave = mean(pred, na.rm=TRUE),
-                     .groups = "drop") %>%
+    # # summarize by stratum, year & dminus # DEV - removed, does nothing, unique rows
+    # dplyr::group_by(strata, year_epi, dminus, doy) %>%
+    # dplyr::summarise(pred_ave = mean(pred, na.rm=TRUE),
+    #                  .groups = "drop") %>%
     #flag param max year, param two comparison years for colored lines
     dplyr::mutate(mosq_col_grp = case_when(
       year_epi == params$year_mosquito_end ~ "endyear",
@@ -3725,7 +3726,7 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
     
     this_strata <- strata_list[[i]]
     
-    this_mosq_doy_preds_ave <- mosq_doy_preds_ave %>% 
+    this_mosq_doy_preds_set <- mosq_doy_preds_set %>% 
       dplyr::filter(strata == this_strata)
     
     this_data_mosq_endyr <- data_mosquito %>%
@@ -3761,17 +3762,17 @@ if (mosquito_model_clean %in% mosq_nonstrat_models) {
     #plot, with possible dots
     ps_mosq_strata[[i]] <- ggplot2::ggplot() +
       #historical (will be all gray)
-      geom_line(data = this_mosq_doy_preds_ave %>%
+      geom_line(data = this_mosq_doy_preds_set %>%
                   dplyr::filter(mosq_col_grp == "hx_filter"),
                 aes(x = doy,
-                    y = pred_ave,
+                    y = pred,
                     group = factor(year_epi),
                     color = "historical")) +
       #colored years
-      geom_line(data = this_mosq_doy_preds_ave %>%
+      geom_line(data = this_mosq_doy_preds_set %>%
                   dplyr::filter(!mosq_col_grp == "hx_filter"),
                 aes(x = doy,
-                    y = pred_ave,
+                    y = pred,
                     color = mosq_col_grp)) +
       #potential dots
       {if (nrow(this_end_year_dot) > 0){
