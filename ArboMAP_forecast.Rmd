@@ -1377,15 +1377,7 @@ if (mir_exactfit){
    
  }
  
- # # record years (or none) for text in report
- # if (length(yrs_mir_imputed) == 0) {
- #   yrs_mir_imputed_text <- "none"
- # } else {
- #   yrs_mir_imputed_text <- stringr::str_flatten(yrs_mir_imputed %>% sort(), 
- #                                                collapse = ", ")
- # }
- 
- 
+
   #end mir exactfit
 } else {
   
@@ -1427,7 +1419,7 @@ if (mir_exactfit){
     # ggplot(mh_fill) + geom_point(aes(x = pred, y = mir_stat_raw)) + 
     #   coord_fixed(xlim = c(min(mh_fill$mir_stat_raw, na.rm = TRUE), max(mh_fill$mir_stat_raw, na.rm = TRUE))) + theme_bw()
     
-    mir_test <- mir_full %>% 
+    mir_full <- mir_full %>% 
       dplyr::left_join(mh_fill %>% 
                          as_tibble() %>% 
                          dplyr::select(year_epi, pred),
@@ -1510,14 +1502,7 @@ if (mir_exactfit){
   yrs_mir_imputed <- mir_full %>% 
     dplyr::filter(mir_imputed == TRUE) %>% 
     dplyr::pull(year_epi) %>% unique() %>% sort()
-  # # record years (or none) for text in report
-  # if (length(yrs_mir_imputed) == 0) {
-  #   yrs_mir_imputed_text <- "none"
-  # } else {
-  #   yrs_mir_imputed_text <- stringr::str_flatten(yrs_mir_imputed, 
-  #                                                collapse = ", ")
-  # }
-  
+
   
 } # end MIR-human imputation
 
