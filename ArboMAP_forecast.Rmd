@@ -3547,7 +3547,9 @@ mosq_min_col_per_bin <- 3
 
 ```
 
-The next graph shows the percentage of predicted positive pools by year comparing the forecast year (in `r colorize("red", "red")`) to the requested comparison years (shades of blue) and all other years (gray). If there is sufficient data in the forecast year, the observed pools rates are shown as black dots, binned into a variable number of different time points (up to `r mosq_bins_max`) depending on how much data is available. 
+`r if (!mosquito_model_clean == "simpleratio"){paste0("The next graph shows the percentage of predicted positive pools by year comparing the forecast year (in ", colorize("red", "red"), ") to the requested comparison years (shades of blue) and all other years (gray). If there is sufficient data in the forecast year, the observed pools rates are shown as black dots, binned into a variable number of different time points (up to ", mosq_bins_max, ") depending on how much data is available.")}`
+
+<!-- The next graph shows the percentage of predicted positive pools by year comparing the forecast year (in `r colorize("red", "red")`) to the requested comparison years (shades of blue) and all other years (gray). If there is sufficient data in the forecast year, the observed pools rates are shown as black dots, binned into a variable number of different time points (up to `r mosq_bins_max`) depending on how much data is available. -->
 
 ```{r mosquito_pools_posrate, out.width="100%", fig.height = poolpos_height, echo=FALSE, include=TRUE}
 
@@ -3572,7 +3574,8 @@ mosq_pool_labels <- c("endyear" = "Current year",
                       "historical" = "Other years")
 
 
-if (mosquito_model_clean %in% mosq_nonstrat_models) {
+if (mosquito_model_clean %in% c("AUC", "MIGR", "MII")){
+  #this makes no sense for "simpleratio" (also, no mir_glm object)
   
   mosq_doy_preds <- tidyr::expand_grid(
     year_epi = seq(params$year_mosquito_start,
