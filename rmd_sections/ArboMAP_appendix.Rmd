@@ -882,7 +882,7 @@ if (nrow(appx_data_env_fc_yr) > 0){
 
 ### Modeled mosquito infection rate
 
-In modeling years where sufficient mosquito data were present, the mosquito infection rate (MIR) statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. The following table presents the calculated centered MIR values that were used in the forecast modeling. 
+In modeling years where sufficient mosquito data were present, the mosquito infection rate (MIR) statistic was created using the model specified in the input parameter: `r mosquito_model_clean`. The following table presents these raw calculated MIR values and then the MIR values that were used in the forecast modeling after imputation for unknown years and centering. Imputation was done via a linear model between known MIR values and the total human cases (interacting with strata if using a stratified model). If the current forecast year had no mosquito data yet, it was assumed to have an average risk (MIR = 0).  
 
 ```{r appx_mir, echo=FALSE, include=TRUE}
 
