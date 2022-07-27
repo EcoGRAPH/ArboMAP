@@ -452,6 +452,8 @@ R (<https://www.r-project.org>) is a statistical programming language that runs 
 
 It is easiest to download R from the Comprehensive R Archive Network (CRAN): <https://cloud.r-project.org>. For Windows user, please click on the link for "Download R for Windows" (Figure \@ref(fig:rdownload)). Choose "base," then "Download R for Windows" (Figure \@ref(fig:rwindows)). Run this file and install R on your system. Use the default settings for the installer.
 
+Due to improvements in memory handling, it is recommended to have at version 4.2.1 or later of base R, especially if the computer has limited RAM. 
+
 ```{r rdownload, echo=FALSE, fig.align='center', out.width='80%', fig.cap="Main download link page on CRAN for R"}
 knitr::include_graphics(file.path("figures", "r_download.png"))
 ```
@@ -519,27 +521,7 @@ Details on how to use GEE are found in the [How-to: Google Earth Engine (GEE) to
 
 ## Set-up: Annual update at start of WNV season
 
-When preparing to start running weekly reports for the new WNV season, there are three main steps that are needed annually: 1) updating software, 2) acquiring data, and 3) updating parameters. 
-
-
-### Optional annual software update
-
-This is an optional step that is only required if reports are being generated as pdfs instead of html format. When pdfs are created, ArboMAP is using tinytex in the background. TeX Live is updated every year at the beginning of April, so ArboMAP must also be updated. 
-
-1) Click on the `ArboMAP.Rproj` file to open the project in RStudio. 
-
-2) In RStudio, in the Files pane, click on `annual_midApril_tex_update.R` (Figure \@ref(fig:annual-file)). 
-
-    ```{r annual-file, echo=FALSE, fig.align='center', out.height='25%', fig.cap="RStudio Files pane showing the annual TeX update script marked."}
-    knitr::include_graphics(file.path("figures", "files_rstudio_annualtex.jpg"))
-    ```
-
-3) In the Source pane that opens up, make sure the cursor is at the start of line 1, and hit "Run" (Figure \@ref(fig:annual-tex)). 
-
-```{r annual-tex, echo=FALSE, fig.align='center', out.width='60%', fig.cap="Annual TeX update script as seen in RStudio Source pane."}
-knitr::include_graphics(file.path("figures", "annual_tex.jpg"))
-```
-
+When preparing to start running weekly reports for the new WNV season, there are three main steps that are needed annually: 1) acquiring data, 2) updating parameters, and 3) updating software, if necessary. 
 
 ### Annual data update
 
@@ -594,6 +576,23 @@ IF the file names of the human or mosquito data has changed, those parameters wi
 
 See the [Parameter](#params) section for a description of all parameters. 
 
+### Optional annual software update
+
+This is an optional step that is only required if reports are being generated as pdfs instead of html format. When pdfs are created, ArboMAP is using tinytex in the background. TeX Live is updated every year at the beginning of April, so ArboMAP must also be updated. 
+
+1) Click on the `ArboMAP.Rproj` file to open the project in RStudio. 
+
+2) In RStudio, in the Files pane, click on `annual_midApril_tex_update.R` (Figure \@ref(fig:annual-file)). 
+
+    ```{r annual-file, echo=FALSE, fig.align='center', out.height='25%', fig.cap="RStudio Files pane showing the annual TeX update script marked."}
+    knitr::include_graphics(file.path("figures", "files_rstudio_annualtex.jpg"))
+    ```
+
+3) In the Source pane that opens up, make sure the cursor is at the start of line 1, and hit "Run" (Figure \@ref(fig:annual-tex)). 
+
+```{r annual-tex, echo=FALSE, fig.align='center', out.width='60%', fig.cap="Annual TeX update script as seen in RStudio Source pane."}
+knitr::include_graphics(file.path("figures", "annual_tex.jpg"))
+```
 
 \clearpage
 
