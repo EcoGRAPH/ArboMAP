@@ -27,7 +27,7 @@ knitr::opts_chunk$set(fig.pos= "H")
 \fancyhead[C]{ArboMAP Quick Start: Annual Pre-season Update}
 \fancyhead[R]{}
 
-\fancyfoot[L]{Updated `r format(Sys.time(), '%B %d, %Y')` for Version 4.2}
+\fancyfoot[L]{Updated `r format(Sys.time(), '%B %d, %Y')` for Version 4.3}
 \fancyfoot[C]{}
 \fancyfoot[R]{}
 <!-- To get line above footer. Default is 0pt -->
