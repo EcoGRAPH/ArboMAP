@@ -340,7 +340,7 @@ The parameters, listed in order of appearance, with both code names and long des
 * `mosquito_model` is a code for the type of mosquito infection rate model to be used: 
   * `simpleratio`: Percent positive mosquito pools
   * `AUC`: Area under the mosquito infection growth curve 
-  * `MIGR`: Mosquito infection growth rate
+  * `MIGR`: Mosquito infection growth rate (the default if text cannot be matched to another option)
   * `MII`: Mosquito infection intercept (constant term from the mosquito infection growth rate equation) 
   * `stratifiedMIGR`: Spatially stratified version of MIGR 
   * `stratifiedMII`: Spatially stratified version of MII.

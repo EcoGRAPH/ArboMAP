@@ -1104,8 +1104,8 @@ if (params$mosquito_model %in% c(
   "stratifiedMII")){
   mosquito_model_clean <- params$mosquito_model
 } else {
-  #if unmatched, default AUC
-  mosquito_model_clean <- "AUC"
+  #if unmatched, default MIGR
+  mosquito_model_clean <- "MIGR"
 }
 #list of non/stratified models for easier filtering
 mosq_nonstrat_models <- c("simpleratio", "AUC", "MIGR", "MII")
