@@ -1076,7 +1076,7 @@ dx_mosq_counties_fcyr <- data_mosq_fcyr %>%
 mosq_pos_num_fcyr <- data_mosq_fcyr %>% 
   dplyr::filter(wnv_result == 1) %>% 
   nrow()
-#percent of pools positive in max year
+#percent of pools positive in forecast year
 mosq_pos_perc_fcyr <- mosq_pos_num_fcyr / dx_mosq_nrow_fcyr * 100 %>% 
   round(3)
 ```
@@ -2307,14 +2307,6 @@ model_desc_names <- c(
   "tp-fx-anom" = "Anomalized weather with fixed thin plate splines",
   "tp-sv-nonanom" = "Non-anomalized weather with seasonally-varying thin plate splines",
   "tp-sv-anom" = "Anomalized weather with seasonally-varying thin plate splines")
-
-# NOTE on MAP figure sizing:
-# Need to remember that all different states are potentially possible 
-#  and cannot hard-code certain sizes as some states are taller than wide and vice versa
-# Using out.width and percentage (which will also work with html)
-# [DEV] [DMN] Alternatively, we could switch to calculating appropriate heights and widths using
-#       the dimensions of the sf bounding box. If formatting turns ugly, this is what I would suggest.
-#       You can use variables in the r code block headers for fig.height and fig.width
 
 ```
 
