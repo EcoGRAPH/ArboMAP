@@ -627,7 +627,7 @@ plot(appx_p_multiyr)
 \newpage
 ### Models and formulas
 
-The table below lists the models that were found in the `r params$file_models` file. Standard models will have a text description, but all models run should appear in the table along with their formula. 
+The table below lists the models that were found in the models file. Standard models will have a text description, but all models run should appear in the table along with their formula. 
 
 The following fields may be present: 
 

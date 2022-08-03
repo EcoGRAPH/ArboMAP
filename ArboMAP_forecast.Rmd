@@ -4300,15 +4300,20 @@ param_table <- tibble::tibble(Parameter = names(params_main),
   #  a full file path to a temporary directory (e.g. C:/Users/.../AppData) 
   #  AND IF a PDF report is being generated, this will trigger
   #  it to attempt to interpret is as Latex (undefined control sequence)
-  # So, we will strip out when temp file ("0.csv")
+  # So, we will strip out when temp file ("0.csv" for data or 0.txt for models file)
   # Due to a combination of browser security & not having access to the
   #  underlying shiny app directly, it is impossible to recover 
   #  the original file name
   dplyr::mutate(Value = dplyr::if_else(
     stringr::str_detect(Value, "0\\.csv$"),
     "File selected via browser",
+    Value)) %>% 
+  dplyr::mutate(Value = dplyr::if_else(
+    stringr::str_detect(Value, "0\\.txt$"),
+    "File selected via browser",
     Value))
-
+  
+  
 #add version number
 version_row <- tibble(Parameter = "version", Value = version_text)
 param_table <- param_table %>% 
