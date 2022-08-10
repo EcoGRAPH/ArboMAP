@@ -292,7 +292,7 @@ if (!is.null(params$dev_settings$data_sf)){
 }
 if (!is.null(params$dev_settings$model_formulas)){
   #override data
-  model_raw <- params$dev_settings$model_formulas
+  models_raw <- params$dev_settings$model_formulas
   
   #create named list from tbl
   model_formulas <- models_raw %>% 
