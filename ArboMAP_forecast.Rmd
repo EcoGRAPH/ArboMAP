@@ -292,7 +292,14 @@ if (!is.null(params$dev_settings$data_sf)){
 }
 if (!is.null(params$dev_settings$model_formulas)){
   #override data
-  model_formulas <- params$dev_settings$model_formulas
+  model_raw <- params$dev_settings$model_formulas
+  
+  #create named list from tbl
+  model_formulas <- models_raw %>% 
+    dplyr::pull(2, name = 1)
+  #just the model names for later use
+  model_names <- names(model_formulas)
+
 } else {
   #load from file, data_load code block
   model_formulas <- NULL
