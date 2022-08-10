@@ -220,12 +220,12 @@ depending on fields in datasets. One or the other, not a mix -->
 #parameters available:
 
 ##DATA
-# human_data: tbl of human case data (overrides file_human)
-# mosquito_data: tbl of mosquito pool data (overrides file_mosquito)
-# stratification_data: tbl of strata (overrides file_stratification)
-# weather_data: tbl of weather data (overrides folder_weather & processing)
-# county_sf: sf object of counties for state (overrides file_county_sf)
-# models_to_run: model formulas to run (overrides file_models)
+# data_human: tbl of human case data (overrides file_human)
+# data_mosquito: tbl of mosquito pool data (overrides file_mosquito)
+# data_strata: tbl of strata (overrides file_stratification)
+# data_weather: tbl of weather data (overrides folder_weather & processing)
+# data_sf: sf object of counties for state (overrides file_county_sf)
+# model_formulas: model formulas to run (overrides file_models)
 
 ##CACHED MODELS
 # save_models: TRUE/FALSE: Will create a list of saved model objects (using rest of input params)
@@ -309,7 +309,7 @@ if (!is.null(params$dev_settings$save_models)){
 #models_cached testing and possible use is done inside of forecast regression section
 if (!is.null(params$dev_settings$models_cached)){
   #use param given
-  save_models <- params$dev_settings$models_cached
+  models_cached <- params$dev_settings$models_cached
 } else {
   models_cached <- NULL
 }
