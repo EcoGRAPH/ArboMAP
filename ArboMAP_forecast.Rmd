@@ -276,12 +276,13 @@ if (!is.null(params$dev_settings$data_strata)){
   #load from file, data_load code block
   data_strata <- NULL
 }
+# RAW, as processing will still happen on override data, except for deduplication
 if (!is.null(params$dev_settings$data_weather)){
   #override data
-  data_weather <- params$dev_settings$data_weather
+  data_env_raw <- params$dev_settings$data_weather
 } else {
   #load from file, data_load code block
-  data_weather <- NULL
+  data_env_raw <- NULL
 }
 if (!is.null(params$dev_settings$data_sf)){
   #override data
@@ -472,25 +473,27 @@ if (is.null(model_formulas)){
 # Raw read in with prep for taking most recent value for day
 # See data_weather_latest block for that processing
 
-# Reading in of data & file modified time
-#get list of csv files (NOT in subfolders)
-env_csv_files_raw <- list.files(path = params$folder_weather, 
-                                pattern="*.csv$",
-                                full.names = TRUE, recursive = FALSE)
-
-#keep the names of only csv files that are not empty
-#not likely relevant here, however does no harm to check
-file_condition <- sapply(env_csv_files_raw, function(x) {length(readr::count_fields(x, readr::tokenizer_csv())) > 1})
-env_csv_files <- env_csv_files_raw[file_condition]
-
-#read in all data files, and add the time the file was last modified
-data_env_raw <- env_csv_files %>% 
-  lapply(function(x) {
-    readr::read_csv(x, show_col_types = FALSE) %>% 
-      #add last modified time
-      dplyr::mutate(file_time = file.info(x)$mtime)}) %>% 
-  #bind list items into one dataset
-  dplyr::bind_rows()
+if (is.null(data_env_raw)){
+  # Reading in of data & file modified time
+  #get list of csv files (NOT in subfolders)
+  env_csv_files_raw <- list.files(path = params$folder_weather, 
+                                  pattern="*.csv$",
+                                  full.names = TRUE, recursive = FALSE)
+  
+  #keep the names of only csv files that are not empty
+  #not likely relevant here, however does no harm to check
+  file_condition <- sapply(env_csv_files_raw, function(x) {length(readr::count_fields(x, readr::tokenizer_csv())) > 1})
+  env_csv_files <- env_csv_files_raw[file_condition]
+  
+  #read in all data files, and add the time the file was last modified
+  data_env_raw <- env_csv_files %>% 
+    lapply(function(x) {
+      readr::read_csv(x, show_col_types = FALSE) %>% 
+        #add last modified time
+        dplyr::mutate(file_time = file.info(x)$mtime)}) %>% 
+    #bind list items into one dataset
+    dplyr::bind_rows()
+}
 
 
 #Record row count of data as read in
@@ -1097,7 +1100,7 @@ mosq_pos_perc_fcyr <- mosq_pos_num_fcyr / dx_mosq_nrow_fcyr * 100 %>%
 #   mir_stat_ctr : post centering of above raw value
 #   mir_stat : NOT created in this block, but in mir imputation code block below.
 #             #if mir_impute, mir ~ total human cases, centered
-#             # else 
+#             # else 0 (average risk) and exactfit
 
 
 # If match failure, default will be AUC
@@ -1523,28 +1526,49 @@ if (dev_write_output){
 ```{r data_env_latest_history, echo=FALSE, include=FALSE, cache=FALSE} 
 
 #This block:
-# 1) picks out latest values when have duplicate values for a particular day
-# 2) calculates a historical env dataset on doy
+# 1) cleaning and processing
+# 2) picks out latest values when have duplicate values for a particular day
+# 3) calculates a historical env dataset on doy
+
+#Record row count (in year_weather_start through year_weather_end)
+dx_env_nrow_1range <- nrow(data_env_raw)
+
+#Clean env data
+# remove any with unmatched county info
+#   especially necessary for doing regression modeling
+data_env_raw <- data_env_raw %>% 
+  dplyr::filter(arbo_ID %in% unique(data_sf$arbo_ID))
+
+#Record row count post cleaning, pre deduplication
+dx_env_nrow_2clean <- nrow(data_env_raw)
 
 # As we will likely have data from the same day in multiple files,
 # we want to take only the LATEST value
 # (post ID set up section to remove extraneous fields before processing)
 
-data_env <- data_env_raw %>% 
-  #trim env vars to just predictor vars (removing extra env data)
-  dplyr::select(arbo_ID, date_obs, year, year_epi, week_epi, date_epi, doy,
-                file_time, 
-                params$predictor_var1, params$predictor_var2) %>% 
-  # Group by county and date, 
-  dplyr::group_by(arbo_ID, date_obs) %>% 
-  # sort by modified time DESC, 
-  dplyr::arrange(desc(file_time)) %>% 
-  # slice(1) to get first/latest (or only if not duplicated)
-  dplyr::slice(1) %>% 
-  #drop file time
-  dplyr::select(-file_time) %>%
-  #ungroup to finish
-  dplyr::ungroup()
+if (!is.null(params$dev_settings$data_weather)){
+  data_env <- data_env_raw %>% 
+    #trim env vars to just predictor vars (removing extra env data)
+    dplyr::select(arbo_ID, date_obs, year, year_epi, week_epi, date_epi, doy,
+                  file_time, 
+                  params$predictor_var1, params$predictor_var2) %>% 
+    # Group by county and date, 
+    dplyr::group_by(arbo_ID, date_obs) %>% 
+    # sort by modified time DESC, 
+    dplyr::arrange(desc(file_time)) %>% 
+    # slice(1) to get first/latest (or only if not duplicated)
+    dplyr::slice(1) %>% 
+    #drop file time
+    dplyr::select(-file_time) %>%
+    #ungroup to finish
+    dplyr::ungroup()
+} else {
+  #deduplication does not happen on override data, no file time
+  data_env <- data_env_raw
+}
+
+#Record row count post deduplication
+dx_env_nrow_3dedup <- nrow(data_env)
 
 #remove large and no longer needed raw dataset
 rm(data_env_raw)
