@@ -1547,6 +1547,9 @@ dx_env_nrow_2clean <- nrow(data_env_raw)
 # (post ID set up section to remove extraneous fields before processing)
 
 if (!is.null(params$dev_settings$data_weather)){
+    #deduplication does not happen on override data, no file time
+  data_env <- data_env_raw
+} else {
   data_env <- data_env_raw %>% 
     #trim env vars to just predictor vars (removing extra env data)
     dplyr::select(arbo_ID, date_obs, year, year_epi, week_epi, date_epi, doy,
@@ -1562,9 +1565,6 @@ if (!is.null(params$dev_settings$data_weather)){
     dplyr::select(-file_time) %>%
     #ungroup to finish
     dplyr::ungroup()
-} else {
-  #deduplication does not happen on override data, no file time
-  data_env <- data_env_raw
 }
 
 #Record row count post deduplication
