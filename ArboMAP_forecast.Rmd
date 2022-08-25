@@ -2560,7 +2560,7 @@ higher_risk <- 87.5
 
 #Count of counties with higher than average risk
 rel_risk_distr_count <- rel_risk %>% 
-  dplyr::filter(pred_ave >= higher_risk) %>% 
+  dplyr::filter(rank_perc >= higher_risk) %>% 
   nrow()
 
 
