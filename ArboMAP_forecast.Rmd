@@ -2255,9 +2255,13 @@ if (model_evaluation | dev_write_output){
                      dplyr::left_join(id_crosswalk, by = "arbo_ID") %>% 
                      dplyr::select(NAME, FIPS, week_epi, year_epi, model, pred, 
                                    case_count, any_cases, observed, modeled, 
-                                   date_epi, doy, everything()),
+                                   date_epi, doy, everything()) %>% 
+                     dplyr::mutate(year_report = epiyear_request,
+                                   week_report = epiweek_request),
                    file = file.path(out_folder, paste0(out_name_base, "_predictions.csv")))
-  readr::write_csv(model_evals_extra, 
+  readr::write_csv(model_evals_extra %>% 
+                     dplyr::mutate(year_report = epiyear_request,
+                                   week_report = epiweek_request), 
                    file = file.path(out_folder, paste0(out_name_base, "_evals_extra.csv")))
 }
 ```
