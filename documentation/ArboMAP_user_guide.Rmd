@@ -2,7 +2,7 @@
 title: "ArboMAP User Guide"
 subtitle: "Arbovirus Modeling and Prediction: West Nile Virus Forecasting"
 author: "Dawn M. Nekorchuk, Justin K. Davis, and Michael C. Wimberly    \n(mcwimberly@ou.edu)   \nEcological and Geospatial Reseearch and Applications in Planetary Health (EcoGRAPH)    \nGeography and Environmental Sustainability, University of Oklahoma"
-date: "Updated `r format(Sys.time(), '%B %d, %Y')` for Version 4.3"
+date: "Updated `r format(Sys.time(), '%B %d, %Y')` for Version 4.4"
 output: 
   bookdown::pdf_document2:
     toc: true
@@ -880,3 +880,4 @@ At the end of the main report, a chart of the parameters used for this run of th
 * Wimberly, M. C., P. Giacomo, L. Kightlinger, and M. B. Hildreth. 2013. Spatio-temporal epidemiology of human West Nile virus disease in South Dakota. International Journal of Environmental Research and Public Health 10: 5584-5602.
 * Wimberly, M. C., A. Lamsal, P. Giacomo, and T. Chuang. 2014. Regional variation of climatic influences on West Nile virus outbreaks in the United States. American Journal of Tropical Medicine and Hygiene 91: 677-684. 
 * Wimberly, M. C., J. K. Davis, M. B Hildreth, and J. L. Clayton. 2022. Integrated Forecasts Based on Public Health Surveillance and Meteorological Data Predict West Nile Virus in a High-Risk Region of North America. Environmental Health Perspectives 130 (8) August 2022. doi: https://doi.org/10.1289/EHP10287 
+

@@ -107,7 +107,7 @@ output:
 ```{r setup, include=FALSE}
 
 #VERSION
-version_text = "4.3"
+version_text = "4.4"
 
 #knitr
 options(warn=-1)
