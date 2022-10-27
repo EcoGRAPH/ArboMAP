@@ -66,6 +66,19 @@ knitr::include_graphics(file.path("figures", "arbomap_data_model.jpg"))
 ```
 
 
+The workflow for running a normal weekly report after set-up is divided into three main tasks (Figure \@ref(fig:userflow)). 
+
+1. Acquire updated WNV surveillance and entomological data from state databases. 
+2. Use the GEE app to obtain environmental data. 
+3. Use the R project GUI to generate a report. 
+
+```{r userflow, echo=FALSE, fig.align='center', out.width='100%', fig.cap="User-centered diagram showing the workflow steps and high-level code processes."}
+knitr::include_graphics(file.path("figures", "arbomap_user_system.jpg"))
+```
+
+The system diagram on the right (Figure \@ref(fig:userflow)) shows the high-level processes for modeling and forecasting in the code. Raw mosquito WNV test results are modeled to create an infection rate statistic. Distributed lags handle the delayed effects of environmental conditions on disease dynamics. 
+
+
 ## WNV history and modeling {#history}
 West Nile virus (WNV) in South Dakota is the example in this document. WNV circulates primarily among mosquitoes and birds, but occasionally spills over into human or other hosts. In humans, the majority (~80%) of infections show no symptoms and are not diagnosed except perhaps accidentally during blood donation. Some small proportion of individuals will develop symptoms such as headache, fever, and rash, but in about one out of every 100 infected individuals, the disease becomes neuroinvasive and can cause debilitating illness and death.
 
@@ -866,3 +879,4 @@ At the end of the main report, a chart of the parameters used for this run of th
 * Wimberly, M. C., M. B. Hildreth, S. P. Boyte, E. Lindquist, and L. Kightlinger. 2008. Ecological niche of the 2003 West Nile virus epidemic in the northern Great Plains of the United States. PLoS One 3: e3744.
 * Wimberly, M. C., P. Giacomo, L. Kightlinger, and M. B. Hildreth. 2013. Spatio-temporal epidemiology of human West Nile virus disease in South Dakota. International Journal of Environmental Research and Public Health 10: 5584-5602.
 * Wimberly, M. C., A. Lamsal, P. Giacomo, and T. Chuang. 2014. Regional variation of climatic influences on West Nile virus outbreaks in the United States. American Journal of Tropical Medicine and Hygiene 91: 677-684. 
+* Wimberly, M. C., J. K. Davis, M. B Hildreth, and J. L. Clayton. 2022. Integrated Forecasts Based on Public Health Surveillance and Meteorological Data Predict West Nile Virus in a High-Risk Region of North America. Environmental Health Perspectives 130 (8) August 2022. doi: https://doi.org/10.1289/EHP10287 
