@@ -107,7 +107,7 @@ output:
 ```{r setup, include=FALSE}
 
 #VERSION
-version_text = "4.4"
+version_text = "4.5"
 
 #knitr
 options(warn=-1)
@@ -4326,7 +4326,7 @@ The report was run with the following parameters set.
 # developer parameters in a separate table, only if it exists
 
 #Split out dev_settings to handle separately
-params_main <- params %>% purrr::list_modify("dev_settings" = NULL)
+params_main <- params %>% purrr::list_assign('dev_settings' =  purrr::zap())
 
 #table of main report parameters
 param_table <- tibble::tibble(Parameter = names(params_main), 
